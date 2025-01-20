@@ -2,9 +2,11 @@ from . import logger
 from concurrent.futures import ThreadPoolExecutor
 import ais
 import duckdb
-from utils.ais_db_utils import *
+from src.maritimeviz.utils.ais_db_utils import *
 
-class ais_db:
+
+
+class AISDatabase:
     """
     Class to manage the initialization, population, and interaction with the AIS database.
     """
@@ -70,7 +72,7 @@ class ais_db:
 
 
 
-    def process_file(file_path, threading_stats=(4,500)):
+    def process_file(self, file_path, threading_stats=(4,500)):
       """
       Process the AIS file using on-the-fly chunk splitting and multithreading.
       """
@@ -78,7 +80,7 @@ class ais_db:
       self.initialize_database()
 
       try:
-        threading_stats = optimatal_threading_stats(file_path) # thread and chunk size
+        threading_stats = optimal_threading_stats(file_path) # thread and chunk size
         print(f"Threading parameters: {threading_stats}")
       except:
         logging.info("Using default threading values: 4 threads and chunks of 500 lines")

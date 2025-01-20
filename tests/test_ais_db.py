@@ -1,17 +1,17 @@
 import pytest
-from src.maritimeviz import ais_db
+from src.maritimeviz.ais_db import AISDatabase
 
-file_path = "ais_2016_07_28_aa"
+file_path = "tests/ais_2016_07_28_aa"
 db_path ="test_db.duckdb"
 
 def test_initialize_database():
-    db = ais_db(db_path)
+    db = AISDatabase(db_path)
     db.initialize_database()
     assert db.connection is not None
     db.close()
 
 def test_process_file():
-    db = ais_db(db_path)
+    db = AISDatabase(db_path)
     db.process_file(file_path)
 
     # Query the database to check row counts

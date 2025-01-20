@@ -49,6 +49,32 @@ def optimal_threading_stats(ais_file, cpu_cores=None, min_chunk_size=500):
         logger.error("Using default: {threads: 4, chunk_size: 500}")
         return 4, 500
 
+def split_file_generator(file_path, chunk_size=500):
+    """
+    Splits the file into fixed-size chunks and yields each chunk.
+    """
+    with open(file_path, "r") as file:
+        chunk = []
+        for i, line in enumerate(file):
+            chunk.append(line)
+            if (i + 1) % chunk_size == 0:  # Yield chunk when size is reached
+                yield chunk
+                chunk = []
+        if chunk:  # Yield any remaining lines
+            yield chunk
+
+def process_chunk_to_db(conn, chunk):
+    """
+    Process a chunk of lines and insert messages into the database.
+    """
+    import ais.stream  # Import required for threading compatibility
+
+    for msg in ais.stream.decode(chunk):
+        try:
+            if msg['id'] in {1, 2, 3, 5}:  # Filter messages
+                insert_msg_to_db(conn, msg)  # Insert message into database
+        except Exception as e:
+            logger.error(f"Error processing message: {msg} - {e}")
 
 def insert_msg_to_db(conn, msg):
     populate_table_1_2_3 = """
