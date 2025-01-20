@@ -18,7 +18,9 @@ classifiers = [
 ]
 license = {text = "MIT license"}
 dependencies = [
-  "typer"
+  "typer",
+  "libais>=0.17",
+  "duckdb>=0.7.1"
 ]
 
 [project.optional-dependencies]
@@ -34,6 +36,9 @@ dev = [
 bugs = "https://github.com/Thaliavch/maritimeviz/issues"
 changelog = "https://github.com/Thaliavch/maritimeviz/blob/master/changelog.md"
 homepage = "https://github.com/Thaliavch/maritimeviz"
+
+[project.scripts]
+maritimeviz = "main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

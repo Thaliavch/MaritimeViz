@@ -1,4 +1,9 @@
 """Top-level package for MaritimeViz."""
+import logging
+
+# Configuring package-wide logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 __author__ = """Thalia Valle, Marcelo Amorin, Enrique Baggio, Paulo Drefhal"""
 __email__ = 'thaliasaxo@gmail.com'
