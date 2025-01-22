@@ -160,6 +160,13 @@ class AISDatabase:
             # Add geographical bounds filter
             if polygon_bounds:
                 "Code to query based on bounds"
+                # Add bounding box filter to query
+                min_lon = min(p[0] for p in polygon_bounds)
+                max_lon = max(p[0] for p in polygon_bounds)
+                min_lat = min(p[1] for p in polygon_bounds)
+                max_lat = max(p[1] for p in polygon_bounds)
+                query += " AND x BETWEEN ? AND ? AND y BETWEEN ? AND ?"
+                params.extend([min_lon, max_lon, min_lat, max_lat])
 
             # Execute query and fetch results
             results = conn.execute(query, params).fetchall()
