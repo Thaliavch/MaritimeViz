@@ -116,6 +116,59 @@ class AISDatabase:
         """
         return self.connection
 
+    def info(self, mmsi, conn=None, start_date=None, end_date=None,
+             polygon_bounds=None):
+        """
+        Retrieve AIS data for a specific MMSI with optional date and geographical bounds.
+
+        Parameters:
+        - mmsi (int): The MMSI (Maritime Mobile Service Identity) to filter data.
+        - conn: Optional. The DuckDB connection. Defaults to self.connection.
+        - start_date (str): Optional. Start of the date range (ISO 8601 format: 'YYYY-MM-DD').
+        - end_date (str): Optional. End of the date range (ISO 8601 format: 'YYYY-MM-DD').
+        - polygon_bounds (list of tuples): Optional. List of (longitude, latitude) tuples forming a polygon.
+
+        Returns:
+        - For now it returns a list of rows that match the criteria, but we will add a new table for the given mmsi to
+        the database and return a dataframe-like object
+        """
+        if not conn:
+            conn = self.connection
+
+        try:
+            # Base query
+            query = """
+            SELECT *
+            FROM ais_msg_123
+            WHERE mmsi = ?
+            """
+
+            # Parameters to pass to the query
+            params = [mmsi]
+
+            # Add date range filter
+            if start_date and end_date:
+                start_tagblock_timestamp = date_to_tagblock_timestamp(
+                    int(start_date[:4]), int(start_date[5:7]),
+                    int(start_date[8:10]))
+                end_tagblock_timestamp = date_to_tagblock_timestamp(
+                    int(end_date[:4]), int(end_date[5:7]), int(end_date[8:10]))
+                query += " AND tagblock_timestamp BETWEEN ? AND ?"
+                params.extend(
+                    [start_tagblock_timestamp, end_tagblock_timestamp])
+
+            # Add geographical bounds filter
+            if polygon_bounds:
+                "Code to query based on bounds"
+
+            # Execute query and fetch results
+            results = conn.execute(query, params).fetchall()
+            return results
+
+        except Exception as e:
+            logger.error(f"Error retrieving data: {e}")
+            return []
+
     def __del__(self):
         self.close_conn()
 

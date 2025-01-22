@@ -1,6 +1,7 @@
 import os
 import json
 from . import logger
+import datetime
 
 def estimate_lines_by_size(file_path, avg_bytes_per_line=90):
     """
@@ -147,3 +148,44 @@ def insert_msg_to_db(conn, msg):
 
     conn.execute(query, params)
 
+def date_to_tagblock_timestamp(year, month, day, hour=0, minute=0, second=0):
+    """
+    Convert a specific date and time to a tagblock_timestamp (Unix timestamp).
+
+    Parameters:
+        year (int): Year of the date (e.g., 2025).
+        month (int): Month of the date (1-12).
+        day (int): Day of the month (1-31).
+        hour (int): Hour of the day (0-23). Default is 0.
+        minute (int): Minute of the hour (0-59). Default is 0.
+        second (int): Second of the minute (0-59). Default is 0.
+
+    Returns:
+        int: Tagblock timestamp as a Unix timestamp.
+    """
+    # Create a datetime object for the given date and time in UTC
+    dt = datetime.datetime(year, month, day, hour, minute, second)
+
+    # Convert datetime to Unix timestamp
+    timestamp = int(dt.timestamp())
+
+    return timestamp
+
+# May need this for testing, so probably will be moved to a testing utils file
+def tagblock_timestamp_to_date(tagblock_timestamp):
+    """
+    Convert a tagblock_timestamp (Unix timestamp) to a human-readable date and time.
+
+    Parameters:
+        tagblock_timestamp (int): Unix timestamp.
+
+    Returns:
+        str: Date and time in the format "YYYY-MM-DD HH:MM:SS" (UTC).
+    """
+    # Convert the Unix timestamp to a datetime object in UTC
+    dt = datetime.datetime.utcfromtimestamp(tagblock_timestamp)
+
+    # Format the datetime object as a string
+    readable_time = dt.strftime("%Y-%m-%d %H:%M:%S")
+
+    return readable_time
