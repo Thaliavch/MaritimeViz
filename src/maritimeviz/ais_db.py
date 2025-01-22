@@ -86,8 +86,8 @@ class AISDatabase:
 
       # Use a ThreadPoolExecutor for processing
       with ThreadPoolExecutor(max_workers= threading_stats[0]) as executor:
-          #for chunk in split_file_generator(file_path, threading_stats[1]):
-            executor.submit(process_chunk_to_db, self.connection, split_file_generator(file_path, threading_stats[1]))
+          for chunk in split_file_generator(file_path, threading_stats[1]):
+            executor.submit(process_chunk_to_db, self.connection, chunk)
 
 
     def open_conn(self):
@@ -118,3 +118,12 @@ class AISDatabase:
 
     def __del__(self):
         self.close_conn()
+
+    # def info(self, conn=None):
+    #     if not conn:
+    #         conn = self.connection
+    #
+    #     try:
+    #         query
+
+
