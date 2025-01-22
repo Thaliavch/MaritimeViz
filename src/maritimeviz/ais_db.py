@@ -115,3 +115,6 @@ class AISDatabase:
         Return current connection
         """
         return self.connection
+
+    def __del__(self):
+        self.close_conn()
