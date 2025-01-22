@@ -6,7 +6,7 @@ db_path ="test_db.duckdb"
 
 def test_initialize_database():
     db = AISDatabase(db_path)
-    db.initialize_database()
+    db.init_db()
     assert db.connection is not None
     db.close()
 

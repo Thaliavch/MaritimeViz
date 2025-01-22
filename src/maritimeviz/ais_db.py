@@ -12,13 +12,13 @@ class AISDatabase:
     """
     def __init__(self, db_path="ais_data.duckdb"):
         self.db_path = db_path
-        self.connection = None
+        self.connection = self.init_db(db_path)
 
-    def initialize_database(self):
+    def init_db(self, db_path):
         """
-        Initialize DuckDB database.
+        Initialize DuckDB database with schema.
         """
-        self.connection = duckdb.connect(self.db_path)
+        connection = duckdb.connect(db_path)
         create_table_query_for_1_2_3 = """
         CREATE TABLE IF NOT EXISTS ais_msg_123 (
             id INTEGER,
@@ -67,36 +67,51 @@ class AISDatabase:
             dte BOOLEAN
         );
         """
-        self.connection.execute(create_table_query_for_1_2_3)
-        self.connection.execute(create_table_query_for_5)
-
+        connection.execute(create_table_query_for_1_2_3)
+        connection.execute(create_table_query_for_5)
+        return connection
 
 
     def process_file(self, file_path, threading_stats=(4,500)):
       """
       Process the AIS file using on-the-fly chunk splitting and multithreading.
       """
-    # Create the database tables
-      self.initialize_database()
 
       try:
         threading_stats = optimal_threading_stats(file_path) # thread and chunk size
-        print(f"Threading parameters: {threading_stats}")
+        logger.info(f"Threading parameters: {threading_stats}")
       except:
-        logging.info("Using default threading values: 4 threads and chunks of 500 lines")
+        logger.info("Using default threading values: 4 threads and chunks of 500 lines")
 
 
       # Use a ThreadPoolExecutor for processing
       with ThreadPoolExecutor(max_workers= threading_stats[0]) as executor:
-          for chunk in split_file_generator(file_path, threading_stats[1]):
-              executor.submit(process_chunk_to_db, self.connection, chunk)
+          #for chunk in split_file_generator(file_path, threading_stats[1]):
+            executor.submit(process_chunk_to_db, self.connection, split_file_generator(file_path, threading_stats[1]))
 
-      self.close()
 
-    def close(self):
+    def open_conn(self):
+        """
+        Open database connection if not already open
+        """
+        if not self.connection:
+            self.connection = duckdb.connect(self.db_path)
+            return self.connection
+        else:
+            print("Returning existing connection")
+            return self.connection
+
+
+    def close_conn(self):
         """
         Close the database connection.
         """
         if self.connection:
             self.connection.close()
             self.connection = None
+
+    def get_conn(self):
+        """
+        Return current connection
+        """
+        return self.connection
