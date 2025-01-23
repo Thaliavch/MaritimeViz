@@ -126,7 +126,7 @@ class AISDatabase:
         - conn: Optional. The DuckDB connection. Defaults to self.connection.
         - start_date (str): Optional. Start of the date range (ISO 8601 format: 'YYYY-MM-DD').
         - end_date (str): Optional. End of the date range (ISO 8601 format: 'YYYY-MM-DD').
-        - polygon_bounds (list of tuples): Optional. List of (longitude, latitude) tuples forming a polygon.
+        - polygon_bounds (list of tuples): Optional. List of (longitude, latitude) tuples forming a polygon. Last tuple is the closing point.
 
         Returns:
         - For now it returns a list of rows that match the criteria, but we will add a new table for the given mmsi to
@@ -172,9 +172,67 @@ class AISDatabase:
             results = conn.execute(query, params).fetchall()
             return results
 
+        
+
         except Exception as e:
             logger.error(f"Error retrieving data: {e}")
             return []
+
+    def query_by_region_and_time(self, conn=None, polygon_bounds=None, start_date=None, end_date=None):
+    """
+    Retrieve all information for data points within a polygon and a specific time range.
+
+    Parameters:
+    - conn: Optional. The DuckDB connection. Defaults to self.connection.
+    - polygon_bounds (list of tuples): List of (longitude, latitude) tuples forming a polygon. Last tuple is the closing point.
+    - start_date (str): Optional. Start of the date range (ISO 8601 format: 'YYYY-MM-DD').
+    - end_date (str): Optional. End of the date range (ISO 8601 format: 'YYYY-MM-DD').
+
+    Returns:
+    - List of rows matching the criteria.
+    """
+    if not conn:
+        conn = self.connection
+
+    try:
+        # Base query
+        query = """
+        SELECT *
+        FROM ais_msg_123
+        WHERE 1=1
+        """  # "1=1" makes it easier to append optional conditions dynamically.
+
+        # Parameters for the query
+        params = []
+
+        # Add date range filter
+        if start_date and end_date:
+            start_tagblock_timestamp = date_to_tagblock_timestamp(
+                int(start_date[:4]), int(start_date[5:7]), int(start_date[8:10])
+            )
+            end_tagblock_timestamp = date_to_tagblock_timestamp(
+                int(end_date[:4]), int(end_date[5:7]), int(end_date[8:10])
+            )
+            query += " AND tagblock_timestamp BETWEEN ? AND ?"
+            params.extend([start_tagblock_timestamp, end_tagblock_timestamp])
+
+        # Add geographical bounds filter
+        if polygon_bounds:
+            # Calculate the bounding box for the polygon
+            min_lon = min(p[0] for p in polygon_bounds)
+            max_lon = max(p[0] for p in polygon_bounds)
+            min_lat = min(p[1] for p in polygon_bounds)
+            max_lat = max(p[1] for p in polygon_bounds)
+            query += " AND x BETWEEN ? AND ? AND y BETWEEN ? AND ?"
+            params.extend([min_lon, max_lon, min_lat, max_lat])
+
+        # Execute query and fetch results
+        results = conn.execute(query, params).fetchall()
+        return results
+
+    except Exception as e:
+        logger.error(f"Error retrieving data: {e}")
+        return []
 
     def __del__(self):
         self.close_conn()
