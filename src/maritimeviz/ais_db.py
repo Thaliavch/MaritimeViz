@@ -181,58 +181,46 @@ class AISDatabase:
 
     Parameters:
     - conn: Optional. The DuckDB connection. Defaults to self.connection.
-    - polygon_bounds (list of tuples): List of (longitude, latitude) tuples forming a polygon. Last tuple is the closing point.
+    - polygon_bounds (str): Polygon bounds in WKT format.
     - start_date (str): Optional. Start of the date range (ISO 8601 format: 'YYYY-MM-DD').
     - end_date (str): Optional. End of the date range (ISO 8601 format: 'YYYY-MM-DD').
 
     Returns:
-    - List of rows matching the criteria.
+    - pandas.DataFrame containing rows matching the criteria.
     """
     if not conn:
         conn = self.connection
 
     try:
         # Base query
-        query = """
-        SELECT *
-        FROM ais_msg_123
-        WHERE 1=1
-        """  # "1=1" makes it easier to append optional conditions dynamically.
-
-        # Parameters for the query
+        query = "SELECT * FROM ais_msg_123 WHERE 1=1"
         params = []
 
         # Add date range filter
         if start_date and end_date:
-            start_tagblock_timestamp = date_to_tagblock_timestamp(
-                int(start_date[:4]), int(start_date[5:7]), int(start_date[8:10])
-            )
-            end_tagblock_timestamp = date_to_tagblock_timestamp(
-                int(end_date[:4]), int(end_date[5:7]), int(end_date[8:10])
-            )
+            start_timestamp = date_to_tagblock_timestamp(*map(int, start_date.split("-")))
+            end_timestamp = date_to_tagblock_timestamp(*map(int, end_date.split("-")))
             query += " AND tagblock_timestamp BETWEEN ? AND ?"
-            params.extend([start_tagblock_timestamp, end_tagblock_timestamp])
+            params.extend([start_timestamp, end_timestamp])
 
         # Add polygon bounds filter
         if polygon_bounds:
             query += """
             AND ST_Within(
-                ST_Point(x, y), 
+                ST_Point(x, y),
                 ST_GeomFromText(?)
             )
             """
             params.append(polygon_bounds)
 
-        # Execute query and fetch results
-        results = conn.execute(query, params).fetchall()
+        # Fetch results as a DataFrame
+        results = conn.execute(query, params).fetchdf()
         return results
 
     except Exception as e:
         logger.error(f"Error retrieving data: {e}")
-        return []
+        return pd.DataFrame()  # Return an empty DataFrame on error
 
-    def __del__(self):
-        self.close_conn()
 
     # def info(self, conn=None):
     #     if not conn:
