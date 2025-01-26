@@ -157,22 +157,19 @@ class AISDatabase:
                 params.extend(
                     [start_tagblock_timestamp, end_tagblock_timestamp])
 
-            # Add geographical bounds filter
+            # Add polygon bounds filter
             if polygon_bounds:
-                "Code to query based on bounds"
-                # Add bounding box filter to query
-                min_lon = min(p[0] for p in polygon_bounds)
-                max_lon = max(p[0] for p in polygon_bounds)
-                min_lat = min(p[1] for p in polygon_bounds)
-                max_lat = max(p[1] for p in polygon_bounds)
-                query += " AND x BETWEEN ? AND ? AND y BETWEEN ? AND ?"
-                params.extend([min_lon, max_lon, min_lat, max_lat])
+                query += """
+                AND ST_Within(
+                    ST_Point(x, y), 
+                    ST_GeomFromText(?)
+                )
+                """
+                params.append(polygon_bounds)
 
             # Execute query and fetch results
             results = conn.execute(query, params).fetchall()
             return results
-
-        
 
         except Exception as e:
             logger.error(f"Error retrieving data: {e}")
@@ -216,15 +213,15 @@ class AISDatabase:
             query += " AND tagblock_timestamp BETWEEN ? AND ?"
             params.extend([start_tagblock_timestamp, end_tagblock_timestamp])
 
-        # Add geographical bounds filter
+        # Add polygon bounds filter
         if polygon_bounds:
-            # Calculate the bounding box for the polygon
-            min_lon = min(p[0] for p in polygon_bounds)
-            max_lon = max(p[0] for p in polygon_bounds)
-            min_lat = min(p[1] for p in polygon_bounds)
-            max_lat = max(p[1] for p in polygon_bounds)
-            query += " AND x BETWEEN ? AND ? AND y BETWEEN ? AND ?"
-            params.extend([min_lon, max_lon, min_lat, max_lat])
+            query += """
+            AND ST_Within(
+                ST_Point(x, y), 
+                ST_GeomFromText(?)
+            )
+            """
+            params.append(polygon_bounds)
 
         # Execute query and fetch results
         results = conn.execute(query, params).fetchall()
