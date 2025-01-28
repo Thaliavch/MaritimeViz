@@ -1,3 +1,4 @@
+from functools import lru_cache
 from . import logger
 from concurrent.futures import ThreadPoolExecutor
 import ais
@@ -116,6 +117,14 @@ class AISDatabase:
         """
         return self.connection
 
+    # All results will be verified here for previous cache
+    @lru_cache(maxsize=100)  # Cache up to 100 unique query results
+    def _cached_query(self, query, params):
+        """
+        Verify requested query for cached results.
+        """
+        return self.connection.execute(query, params).fetchall()
+
     def info(self, mmsi, conn=None, start_date=None, end_date=None,
              polygon_bounds=None):
         """
@@ -168,7 +177,7 @@ class AISDatabase:
                 params.append(polygon_bounds)
 
             # Execute query and fetch results
-            results = conn.execute(query, params).fetchall()
+            results = self._cached_query(query, tuple(params))
             return results
 
         except Exception as e:
@@ -213,8 +222,8 @@ class AISDatabase:
             """
             params.append(polygon_bounds)
 
-        # Fetch results as a DataFrame
-        results = conn.execute(query, params).fetchdf()
+        # Execute query and fetch results
+        results = self._cached_query(query, tuple(params))
         return results
 
     except Exception as e:
