@@ -130,7 +130,7 @@ class AISDatabase:
         return self.connection.execute(query, params).fetchall()
 
     def search_mmsi(self, mmsi, conn=None, start_date=None, end_date=None,
-                    polygon_bounds=None, style=None):
+                    polygon_bounds=None):
         """
               Retrieves AIS data for a specific MMSI from the `ais_msg_123` table and returns it as a GeoPandas GeoDataFrame.
 
@@ -207,24 +207,16 @@ class AISDatabase:
             df["datetime"] = pd.to_datetime(df["tagblock_timestamp"], unit="s",
                                             utc=True)
             df.sort_values(by="tagblock_timestamp", inplace=True)
-            # Wrap in a GeoPandas Dataframe
+            # Wrap with GeoPandas
             gdf = gpd.GeoDataFrame(df, geometry="geometry",
-                                   crs="EPSG:4326")  # Assuming lat/lon WGS84
+                                   crs="EPSG:4326")  #  lat/lon WGS84
             # Styling dgp before returning
-            try:
-                if not style:
-                    style = {"selector": "th, td",
-                             "props": [("border", "1px solid black"),
-                                       ("text-align", "left")]}
 
-                return gdf.style.set_table_styles([style])
-            except:
-                logger.error(f"Could not apply given style: {style}")
-                return gdf.style.set_table_styles([{"selector": "th, td",
+            return gdf.style.set_table_styles([{"selector": "th, td",
                                                     "props": [("border",
                                                                "1px solid black"),
                                                               ("text-align",
-                                                               "center")]}])
+                                                               "left")]}])
 
         except Exception as e:
             logger.error(f"Error retrieving data: {e}")
@@ -276,12 +268,5 @@ class AISDatabase:
             logger.error(f"Error retrieving data: {e}")
             return pd.DataFrame()  # Return an empty DataFrame on error
 
-
-    # def search_mmsi(self, conn=None):
-    #     if not conn:
-    #         conn = self.connection
-    #
-    #     try:
-    #         query
 
 
