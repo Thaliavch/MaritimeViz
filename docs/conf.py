@@ -50,7 +50,7 @@ project = 'MaritimeViz'
 copyright = "2025, Thalia Valle, Marcelo Amorin, Enrique Baggio, Paulo Drefhal"
 author = "Thalia Valle, Marcelo Amorin, Enrique Baggio, Paulo Drefhal"
 
-# The version info for the project you're documenting, acts as replacement
+# The version search_mmsi for the project you're documenting, acts as replacement
 # for |version| and |release|, also used in various other places throughout
 # the built documents.
 #

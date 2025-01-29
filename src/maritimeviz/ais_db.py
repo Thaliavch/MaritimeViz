@@ -1,10 +1,14 @@
-from functools import lru_cache
-from . import logger
 from concurrent.futures import ThreadPoolExecutor
-import ais
-import duckdb
-from src.maritimeviz.utils.ais_db_utils import *
+from functools import lru_cache
 
+import duckdb
+import pandas as pd
+import geopandas as gpd
+from shapely.geometry import Point
+from constants import *
+
+from src.maritimeviz.utils.ais_db_utils import *
+from . import logger
 
 
 class AISDatabase:
@@ -80,9 +84,9 @@ class AISDatabase:
 
       try:
         threading_stats = optimal_threading_stats(file_path) # thread and chunk size
-        logger.info(f"Threading parameters: {threading_stats}")
+        logger.search_mmsi(f"Threading parameters: {threading_stats}")
       except:
-        logger.info("Using default threading values: 4 threads and chunks of 500 lines")
+        logger.search_mmsi("Using default threading values: 4 threads and chunks of 500 lines")
 
 
       # Use a ThreadPoolExecutor for processing
@@ -125,22 +129,38 @@ class AISDatabase:
         """
         return self.connection.execute(query, params).fetchall()
 
-    def info(self, mmsi, conn=None, start_date=None, end_date=None,
-             polygon_bounds=None):
+    def search_mmsi(self, mmsi, conn=None, start_date=None, end_date=None,
+                    polygon_bounds=None, style=None):
         """
-        Retrieve AIS data for a specific MMSI with optional date and geographical bounds.
+              Retrieves AIS data for a specific MMSI from the `ais_msg_123` table and returns it as a GeoPandas GeoDataFrame.
 
-        Parameters:
-        - mmsi (int): The MMSI (Maritime Mobile Service Identity) to filter data.
-        - conn: Optional. The DuckDB connection. Defaults to self.connection.
-        - start_date (str): Optional. Start of the date range (ISO 8601 format: 'YYYY-MM-DD').
-        - end_date (str): Optional. End of the date range (ISO 8601 format: 'YYYY-MM-DD').
-        - polygon_bounds (list of tuples): Optional. List of (longitude, latitude) tuples forming a polygon. Last tuple is the closing point.
 
-        Returns:
-        - For now it returns a list of rows that match the criteria, but we will add a new table for the given mmsi to
-        the database and return a dataframe-like object
-        """
+              - Results are ordered by `tagblock_timestamp` to ensure chronological order.
+              - Converts `x` (longitude) and `y` (latitude) columns into a GeoPandas geometry column.
+              - Supports optional date filtering and spatial bounding box filtering.
+
+              Parameters:
+              - mmsi (int): The MMSI number of the vessel whose AIS data is being retrieved.
+              - conn (duckdb.Connection, optional): The DuckDB connection to execute the query. Defaults to `self.connection`.
+              - start_date (str, optional): The start date of the query range in ISO 8601 format (`YYYY-MM-DD`).
+              - end_date (str, optional): The end date of the query range in ISO 8601 format (`YYYY-MM-DD`).
+              - polygon_bounds (list of tuples, optional): A bounding box for spatial filtering, defined as
+                `[(min_lon, min_lat), (max_lon, max_lat)]`.
+
+              Returns:
+              - gpd.GeoDataFrame: A GeoDataFrame containing all AIS records matching the criteria, with:
+                - Data sorted in ascending chronological order.
+                - A `geometry` column containing the vessel's spatial positions.
+
+              Raises:
+              - Exception: If an error occurs, an empty GeoDataFrame is returned, and the error is logged.
+
+              Example Usage:
+              ```python
+              gdf = ais_database.mmsi_record(mmsi=369493581, start_date="2024-01-01", end_date="2024-12-31")
+              print(gdf.head())  # Returns a GeoDataFrame with sorted AIS data for the vessel
+              ```
+              """
         if not conn:
             conn = self.connection
 
@@ -170,7 +190,79 @@ class AISDatabase:
             if polygon_bounds:
                 query += """
                 AND ST_Within(
-                    ST_Point(x, y), 
+                    ST_Point(x, y),
+                    ST_GeomFromText(?)
+                )
+                """
+                params.append(polygon_bounds)
+
+            query_out = self._cached_query(query, tuple(params))
+            if not query_out:
+                return gpd.GeoDataFrame(columns=["geometry"])
+
+            # Building Pandas Dataframe
+            df = pd.DataFrame(query_out, columns=AIS_MSG_123_COLUMNS)
+            df["geometry"] = df.apply(lambda row: Point(row["x"], row["y"]),
+                                      axis=1)
+            df["datetime"] = pd.to_datetime(df["tagblock_timestamp"], unit="s",
+                                            utc=True)
+            df.sort_values(by="tagblock_timestamp", inplace=True)
+            # Wrap in a GeoPandas Dataframe
+            gdf = gpd.GeoDataFrame(df, geometry="geometry",
+                                   crs="EPSG:4326")  # Assuming lat/lon WGS84
+            # Styling dgp before returning
+            try:
+                if not style:
+                    style = {"selector": "th, td",
+                             "props": [("border", "1px solid black"),
+                                       ("text-align", "left")]}
+
+                return gdf.style.set_table_styles([style])
+            except:
+                logger.error(f"Could not apply given style: {style}")
+                return gdf.style.set_table_styles([{"selector": "th, td",
+                                                    "props": [("border",
+                                                               "1px solid black"),
+                                                              ("text-align",
+                                                               "center")]}])
+
+        except Exception as e:
+            logger.error(f"Error retrieving data: {e}")
+            return gpd.GeoDataFrame()  # Return empty GeoDataFrame on error
+
+    def query_by_region_and_time(self, conn=None, polygon_bounds=None, start_date=None, end_date=None):
+        """
+        Retrieve all information for data points within a polygon and a specific time range.
+
+        Parameters:
+        - conn: Optional. The DuckDB connection. Defaults to self.connection.
+        - polygon_bounds (str): Polygon bounds in WKT format.
+        - start_date (str): Optional. Start of the date range (ISO 8601 format: 'YYYY-MM-DD').
+        - end_date (str): Optional. End of the date range (ISO 8601 format: 'YYYY-MM-DD').
+
+        Returns:
+        - pandas.DataFrame containing rows matching the criteria.
+        """
+        if not conn:
+            conn = self.connection
+
+        try:
+            # Base query
+            query = "SELECT * FROM ais_msg_123 WHERE 1=1"
+            params = []
+
+            # Add date range filter
+            if start_date and end_date:
+                start_timestamp = date_to_tagblock_timestamp(*map(int, start_date.split("-")))
+                end_timestamp = date_to_tagblock_timestamp(*map(int, end_date.split("-")))
+                query += " AND tagblock_timestamp BETWEEN ? AND ?"
+                params.extend([start_timestamp, end_timestamp])
+
+            # Add polygon bounds filter
+            if polygon_bounds:
+                query += """
+                AND ST_Within(
+                    ST_Point(x, y),
                     ST_GeomFromText(?)
                 )
                 """
@@ -182,56 +274,10 @@ class AISDatabase:
 
         except Exception as e:
             logger.error(f"Error retrieving data: {e}")
-            return []
-
-    def query_by_region_and_time(self, conn=None, polygon_bounds=None, start_date=None, end_date=None):
-    """
-    Retrieve all information for data points within a polygon and a specific time range.
-
-    Parameters:
-    - conn: Optional. The DuckDB connection. Defaults to self.connection.
-    - polygon_bounds (str): Polygon bounds in WKT format.
-    - start_date (str): Optional. Start of the date range (ISO 8601 format: 'YYYY-MM-DD').
-    - end_date (str): Optional. End of the date range (ISO 8601 format: 'YYYY-MM-DD').
-
-    Returns:
-    - pandas.DataFrame containing rows matching the criteria.
-    """
-    if not conn:
-        conn = self.connection
-
-    try:
-        # Base query
-        query = "SELECT * FROM ais_msg_123 WHERE 1=1"
-        params = []
-
-        # Add date range filter
-        if start_date and end_date:
-            start_timestamp = date_to_tagblock_timestamp(*map(int, start_date.split("-")))
-            end_timestamp = date_to_tagblock_timestamp(*map(int, end_date.split("-")))
-            query += " AND tagblock_timestamp BETWEEN ? AND ?"
-            params.extend([start_timestamp, end_timestamp])
-
-        # Add polygon bounds filter
-        if polygon_bounds:
-            query += """
-            AND ST_Within(
-                ST_Point(x, y),
-                ST_GeomFromText(?)
-            )
-            """
-            params.append(polygon_bounds)
-
-        # Execute query and fetch results
-        results = self._cached_query(query, tuple(params))
-        return results
-
-    except Exception as e:
-        logger.error(f"Error retrieving data: {e}")
-        return pd.DataFrame()  # Return an empty DataFrame on error
+            return pd.DataFrame()  # Return an empty DataFrame on error
 
 
-    # def info(self, conn=None):
+    # def search_mmsi(self, conn=None):
     #     if not conn:
     #         conn = self.connection
     #

@@ -21,6 +21,8 @@ dependencies = [
   "typer",
   "ais",
   "duckdb>=0.7.1"
+  "pandas",
+  "geopandas"
 ]
 
 [project.optional-dependencies]
