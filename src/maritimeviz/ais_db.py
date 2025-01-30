@@ -5,10 +5,12 @@ import duckdb
 import pandas as pd
 import geopandas as gpd
 from shapely.geometry import Point
-from constants import *
+from .constants import *
 
 from src.maritimeviz.utils.ais_db_utils import *
 from . import logger
+import json
+import geojson
 
 
 class AISDatabase:
@@ -88,14 +90,15 @@ class AISDatabase:
       except:
         logger.search_mmsi("Using default threading values: 4 threads and chunks of 500 lines")
 
-
       # Use a ThreadPoolExecutor for processing
       with ThreadPoolExecutor(max_workers= threading_stats[0]) as executor:
           for chunk in split_file_generator(file_path, threading_stats[1]):
             executor.submit(process_chunk_to_db, self.connection, chunk)
 
+      self.connection.commit()
 
-    def open_conn(self):
+
+    def open(self):
         """
         Open database connection if not already open
         """
@@ -107,15 +110,16 @@ class AISDatabase:
             return self.connection
 
 
-    def close_conn(self):
+    def close(self):
         """
         Close the database connection.
         """
         if self.connection:
+            self.connection.commit()
             self.connection.close()
             self.connection = None
 
-    def get_conn(self):
+    def connection(self):
         """
         Return current connection
         """
@@ -127,10 +131,18 @@ class AISDatabase:
         """
         Verify requested query for cached results.
         """
+        if not params:
+            return self.connection.execute(query).fetchall()
+
+        if type(params) is not tuple:
+            if type(params) is not list:
+                params = [params]
+            params = tuple(params)
+
         return self.connection.execute(query, params).fetchall()
 
     def search_mmsi(self, mmsi, conn=None, start_date=None, end_date=None,
-                    polygon_bounds=None):
+                    polygon_bounds=None, styled=True):
         """
               Retrieves AIS data for a specific MMSI from the `ais_msg_123` table and returns it as a GeoPandas GeoDataFrame.
 
@@ -207,16 +219,18 @@ class AISDatabase:
             df["datetime"] = pd.to_datetime(df["tagblock_timestamp"], unit="s",
                                             utc=True)
             df.sort_values(by="tagblock_timestamp", inplace=True)
+            df.reset_index(drop=True, inplace=True)
             # Wrap with GeoPandas
             gdf = gpd.GeoDataFrame(df, geometry="geometry",
                                    crs="EPSG:4326")  #  lat/lon WGS84
-            # Styling dgp before returning
 
-            return gdf.style.set_table_styles([{"selector": "th, td",
+            if styled:
+                return gdf.style.set_table_styles([{"selector": "th, td",
                                                     "props": [("border",
                                                                "1px solid black"),
                                                               ("text-align",
                                                                "left")]}])
+            return gdf
 
         except Exception as e:
             logger.error(f"Error retrieving data: {e}")
@@ -268,5 +282,93 @@ class AISDatabase:
             logger.error(f"Error retrieving data: {e}")
             return pd.DataFrame()  # Return an empty DataFrame on error
 
+    # Change so it also takes a list of vessels
+    def get_vessel_info(self, mmsi=None, conn=None, styled=True):
+        """
+        Retrieves vessel static information from `ais_msg_5`.
+
+        Example AIS fields from type 5 messages:
+          - ship_name
+          - imo
+          - call_sign
+          - type_of_ship_and_cargo
+          - destination
+          - max_present_static_draught
+        """
+        if not conn:
+            conn = self.connection
+
+        try:
+            query = """
+                SELECT
+                    mmsi,
+                    ship_name,
+                    imo,
+                    call_sign,
+                    type_of_ship_and_cargo,
+                    destination,
+                    max_present_static_draught
+                FROM ais_msg_5
+            """
+            if mmsi:
+                query += " WHERE mmsi = ?"
+
+            results = self._cached_query(query, mmsi)
+            # Add option for processing also a list of mmsis
+
+            if not results:
+                return {"No static MMSI info found."}
+
+            df = pd.DataFrame(results, columns=AIS_MSG_5_COLUMNS)
+
+            # --- Optionally retrieve more from an external table or API not sure aobut global fish wash---
+            # Suppose we have a 'vessel_details' table with columns [mmsi, captain, fleet_operator, flag]
+            # ext_query = """SELECT captain, fleet_operator, flag FROM vessel_details WHERE mmsi = ?"""
+            # ext_info = conn.execute(ext_query, [mmsi]).fetchone()
+            # if ext_info:
+            #     info_dict["captain"] = ext_info[0]
+            #     info_dict["fleet_operator"] = ext_info[1]
+            #     info_dict["flag"] = ext_info[2]
+
+            if styled:
+                return df.style.set_table_styles([{"selector": "th, td", "props": [
+                    ("border", "1px solid black"), ("text-align", "left")]}])
+            return df
+
+        except Exception as e:
+            logger.error(f"Error retrieving vessel info: {e}")
+            return {"mmsi": mmsi, "error": str(e)}
+
+    def get_geojson(self, mmsi: int, start_date=None, end_date=None,
+                    polygon_bounds=None):
+        """
+        Return a GeoJSON representation of the vessel route (from `ais_msg_123` data).
+        This GeoJSON can be passed directly to a Leafmap/Geemap layer.
+        """
+        try:
+            gdf = self.search_mmsi(
+                mmsi=mmsi,
+                start_date=start_date,
+                end_date=end_date,
+                polygon_bounds=polygon_bounds,
+                styled=False
+            )
+            if gdf.empty:
+                logger.info(f"No AIS data found for {mmsi}")
+                return {}
+
+            # Setting datetime to json serializable format
+            gdf["datetime"] = gdf["datetime"].astype(str)
+
+            # Convert to GeoJSON
+            # gdf.to_json() returns a JSON string; we can convert it to a dictionary with json.loads
+            geojson_str = gdf.to_json()
+
+            geojson_dict = json.loads(geojson_str)
+            return geojson_dict
+
+        except Exception as e:
+            logger.error(f"Error generating GeoJSON for MMSI {mmsi}: {e}")
+            return {}
 
 

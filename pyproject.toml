@@ -20,7 +20,7 @@ license = {text = "MIT license"}
 dependencies = [
   "typer",
   "ais",
-  "duckdb>=0.7.1"
+  "duckdb>=0.7.1",
   "pandas",
   "geopandas"
 ]
