@@ -360,6 +360,7 @@ class AISDatabase:
             # Setting datetime to json serializable format
             gdf["datetime"] = gdf["datetime"].astype(str)
 
+
             # Convert to GeoJSON
             # gdf.to_json() returns a JSON string; we can convert it to a dictionary with json.loads
             geojson_str = gdf.to_json()
