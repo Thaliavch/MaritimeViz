@@ -212,7 +212,7 @@ class AISDatabase:
             return gpd.GeoDataFrame()  # Return empty GeoDataFrame on error
 
     # Change so it also takes a list of vessels
-    def get_vessel_info(self, mmsi=None, conn=None, styled=True):
+    def static_info(self, mmsi: int | list[int] = None, conn=None, styled=True):
         """
         Retrieves vessel static information from `ais_msg_5`.
 
@@ -228,6 +228,7 @@ class AISDatabase:
             conn = self.connection
 
         try:
+            # Base query
             query = """
                 SELECT
                     mmsi,
@@ -239,11 +240,23 @@ class AISDatabase:
                     max_present_static_draught
                 FROM ais_msg_5
             """
-            if mmsi:
-                query += " WHERE mmsi = ?"
+            params = []
 
-            results = self._cached_query(query, mmsi)
-            # Add option for processing also a list of mmsis
+            # Handle MMSI filtering
+            if mmsi is not None:
+                if isinstance(mmsi, int):
+                    query += " WHERE mmsi = ?"
+                    params.append(mmsi)
+                elif isinstance(mmsi, list) and all(
+                    isinstance(i, int) for i in mmsi):
+                    query += f" WHERE mmsi IN ({', '.join('?' * len(mmsi))})"
+                    params.extend(mmsi)
+                else:
+                    raise ValueError(
+                        "MMSI must be an integer or a list of integers.")
+
+            # Execute query
+            results = self._cached_query(query, params)
 
             if not results:
                 return {"No static MMSI info found."}
