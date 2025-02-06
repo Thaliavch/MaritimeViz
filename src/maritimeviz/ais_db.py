@@ -86,9 +86,9 @@ class AISDatabase:
 
       try:
         threading_stats = optimal_threading_stats(file_path) # thread and chunk size
-        logger.search_mmsi(f"Threading parameters: {threading_stats}")
+        logger.info(f"Threading parameters: {threading_stats}")
       except:
-        logger.search_mmsi("Using default threading values: 4 threads and chunks of 500 lines")
+        logger.info("Using default threading values: 4 threads and chunks of 500 lines")
 
       # Use a ThreadPoolExecutor for processing
       with ThreadPoolExecutor(max_workers= threading_stats[0]) as executor:
