@@ -328,7 +328,7 @@ class AISDatabase:
         This GeoJSON can be passed directly to a Leafmap/Geemap layer.
         """
         try:
-            gdf = self.search_mmsi(
+            gdf = self.search(
                 mmsi=mmsi,
                 start_date=start_date,
                 end_date=end_date,
