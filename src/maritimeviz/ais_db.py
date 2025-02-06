@@ -14,12 +14,42 @@ import geojson
 
 
 class AISDatabase:
+
     """
     Class to manage the initialization, population, and interaction with the AIS database.
     """
     def __init__(self, db_path="ais_data.duckdb"):
         self.db_path = db_path
         self.connection = self.init_db(db_path)
+
+    # TODO: Move to utitilies and use in search() and static_info()
+    def filter_mmsi_query(mmsi: int | list[int], query: str,
+                          params: list) -> str:
+        """
+        Modifies the query string to filter by MMSI and updates the params list.
+
+        Args:
+            mmsi (int | list[int] | None): The MMSI or list of MMSIs to filter.
+            query (str): The base SQL query.
+            params (list): The list of query parameters (mutated in place).
+
+        Returns:
+            str: The modified query string with MMSI filtering applied.
+        """
+        if mmsi is not None:
+            if isinstance(mmsi, int):
+                query += " AND mmsi = ?"
+                params.append(mmsi)
+            elif isinstance(mmsi, list) and all(
+                isinstance(i, int) for i in mmsi):
+                placeholders = ', '.join('?' * len(mmsi))
+                query += f" AND mmsi IN ({placeholders})"
+                params.extend(mmsi)
+            else:
+                raise ValueError(
+                    "MMSI must be an integer or a list of integers.")
+
+        return query
 
     def init_db(self, db_path):
         """
@@ -125,6 +155,8 @@ class AISDatabase:
         """
         return self.connection
 
+
+    # TODO: Move to utilities
     # All results will be verified here for previous cache
     @lru_cache(maxsize=100)  # Cache up to 100 unique query results
     def _cached_query(self, query, params):
@@ -141,7 +173,7 @@ class AISDatabase:
 
         return self.connection.execute(query, params).fetchall()
 
-    def search(self, mmsi=None, conn=None, start_date=None, end_date=None, polygon_bounds=None, styled=True):
+    def search(self, mmsi: int | list[int] = None, conn=None, start_date=None, end_date=None, polygon_bounds=None, styled=True):
         """
         Consolidated search function to retrieve AIS data based on optional filters.
 
@@ -164,10 +196,18 @@ class AISDatabase:
             query = "SELECT * FROM ais_msg_123 WHERE 1=1"
             params = []
 
-            # Add MMSI filter
-            if mmsi:
-                query += " AND mmsi = ?"
-                params.append(mmsi)
+            # Handle MMSI filtering
+            if mmsi is not None:
+                if isinstance(mmsi, int):
+                    query += " WHERE mmsi = ?"
+                    params.append(mmsi)
+                elif isinstance(mmsi, list) and all(
+                    isinstance(i, int) for i in mmsi):
+                    query += f" WHERE mmsi IN ({', '.join('?' * len(mmsi))})"
+                    params.extend(mmsi)
+                else:
+                    raise ValueError(
+                        "MMSI must be an integer or a list of integers.")
 
             # Add date range filter
             if start_date and end_date:
@@ -281,7 +321,7 @@ class AISDatabase:
             logger.error(f"Error retrieving vessel info: {e}")
             return {"mmsi": mmsi, "error": str(e)}
 
-    def get_geojson(self, mmsi: int, start_date=None, end_date=None,
+    def get_geojson(self, mmsi: None, start_date=None, end_date=None,
                     polygon_bounds=None):
         """
         Return a GeoJSON representation of the vessel route (from `ais_msg_123` data).
