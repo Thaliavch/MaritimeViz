@@ -7,6 +7,7 @@ name = "maritimeviz"
 version = "0.1.0"
 description = "A Python package designed to analyze and visualize Automatic Identification System (AIS) data, enabling easy exploration of maritime vessel movements through data extraction, cleaning, and analysis. Utilize powerful libraries like NumPy and Pandas for efficient data manipulation, and leverage the interactive mapping capabilities of Leafmap for insightful visualizations of vessel trajectories and other key maritime information."
 readme = "README.rst"
+requires-python = ">=3.11"
 authors = [
   {name = "Thalia Valle, Marcelo Amorin, Enrique Baggio, Paulo Drefhal", email = "thaliasaxo@gmail.com"}
 ]
