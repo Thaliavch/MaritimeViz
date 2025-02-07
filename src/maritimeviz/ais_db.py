@@ -214,13 +214,12 @@ class AISDatabase:
 
             # Polygon bounds filter
             if polygon_bounds:
-                query += """
+                query += f"""
                 AND ST_Within(
                     ST_Point(x, y),
-                    ST_GeomFromText(?)
+                    ST_GeomFromText('{polygon_bounds}')
                 )
                 """
-                params.append(polygon_bounds)
 
             # Execute query
             query_out = conn.execute(query, tuple(params)).fetchall()
