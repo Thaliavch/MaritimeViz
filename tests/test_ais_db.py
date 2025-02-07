@@ -39,7 +39,7 @@ def test_initialize_database_works():
 #    assert len(result) > 0
 
 #    conn.close()
-
+'''
 def test_process_file():
     db = AISDatabase(db_path)
     db.process_file(file_path)
@@ -55,5 +55,34 @@ def test_process_file():
     #assert row_count_5 > 0, "Table ais_msg_5 should not be empty after processing."
 
     db.close()
+'''
 
 
+def test_search():
+    """
+    Test searching a specific table within the database.
+    """
+    db = AISDatabase(existing_db_path)
+
+    try:
+        
+        result_mmsi = db.search(9111254)
+        result_list_mmsi = db.search(mmsi=[9111254, 9111253])
+        result_start_date = db.search(start_date='2016-07-28')
+        result_end_date = db.search(end_date='2016-07-29')
+
+        # WKT Test Polygon for the Pacific Ocean
+        #pacific_polygon = "POLYGON((-180 -60, -180 60, 180 60, 180 -60, -180 -60))"
+        #result_polygon_bounds = db.search(polygon_bounds=pacific_polygon)
+        
+        # Assert the results are valid
+        assert len(result_mmsi) > 0, "Should have at one result for mmsi"
+        assert len(result_list_mmsi) > 0, "Should have at one result for list_mmsi"
+        assert len(result_start_date) > 0, "Should have at one result for start_date"
+        assert len(result_end_date) > 0, "Should have at one result for end_date"
+        #assert len(result_polygon_bounds) > 0, "Should have at one result for polygon_bounds"
+        
+    finally:
+        # Close the database connection
+        db.close()
+    

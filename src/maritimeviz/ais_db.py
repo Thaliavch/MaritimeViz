@@ -173,17 +173,16 @@ class AISDatabase:
 
         return self.connection.execute(query, params).fetchall()
 
-    def search(self, mmsi: int | list[int] = None, conn=None, start_date=None, end_date=None, polygon_bounds=None, styled=True):
+    def search(self, mmsi: int | list[int] = None, conn=None, start_date=None, end_date=None, polygon_bounds=None):
         """
-        Consolidated search function to retrieve AIS data based on optional filters.
+        Enhanced search function to retrieve AIS data based on MMSI and optional filters.
 
         Parameters:
-        - mmsi (int, optional): The MMSI number of the vessel to filter by.
+        - mmsi (int | list[int], optional): The MMSI number(s) of the vessel(s) to filter by.
         - conn (duckdb.Connection, optional): The DuckDB connection to execute the query. Defaults to `self.connection`.
         - start_date (str, optional): Start date in ISO 8601 format ('YYYY-MM-DD').
         - end_date (str, optional): End date in ISO 8601 format ('YYYY-MM-DD').
-        - polygon_bounds (list of tuples or str, optional): A bounding box or WKT polygon for spatial filtering.
-        - styled (bool, optional): Whether to return a styled GeoDataFrame. Defaults to True.
+        - polygon_bounds (str, optional): A WKT polygon for spatial filtering.
 
         Returns:
         - gpd.GeoDataFrame: Filtered AIS data as a GeoDataFrame.
@@ -196,27 +195,24 @@ class AISDatabase:
             query = "SELECT * FROM ais_msg_123 WHERE 1=1"
             params = []
 
-            # Handle MMSI filtering
+            # MMSI filtering
             if mmsi is not None:
                 if isinstance(mmsi, int):
-                    query += " WHERE mmsi = ?"
+                    query += " AND mmsi = ?"
                     params.append(mmsi)
-                elif isinstance(mmsi, list) and all(
-                    isinstance(i, int) for i in mmsi):
-                    query += f" WHERE mmsi IN ({', '.join('?' * len(mmsi))})"
+                elif isinstance(mmsi, list) and all(isinstance(i, int) for i in mmsi):
+                    placeholders = ', '.join(['?'] * len(mmsi))
+                    query += f" AND mmsi IN ({placeholders})"
                     params.extend(mmsi)
                 else:
-                    raise ValueError(
-                        "MMSI must be an integer or a list of integers.")
+                    raise ValueError("MMSI must be an integer or a list of integers.")
 
-            # Add date range filter
+            # Date range filter
             if start_date and end_date:
-                start_timestamp = date_to_tagblock_timestamp(*map(int, start_date.split("-")))
-                end_timestamp = date_to_tagblock_timestamp(*map(int, end_date.split("-")))
                 query += " AND tagblock_timestamp BETWEEN ? AND ?"
-                params.extend([start_timestamp, end_timestamp])
+                params.extend([start_date, end_date])
 
-            # Add polygon bounds filter
+            # Polygon bounds filter
             if polygon_bounds:
                 query += """
                 AND ST_Within(
@@ -227,23 +223,14 @@ class AISDatabase:
                 params.append(polygon_bounds)
 
             # Execute query
-            query_out = self._cached_query(query, tuple(params))
+            query_out = conn.execute(query, tuple(params)).fetchall()
             if not query_out:
-                return gpd.GeoDataFrame(columns=["geometry"])
+                return gpd.GeoDataFrame(columns=["geometry"])  # Return empty GeoDataFrame if no results
 
             # Build GeoDataFrame
             df = pd.DataFrame(query_out, columns=AIS_MSG_123_COLUMNS)
             df["geometry"] = df.apply(lambda row: Point(row["x"], row["y"]), axis=1)
-            df["datetime"] = pd.to_datetime(df["tagblock_timestamp"], unit="s", utc=True)
-            df.sort_values(by="tagblock_timestamp", inplace=True)
-            df.reset_index(drop=True, inplace=True)
             gdf = gpd.GeoDataFrame(df, geometry="geometry", crs="EPSG:4326")  # lat/lon WGS84
-
-            if styled:
-                return gdf.style.set_table_styles([{
-                    "selector": "th, td",
-                    "props": [("border", "1px solid black"), ("text-align", "left")]
-                }])
 
             return gdf
 
