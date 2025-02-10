@@ -1,3 +1,5 @@
+import traceback
+
 import pytest
 #from src/maritimeviz/ import AISDatabase
 import pandas as pd
@@ -58,6 +60,20 @@ def test_process_file():
 '''
 
 
+
+def testIque(mmsi='89220', conn=None, start_date='02/08/2020', end_date='03/09/2024', polygon_bounds=None):
+    db = AISDatabase(existing_db_path)
+
+    try:
+        data = db.search(mmsi=mmsi, conn=conn, start_date=start_date, end_date=end_date, polygon_bounds=polygon_bounds)
+        print(data)
+
+    except Exception as e:
+        print(f"Error retrieving data: {e}")
+    finally:
+        db.close()
+
+
 def test_search():
     """
     Test searching a specific table within the database.
@@ -65,7 +81,7 @@ def test_search():
     db = AISDatabase(existing_db_path)
 
     try:
-        
+
         result_mmsi = db.search(9111254)
         result_list_mmsi = db.search(mmsi=[9111254, 9111253])
         result_start_date = db.search(start_date='2016-07-28')
@@ -74,15 +90,19 @@ def test_search():
         # WKT Test Polygon for the Pacific Ocean
         #pacific_polygon = "POLYGON((-180 -60, -180 60, 180 60, 180 -60, -180 -60))"
         #result_polygon_bounds = db.search(polygon_bounds=pacific_polygon)
-        
+
         # Assert the results are valid
         assert len(result_mmsi) > 0, "Should have at one result for mmsi"
         assert len(result_list_mmsi) > 0, "Should have at one result for list_mmsi"
         assert len(result_start_date) > 0, "Should have at one result for start_date"
         assert len(result_end_date) > 0, "Should have at one result for end_date"
         #assert len(result_polygon_bounds) > 0, "Should have at one result for polygon_bounds"
-        
+
     finally:
         # Close the database connection
         db.close()
-    
+
+
+
+# def main():
+#     testIque()
