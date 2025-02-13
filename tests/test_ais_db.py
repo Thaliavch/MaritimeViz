@@ -15,30 +15,32 @@ def test_initialize_database_works():
     assert db.connection is not None
     db.close()
 
-#def test_initialize_existing_database_works():
+# def test_initialize_existing_database_works():
 #    db = AISDatabase(existing_db_path)
-#    result = db.search_mmsi(9111254)
+#    result = db.search(9111254)
 #    logger.info(f"Query Result:\n{result}")
 #    print(result)
 #
 #    assert db.connection is not None
 #    assert isinstance(result, gpd.GeoDataFrame)
 #    assert len(result) > 0
-
+#
 #    db.close()
 
-#def test_initialize_existing_database():
-#    db = AISDatabase("test_db.duckdb")
-#    conn = db.connection()
-#    result = conn.execute("SELECT * FROM vessels").fetchdf()
+def test_initialize_existing_database():
+   db = AISDatabase("test_db.duckdb")
+   conn = db.connection()
+   # tables = conn.execute(
+   #     "SELECT table_name FROM information_schema.tables WHERE table_schema = 'main';").fetchall()
+   # print(tables)
+   result = conn.execute("SELECT * FROM ais_msg_123 LIMIT 10").fetchdf()
+   print(result)
 
-#    print(result)
+   assert conn is not None
+   assert len(result) > 0
 
-#    assert conn.connection is not None
-#    assert isinstance(result, gpd.GeoDataFrame)
-#    assert len(result) > 0
+   conn.close()
 
-#    conn.close()
 '''
 def test_process_file():
     db = AISDatabase(db_path)

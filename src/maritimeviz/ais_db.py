@@ -20,7 +20,7 @@ class AISDatabase:
     """
     def __init__(self, db_path="ais_data.duckdb"):
         self.db_path = db_path
-        self.connection = self.init_db(db_path)
+        self._conn = self.init_db(db_path)
 
     # TODO: Move to utitilies and use in search() and static_info()
     def filter_mmsi_query(mmsi: int | list[int], query: str,
@@ -123,37 +123,37 @@ class AISDatabase:
       # Use a ThreadPoolExecutor for processing
       with ThreadPoolExecutor(max_workers= threading_stats[0]) as executor:
           for chunk in split_file_generator(file_path, threading_stats[1]):
-            executor.submit(process_chunk_to_db, self.connection, chunk)
+            executor.submit(process_chunk_to_db, self._conn, chunk)
 
-      self.connection.commit()
+      self._conn.commit()
 
 
     def open(self):
         """
         Open database connection if not already open
         """
-        if not self.connection:
-            self.connection = duckdb.connect(self.db_path)
-            return self.connection
+        if not self._conn:
+            self._conn = duckdb.connect(self.db_path)
+            return self._conn
         else:
             print("Returning existing connection")
-            return self.connection
+            return self._conn
 
 
     def close(self):
         """
         Close the database connection.
         """
-        if self.connection:
-            self.connection.commit()
-            self.connection.close()
-            self.connection = None
+        if self._conn:
+            self._conn.commit()
+            self._conn.close()
+            self._conn = None
 
     def connection(self):
         """
         Return current connection
         """
-        return self.connection
+        return self._conn
 
 
     # TODO: Move to utilities
@@ -164,14 +164,14 @@ class AISDatabase:
         Verify requested query for cached results.
         """
         if not params:
-            return self.connection.execute(query).fetchall()
+            return self._conn.execute(query).fetchall()
 
         if type(params) is not tuple:
             if type(params) is not list:
                 params = [params]
             params = tuple(params)
 
-        return self.connection.execute(query, params).fetchall()
+        return self._conn.execute(query, params).fetchall()
 
     def search(self, mmsi: int | list[int] = None, conn=None, start_date=None, end_date=None, polygon_bounds=None):
         """
@@ -179,7 +179,7 @@ class AISDatabase:
 
         Parameters:
         - mmsi (int | list[int], optional): The MMSI number(s) of the vessel(s) to filter by.
-        - conn (duckdb.Connection, optional): The DuckDB connection to execute the query. Defaults to `self.connection`.
+        - conn (duckdb.Connection, optional): The DuckDB connection to execute the query. Defaults to `self._conn`.
         - start_date (str, optional): Start date in ISO 8601 format ('YYYY-MM-DD').
         - end_date (str, optional): End date in ISO 8601 format ('YYYY-MM-DD').
         - polygon_bounds (str, optional): A WKT polygon for spatial filtering.
@@ -188,7 +188,7 @@ class AISDatabase:
         - gpd.GeoDataFrame: Filtered AIS data as a GeoDataFrame.
         """
         if not conn:
-            conn = self.connection
+            conn = self._conn
 
         try:
             # Base query
@@ -251,7 +251,7 @@ class AISDatabase:
           - max_present_static_draught
         """
         if not conn:
-            conn = self.connection
+            conn = self._conn
 
         try:
             # Base query
