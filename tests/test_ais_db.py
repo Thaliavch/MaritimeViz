@@ -39,7 +39,7 @@ def test_initialize_database_works():
 #    assert len(result) > 0
 
 #    conn.close()
-'''
+
 def test_process_file():
     db = AISDatabase(db_path)
     db.process_file(file_path)
@@ -55,7 +55,6 @@ def test_process_file():
     #assert row_count_5 > 0, "Table ais_msg_5 should not be empty after processing."
 
     db.close()
-'''
 
 def test_search():
     """
