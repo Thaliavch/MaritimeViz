@@ -1,4 +1,4 @@
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import lru_cache
 
 import duckdb
@@ -109,23 +109,37 @@ class AISDatabase:
         return connection
 
 
-    def process_file(self, file_path, threading_stats=(4,500)):
-      """
-      Process the AIS file using on-the-fly chunk splitting and multithreading.
-      """
+    def process_file(self, file_path, threading_stats=(4, 500)):
+        """
+        Process the AIS file using on-the-fly chunk splitting and multithreading.
+        """
+        try:
+            threading_stats = optimal_threading_stats(file_path)  # thread and chunk size
+            logger.info(f"Threading parameters: {threading_stats}")
+        except Exception as e:
+            logger.warning(f"Using default threading values: 4 threads and chunks of 500 lines")
 
-      try:
-        threading_stats = optimal_threading_stats(file_path) # thread and chunk size
-        logger.info(f"Threading parameters: {threading_stats}")
-      except:
-        logger.info("Using default threading values: 4 threads and chunks of 500 lines")
+        max_threads, chunk_size = threading_stats
+        futures = []
 
-      # Use a ThreadPoolExecutor for processing
-      with ThreadPoolExecutor(max_workers= threading_stats[0]) as executor:
-          for chunk in split_file_generator(file_path, threading_stats[1]):
-            executor.submit(process_chunk_to_db, self._conn, chunk)
+        with ThreadPoolExecutor(max_workers=max_threads) as executor:
+            for chunk in split_file_generator(file_path, chunk_size):
+                # Submit chunk processing asynchronously
+                future = executor.submit(process_chunk_to_db, self._conn, chunk)
+                futures.append(future)
+                #as_completed() ensures that results are processed immediately
 
-      self._conn.commit()
+            # Ensure all tasks complete before committing
+            for future in as_completed(futures):
+                try:
+                    future.result()
+                except Exception as e:
+                    logger.error(f"Error processing chunk: {e}")
+
+        # Ensure transaction commits after all threads finish
+        with self._conn.transaction():
+            self._conn.commit()
+
 
 
     def open(self):

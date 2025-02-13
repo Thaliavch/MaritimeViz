@@ -42,6 +42,10 @@ def test_initialize_existing_database():
    conn.close()
 
 '''
+=======
+#    conn.close()
+
+>>>>>>> efae62e3cc69db8a8e44196664b891ada43daa16
 def test_process_file():
     db = AISDatabase(db_path)
     db.process_file(file_path)
@@ -57,7 +61,6 @@ def test_process_file():
     #assert row_count_5 > 0, "Table ais_msg_5 should not be empty after processing."
 
     db.close()
-'''
 
 
 def test_search():
@@ -87,3 +90,4 @@ def test_search():
     finally:
         # Close the database connection
         db.close()
+        '''
