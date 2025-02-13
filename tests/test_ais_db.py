@@ -12,6 +12,21 @@ file_path = "tests/ais_2016_07_28_aa"
 db_path ="test_db.duckdb"
 
 
+@pytest.fixture(scope="function")
+def setup_db():
+    """Fixture to create and clean up the test database."""
+    db = AISDatabase(db_path)
+    yield db
+
+    db.clear_cache()
+    db.close()
+
+    # Clean up exported files
+    for file in ["test_shapefile.shp", "test_data.kml", "test_data.xlsx"]:
+        if os.path.exists(file):
+            os.remove(file)
+
+
 # TODO(Thalia): Move to utility
 def check_file_exists():
     print(f"Database file exists: {os.path.exists('test_db.duckdb')}")
@@ -70,6 +85,99 @@ def test_search_works():
 
     db.clear_cache()
     db.close()
+
+
+def test_get_csv():
+    """Test exporting AIS data to CSV format."""
+    db = AISDatabase("test_db.duckdb")
+    file_path = "test_data.csv"
+
+    result = db.get_csv(mmsi=9111254, file_path=file_path)
+
+    assert os.path.exists(file_path), "CSV file should be created"
+    assert "CSV saved at" in result, "CSV export function should return success message"
+
+    # Cleanup
+    os.remove(file_path)
+    db.close()
+
+
+def test_get_parquet():
+    """Test exporting AIS data to Parquet format."""
+    db = AISDatabase("test_db.duckdb")
+    file_path = "test_data.parquet"
+
+    result = db.get_parquet(mmsi=9111254, file_path=file_path)
+
+    assert os.path.exists(file_path), "Parquet file should be created"
+    assert "Parquet file saved at" in result, "Parquet export function should return success message"
+
+    # Cleanup
+    os.remove(file_path)
+    db.close()
+
+
+def test_get_json():
+    """Test exporting AIS data to JSON format."""
+    db = AISDatabase("test_db.duckdb")
+    file_path = "test_data.json"
+
+    result = db.get_json(mmsi=9111254, file_path=file_path)
+
+    assert os.path.exists(file_path)
+    assert len(result) >= 1
+
+    # Cleanup
+    os.remove(file_path)
+    db.close()
+
+# def test_get_shapefile(setup_db):
+#     db = setup_db
+#     file_path = "test_shapefile"
+#
+#     result = db.get_shapefile(file_path=file_path, mmsi=9111254)
+#
+#     # Check if shapefile components are created
+#     assert os.path.exists(f"{file_path}.shp"), "Shapefile (.shp) was not created."
+#     assert os.path.exists(f"{file_path}.shx"), "Shapefile index (.shx) was not created."
+#     assert os.path.exists(f"{file_path}.dbf"), "Shapefile attributes (.dbf) were not created."
+#
+#     gdf = gpd.read_file(f"{file_path}.shp")
+#     assert not gdf.empty, "Shapefile should not be empty."
+#
+# def test_get_kml(setup_db):
+#     db = setup_db
+#     file_path = "test_data.kml"
+#
+#     result = db.get_kml(file_path=file_path, mmsi=9111254)
+#
+#     # Check if KML file is created
+#     assert os.path.exists(file_path), "KML file was not created."
+#
+#     gdf = gpd.read_file(file_path)
+#     assert not gdf.empty, "KML file should not be empty."
+#
+# def test_get_excel(setup_db):
+#     db = setup_db
+#     file_path = "test_data.xlsx"
+#
+#     result = db.get_excel(file_path=file_path, mmsi=9111254)
+#
+#     # Check if Excel file is created
+#     assert os.path.exists(file_path), "Excel file was not created."
+#
+#     df = pd.read_excel(file_path)
+#     assert not df.empty, "Excel file should not be empty."
+#
+# def test_get_wkt(setup_db):
+#     db = setup_db
+#
+#     wkt_list = db.get_wkt(mmsi=9111254)
+#
+#     # Check that WKT list is not empty
+#     assert isinstance(wkt_list, list), "WKT output should be a list."
+#     assert len(wkt_list) > 0, "WKT list should not be empty."
+#     assert "POINT" in wkt_list[0], "WKT should contain 'POINT'."
 
 '''
 def test_process_file():
