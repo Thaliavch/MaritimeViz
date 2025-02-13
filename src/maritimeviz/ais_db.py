@@ -18,11 +18,13 @@ class AISDatabase:
     """
     Class to manage the initialization, population, and interaction with the AIS database.
     """
-    def __init__(self, db_path="ais_data.duckdb"):
+    def __init__(self, db_path="ais_data.duckdb", enable_cache=True):
         self.db_path = db_path
         self._conn = self.init_db(db_path)
+        # TODO(Thalia) maybe add options for using to disable caching at class or method levels, since it may cause issues
+        self.enable_cache = enable_cache
 
-    # TODO: Move to utitilies and use in search() and static_info()
+    # TODO (Thalia): Move to utitilies and use in search() and static_info()
     def filter_mmsi_query(mmsi: int | list[int], query: str,
                           params: list) -> str:
         """
@@ -170,22 +172,26 @@ class AISDatabase:
         return self._conn
 
 
-    # TODO: Move to utilities
+    # TODO (Thalia): Move to utilities
     # All results will be verified here for previous cache
     @lru_cache(maxsize=100)  # Cache up to 100 unique query results
-    def _cached_query(self, query, params):
+    def _cached_query(self, query, params, df=False):
         """
         Verify requested query for cached results.
         """
         if not params:
-            return self._conn.execute(query).fetchall()
+            return  self._conn.execute(query).fetchdf() if df else self._conn.execute(query).fetchall()
 
         if type(params) is not tuple:
             if type(params) is not list:
                 params = [params]
             params = tuple(params)
 
-        return self._conn.execute(query, params).fetchall()
+        return self._conn.execute(query, params).fetchdf() if df else self._conn.execute(query, params).fetchall()
+
+    def clear_cache(self):
+        """Manually clear the search cache."""
+        self._cached_query.cache_clear()
 
     def search(self, mmsi: int | list[int] = None, conn=None, start_date=None, end_date=None, polygon_bounds=None):
         """
@@ -210,7 +216,7 @@ class AISDatabase:
             params = []
 
             # MMSI filtering
-            if mmsi is not None:
+            if mmsi:
                 if isinstance(mmsi, int):
                     query += " AND mmsi = ?"
                     params.append(mmsi)
@@ -223,8 +229,12 @@ class AISDatabase:
 
             # Date range filter
             if start_date and end_date:
+                start_timestamp = date_to_tagblock_timestamp(
+                    *map(int, start_date.split("-")))
+                end_timestamp = date_to_tagblock_timestamp(
+                    *map(int, end_date.split("-")))
                 query += " AND tagblock_timestamp BETWEEN ? AND ?"
-                params.extend([start_date, end_date])
+                params.extend([start_timestamp, end_timestamp])
 
             # Polygon bounds filter
             if polygon_bounds:
@@ -236,13 +246,14 @@ class AISDatabase:
                 """
 
             # Execute query
-            query_out = conn.execute(query, tuple(params)).fetchall()
-            if not query_out:
+            print("Query: ", query)
+            print("Params: ", params)
+            df = self._conn.execute(query, params).fetchdf()#self._cached_query(query, params, True)
+            if df.empty:
                 return gpd.GeoDataFrame(columns=["geometry"])  # Return empty GeoDataFrame if no results
 
             # Build GeoDataFrame
-            df = pd.DataFrame(query_out, columns=AIS_MSG_123_COLUMNS)
-            df["geometry"] = df.apply(lambda row: Point(row["x"], row["y"]), axis=1)
+            df["geometry"] =  gpd.points_from_xy(df["x"], df["y"])
             gdf = gpd.GeoDataFrame(df, geometry="geometry", crs="EPSG:4326")  # lat/lon WGS84
 
             return gdf
@@ -252,7 +263,7 @@ class AISDatabase:
             return gpd.GeoDataFrame()  # Return empty GeoDataFrame on error
 
     # Change so it also takes a list of vessels
-    def static_info(self, mmsi: int | list[int] = None, conn=None, styled=True):
+    def static_info(self, mmsi: int | list[int] = None, conn=None):
         """
         Retrieves vessel static information from `ais_msg_5`.
 
@@ -296,12 +307,10 @@ class AISDatabase:
                         "MMSI must be an integer or a list of integers.")
 
             # Execute query
-            results = self._cached_query(query, params)
+            df = self._cached_query(query, params, True)
 
-            if not results:
+            if df.empty:
                 return {"No static MMSI info found."}
-
-            df = pd.DataFrame(results, columns=AIS_MSG_5_COLUMNS)
 
             # --- Optionally retrieve more from an external table or API not sure aobut global fish wash---
             # Suppose we have a 'vessel_details' table with columns [mmsi, captain, fleet_operator, flag]
@@ -312,9 +321,6 @@ class AISDatabase:
             #     info_dict["fleet_operator"] = ext_info[1]
             #     info_dict["flag"] = ext_info[2]
 
-            if styled:
-                return df.style.set_table_styles([{"selector": "th, td", "props": [
-                    ("border", "1px solid black"), ("text-align", "left")]}])
             return df
 
         except Exception as e:
