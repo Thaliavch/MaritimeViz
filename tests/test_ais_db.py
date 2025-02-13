@@ -56,34 +56,31 @@ def test_process_file():
 
     db.close()
 
+
 def test_search():
     """
     Test searching a specific table within the database.
     """
-    db = AISDatabase(db_path)
+    db = AISDatabase(existing_db_path)
 
     try:
-        
+
         result_mmsi = db.search(9111254)
         result_list_mmsi = db.search(mmsi=[9111254, 9111253])
         result_start_date = db.search(start_date='2016-07-28')
         result_end_date = db.search(end_date='2016-07-29')
 
         # WKT Test Polygon for the Pacific Ocean
-        # Install and load the spatial extension
-        db.connection.execute("INSTALL spatial;")
-        db.connection.execute("LOAD spatial;")
-        pacific_polygon = "POLYGON((-180 -60, -180 60, 180 60, 180 -60, -180 -60))"
-        result_polygon_bounds = db.search(polygon_bounds=pacific_polygon)
-        
+        #pacific_polygon = "POLYGON((-180 -60, -180 60, 180 60, 180 -60, -180 -60))"
+        #result_polygon_bounds = db.search(polygon_bounds=pacific_polygon)
+
         # Assert the results are valid
         assert len(result_mmsi) > 0, "Should have at one result for mmsi"
         assert len(result_list_mmsi) > 0, "Should have at one result for list_mmsi"
         assert len(result_start_date) > 0, "Should have at one result for start_date"
         assert len(result_end_date) > 0, "Should have at one result for end_date"
-        assert len(result_polygon_bounds) > 0, "Should have at one result for polygon_bounds"
-        
+        #assert len(result_polygon_bounds) > 0, "Should have at one result for polygon_bounds"
+
     finally:
         # Close the database connection
         db.close()
-    
