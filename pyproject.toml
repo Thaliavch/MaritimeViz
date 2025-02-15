@@ -34,8 +34,11 @@ dev = [
     "ruff"  # linting
 ]
 
-[project.urls]
+parquet = [
+    "pyarrow"  # ✅ Parquet support
+]
 
+[project.urls]
 bugs = "https://github.com/Thaliavch/maritimeviz/issues"
 changelog = "https://github.com/Thaliavch/maritimeviz/blob/master/changelog.md"
 homepage = "https://github.com/Thaliavch/maritimeviz"
