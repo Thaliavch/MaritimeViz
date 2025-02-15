@@ -9,8 +9,9 @@ class GFW_api:
         Initialize the GFW API client.
         """
         self.token = token
-        print("Powered by Global Fishing Watch. https://globalfishingwatch.org/")
-
+        print("Powered by Global Fishing Watch. https://globalfishingwatch.org/"
+              
+    # Search Function from Global Fishing Watch"
     def search_vessel(self, mmsi=None):
 
         try:
@@ -30,7 +31,7 @@ class GFW_api:
             print(f"Error fetching data: {e}")
 
 '''
-token = input('Enter TOKEN: ')
+#token = input('Enter TOKEN: ')
 
 gfw = GFW_api(token)
 
