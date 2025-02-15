@@ -5,7 +5,7 @@ Credits
 Development Lead
 ----------------
 
-* Thalia Valle, Marcelo Amorin, Enrique Baggio, Paulo Drefhal <thaliasaxo@gmail.com>
+* Thalia Valle, Marcelo Amorin, Henrique Baggio, Paulo Drefhal <thaliasaxo@gmail.com>
 
 Contributors
 ------------
