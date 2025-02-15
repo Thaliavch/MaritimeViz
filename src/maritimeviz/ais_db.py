@@ -393,48 +393,48 @@ class AISDatabase:
         with open(file_path, "w") as f:
             f.write(gdf.to_json())
         return json.loads(gdf.to_json())
-    #
-    # def get_shapefile(self, file_path="ais_shapefile", mmsi=None, start_date=None, end_date=None, polygon_bounds=None):
-    #     """
-    #     Exports AIS data to a Shapefile.
-    #     """
-    #     gdf = self.search(mmsi, start_date, end_date, polygon_bounds)
-    #     if gdf.empty:
-    #         return "No data available to export."
-    #
-    #     gdf.to_file(file_path, driver="ESRI Shapefile")
-    #     return f"Shapefile saved at {file_path}"
-    #
-    # def get_kml(self,file_path="ais_data.kml", mmsi=None, start_date=None, end_date=None, polygon_bounds=None):
-    #     """
-    #     Exports AIS data to a KML file.
-    #     """
-    #     gdf = self.search(mmsi, start_date, end_date, polygon_bounds)
-    #     if gdf.empty:
-    #         return "No data available to export."
-    #
-    #     gdf.to_file(file_path, driver="KML")
-    #     return f"KML file saved at {file_path}"
-    #
-    # def get_excel(self, file_path="ais_data.xlsx",  mmsi=None, start_date=None, end_date=None, polygon_bounds=None):
-    #     """
-    #     Exports AIS data to an Excel file.
-    #     """
-    #     gdf = self.search(mmsi, start_date, end_date, polygon_bounds)
-    #     if gdf.empty:
-    #         return "No data available to export."
-    #
-    #     gdf.to_excel(file_path, index=False)
-    #     return f"Excel file saved at {file_path}"
-    #
-    # def get_wkt(self, mmsi=None, start_date=None, end_date=None, polygon_bounds=None):
-    #     """
-    #     Returns AIS data in Well-Known Text (WKT) format.
-    #     """
-    #     gdf = self.search(mmsi, start_date, end_date, polygon_bounds)
-    #     if gdf.empty:
-    #         return "No data available to export."
-    #
-    #     return gdf["geometry"].apply(lambda geom: geom.wkt).tolist()
+
+    def get_shapefile(self, file_path="ais_shapefile", mmsi=None, start_date=None, end_date=None, polygon_bounds=None):
+        """
+        Exports AIS data to a Shapefile.
+        """
+        gdf = self.search(mmsi, start_date, end_date, polygon_bounds)
+        if gdf.empty:
+            return "No data available to export."
+
+        gdf.to_file(file_path, driver="ESRI Shapefile")
+        return f"Shapefile saved at {file_path}"
+
+    def get_kml(self,file_path="ais_data.kml", mmsi=None, start_date=None, end_date=None, polygon_bounds=None):
+        """
+        Exports AIS data to a KML file.
+        """
+        gdf = self.search(mmsi, start_date, end_date, polygon_bounds)
+        if gdf.empty:
+            return "No data available to export."
+
+        gdf.to_file(file_path, driver="KML")
+        return f"KML file saved at {file_path}"
+
+    def get_excel(self, file_path="ais_data.xlsx",  mmsi=None, start_date=None, end_date=None, polygon_bounds=None):
+        """
+        Exports AIS data to an Excel file.
+        """
+        gdf = self.search(mmsi, start_date, end_date, polygon_bounds)
+        if gdf.empty:
+            return "No data available to export."
+
+        gdf.to_excel(file_path, index=False)
+        return f"Excel file saved at {file_path}"
+
+    def get_wkt(self, mmsi=None, start_date=None, end_date=None, polygon_bounds=None):
+        """
+        Returns AIS data in Well-Known Text (WKT) format.
+        """
+        gdf = self.search(mmsi, start_date, end_date, polygon_bounds)
+        if gdf.empty:
+            return "No data available to export."
+
+        return gdf["geometry"].apply(lambda geom: geom.wkt).tolist()
 
 
