@@ -18,7 +18,7 @@ class TestGFWApi(unittest.TestCase):
 
         cls.api_client = GFW_api(token)
 
-    def test_search_vessel(self):
+    def test_search_vessel_works(self):
         """Test searching for a vessel using an IMO number."""
         imo_number = "7831410"  # Example IMO number
         response = self.api_client.search_vessel(imo_number)
@@ -26,7 +26,7 @@ class TestGFWApi(unittest.TestCase):
         self.assertIsInstance(response, list)  # Should return a list
         self.assertGreater(len(response), 0)  # Ensure at least one result
 
-    def test_get_fishing_events(self):
+    def test_get_fishing_events_works(self):
         """Test fetching fishing events for a vessel."""
         vessel_id = "9b3e9019d-d67f-005a-9593-b66b997559e5"  # Example vessel ID
         start_date = "2017-03-01"
