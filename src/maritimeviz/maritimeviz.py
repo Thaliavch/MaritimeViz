@@ -71,8 +71,8 @@ class GFW_api:
                   "datasets[0]": "public-global-vessel-identity:latest"}
 
         response = self._make_request(self.VESSEL_API_ENDPOINT, params)
-        print(response.status_code)
-        print(response.json())
+        print(response)
+
         if response and "entries" in response:
             return response["entries"]  # List of vessels matching the query
         return None

@@ -23,7 +23,8 @@ dependencies = [
   "ais",
   "duckdb>=0.7.1",
   "pandas",
-  "geopandas"
+  "geopandas",
+  "python-dotenv"
 ]
 
 [project.optional-dependencies]
