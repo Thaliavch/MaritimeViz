@@ -13,17 +13,36 @@ import json
 import geojson
 
 
-
 class AISDatabase:
 
     """
     Class to manage the initialization, population, and interaction with the AIS database.
     """
     def __init__(self, db_path="ais_data.duckdb", enable_cache=True):
-        self.db_path = db_path
+        self._db_path = db_path
         self._conn = self.init_db(db_path)
         # TODO(Thalia) maybe add options for using to disable caching at class or method levels, since it may cause issues
-        self.enable_cache = enable_cache
+        #self.enable_cache = enable_cache
+
+    # All results will be verified here for previous cache
+    @lru_cache(maxsize=100)  # Cache up to 100 unique query results
+    def _cached_query(self, query, params, df=False):
+        """
+        Verify requested query for cached results.
+        """
+        if not params:
+            return self._conn.execute(
+                query).fetchdf() if df else self._conn.execute(
+                query).fetchall()
+
+        if type(params) is not tuple:
+            if type(params) is not list:
+                params = [params]
+            params = tuple(params)
+
+        return self._conn.execute(query,
+                                  params).fetchdf() if df else self._conn.execute(
+            query, params).fetchall()
 
     # TODO (Thalia): Move to utitilies and use in search() and static_info()
     def filter_mmsi_query(mmsi: int | list[int], query: str,
@@ -150,7 +169,7 @@ class AISDatabase:
         Open database connection if not already open
         """
         if not self._conn:
-            self._conn = duckdb.connect(self.db_path)
+            self._conn = duckdb.connect(self._db_path)
             return self._conn
         else:
             print("Returning existing connection")
@@ -171,24 +190,6 @@ class AISDatabase:
         Return current connection
         """
         return self._conn
-
-
-    # TODO (Thalia): Move to utilities
-    # All results will be verified here for previous cache
-    @lru_cache(maxsize=100)  # Cache up to 100 unique query results
-    def _cached_query(self, query, params, df=False):
-        """
-        Verify requested query for cached results.
-        """
-        if not params:
-            return  self._conn.execute(query).fetchdf() if df else self._conn.execute(query).fetchall()
-
-        if type(params) is not tuple:
-            if type(params) is not list:
-                params = [params]
-            params = tuple(params)
-
-        return self._conn.execute(query, params).fetchdf() if df else self._conn.execute(query, params).fetchall()
 
     def clear_cache(self):
         """Manually clear the search cache."""
