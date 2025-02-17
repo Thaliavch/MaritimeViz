@@ -2,6 +2,7 @@
 import os
 import getpass
 import requests
+from functools import lru_cache
 
 
 class GFW_api:
@@ -42,21 +43,54 @@ class GFW_api:
             os.environ["GFW_API_TOKEN"] = new_token  # Store in session
         else:
             raise ValueError("Token cannot be empty!")
+        
+    def clear_cache(self):
+        """Manually clear the search cache."""
+        self._cached_query.cache_clear()
+
+    @lru_cache(maxsize=100)  # Cache up to 100 unique query results
+    def _cached_query(self, query, params, df=False):
+        """
+        Verify requested query for cached results.
+        """
+        if not params:
+            return self._conn.execute(
+                query).fetchdf() if df else self._conn.execute(
+                query).fetchall()
+
+        if type(params) is not tuple:
+            if type(params) is not list:
+                params = [params]
+            params = tuple(params)
+
+        return self._conn.execute(query,
+                                  params).fetchdf() if df else self._conn.execute(
+            query, params).fetchall()
 
     def _make_request(self, endpoint, params=None):
         """
-        Private method to send a GET request to the GFW API.
+        Private method to send a GET request to the GFW API with caching.
         :param endpoint: API endpoint (excluding the base URL).
         :param params: Dictionary of query parameters.
         :return: JSON response or None if an error occurs.
         """
+        query = f"API_REQUEST:{endpoint}"  # Unique identifier for caching
+        cached_result = self._cached_query(query, params, df=False)
+
+        if cached_result:
+            return cached_result  # Return cached response if available
+
         url = f"{self.BASE_URL}/{endpoint}"
         headers = {"Authorization": f"Bearer {self._token}"}
 
         try:
             response = requests.get(url, headers=headers, params=params)
             response.raise_for_status()  # Raise an error for HTTP issues
-            return response.json()
+            json_data = response.json()
+
+            # Store the result in the cache
+            self._cached_query(query, params, df=False)  # Cache the response
+            return json_data
         except requests.exceptions.RequestException as e:
             print(f"Error fetching data: {e}")
             return None
