@@ -1,34 +1,166 @@
 """Main module."""
+import os
+import getpass
 import requests
+from functools import lru_cache
 
 
 class GFW_api:
+    BASE_URL = "https://gateway.api.globalfishingwatch.org/v3"
+    VESSEL_API_ENDPOINT = "vessels/search"
+    EVENTS_API_ENDPOINT = "events"
+
+
 
     def __init__(self, token=None):
         """
         Initialize the GFW API client.
         """
-        self.token = token
-        print("Powered by Global Fishing Watch. https://globalfishingwatch.org/"
-              
-    # Search Function from Global Fishing Watch"
-    def search_vessel(self, mmsi=None):
+        if token:
+            self._token = token
+        else:
+            self._token = os.environ.get(
+                "GFW_API_TOKEN")  # Check environment variable
+            if not self._token:
+                self._token = getpass.getpass(
+                    "Enter your Global Fishing Watch API token: ")
+                os.environ[
+                    "GFW_API_TOKEN"] = self._token  # Store for session reuse
+        print(
+            "Powered by Global Fishing Watch. https://globalfishingwatch.org/")
+
+    @property
+    def token(self):
+        """Prevent direct access to the token."""
+        raise AttributeError(
+            "Access to the API token is restricted for security reasons.")
+
+    @token.setter
+    def token(self, new_token):
+        """Allow securely updating the token."""
+        if new_token:
+            self._token = new_token
+            os.environ["GFW_API_TOKEN"] = new_token  # Store in session
+        else:
+            raise ValueError("Token cannot be empty!")
+        
+    def clear_cache(self):
+        """Manually clear the search cache."""
+        self._cached_query.cache_clear()
+
+    @lru_cache(maxsize=100)  # Cache up to 100 unique query results
+    def _cached_query(self, query, params, df=False):
+        """
+        Verify requested query for cached results.
+        """
+        if not params:
+            return self._conn.execute(
+                query).fetchdf() if df else self._conn.execute(
+                query).fetchall()
+
+        if type(params) is not tuple:
+            if type(params) is not list:
+                params = [params]
+            params = tuple(params)
+
+        return self._conn.execute(query,
+                                  params).fetchdf() if df else self._conn.execute(
+            query, params).fetchall()
+
+    def _make_request(self, endpoint, params=None):
+        """
+        Private method to send a GET request to the GFW API with caching.
+        :param endpoint: API endpoint (excluding the base URL).
+        :param params: Dictionary of query parameters.
+        :return: JSON response or None if an error occurs.
+        """
+        query = f"API_REQUEST:{endpoint}"  # Unique identifier for caching
+        cached_result = self._cached_query(query, params, df=False)
+
+        if cached_result:
+            return cached_result  # Return cached response if available
+
+        url = f"{self.BASE_URL}/{endpoint}"
+        headers = {"Authorization": f"Bearer {self._token}"}
 
         try:
-            headers = {
-                'Authorization': f'Bearer {self.token}',
-            }
+            response = requests.get(url, headers=headers, params=params)
+            response.raise_for_status()  # Raise an error for HTTP issues
+            json_data = response.json()
 
-            response = requests.get(
-                'https://gateway.api.globalfishingwatch.org/v3/vessels/search?query=368045130&datasets[0]=public-global-vessel-identity:latest&includes[0]=MATCH_CRITERIA&includes[1]=OWNERSHIP&includes[2]=AUTHORIZATIONS',
-                headers=headers,
-            )
-
-            print(response.status_code)
-            print(response.json())
-
-        except Exception as e:
+            # Store the result in the cache
+            self._cached_query(query, params, df=False)  # Cache the response
+            return json_data
+        except requests.exceptions.RequestException as e:
             print(f"Error fetching data: {e}")
+            return None
+
+    def search_vessel(self, identifier=None):
+        """
+        Search for a vessel using MMSI or IMO.
+        :param identifier: MMSI (9-digit number) or IMO (7-digit number).
+        :return: JSON response with vessel details.
+        """
+        params = {"query": identifier,
+                  "datasets[0]": "public-global-vessel-identity:latest"}
+
+        response = self._make_request(self.VESSEL_API_ENDPOINT, params)
+        print(response)
+
+        if response and "entries" in response:
+            return response["entries"]  # List of vessels matching the query
+        return None
+
+    def get_fishing_events(self, vessel_id, start_date, end_date, limit=10,
+                           offset=0):
+        """
+        Get fishing events for a specific vessel.
+        :param vessel_id: Vessel ID (found in the search response).
+        :param start_date: Start date (YYYY-MM-DD).
+        :param end_date: End date (YYYY-MM-DD).
+        :param limit: Number of records to return (default: 10).
+        :param offset: Offset for pagination (default: 0).
+        :return: JSON response with fishing events.
+        """
+        params = {
+            "vessels[0]": vessel_id,
+            "datasets[0]": "public-global-fishing-events:latest",
+            "start-date": start_date,
+            "end-date": end_date,
+            "limit": limit,
+            "offset": offset
+        }
+
+        data = self._make_request(self.EVENTS_API_ENDPOINT, params)
+        if data and "entries" in data:
+            return data["entries"]  # List of fishing events
+        return None
+
+
+def get_worldwide_stats_by_timerange(self, start_date, end_date):
+    """
+    Get worldwide fishing effort statistics for a given date range.
+    
+    :param start_date: Start date in YYYY-MM-DD format.
+    :param end_date: End date in YYYY-MM-DD format.
+    :return: JSON response with fishing statistics.
+    """
+    endpoint = "4wings/stats/"  # API endpoint
+
+    params = {
+        "datasets[0]": "public-global-fishing-effort:latest",
+        "fields": "flags,vessel-ids,activity-hours",
+        "date-range": f"{start_date},{end_date}"
+    }
+
+    # Use the existing `_make_request` function
+    data = self._make_request(endpoint, params)
+
+    if data:
+        return data  # Return the JSON response
+    else:
+        print("No data available for the specified date range.")
+        return None
 
 '''
 #token = input('Enter TOKEN: ')

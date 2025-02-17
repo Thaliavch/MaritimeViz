@@ -4,6 +4,7 @@ import pandas as pd
 import geopandas as gpd
 import os
 from shapely.geometry import Point
+import shutil
 
 from src.maritimeviz.ais_db import AISDatabase
 from . import logger
@@ -22,7 +23,7 @@ def setup_db():
     db.close()
 
     # Clean up exported files
-    for file in ["test_shapefile.shp", "test_data.kml", "test_data.xlsx"]:
+    for file in ["test_data.csv", "test_data.parquet", "test_data.kml", "test_data.xlsx"]:
         if os.path.exists(file):
             os.remove(file)
 
@@ -31,8 +32,8 @@ def setup_db():
 def check_file_exists():
     print(f"Database file exists: {os.path.exists('test_db.duckdb')}")
 
-def test_initialize_existing_database_works():
-   db = AISDatabase("test_db.duckdb")
+def test_initialize_existing_database_works(setup_db):
+   db = setup_db
    conn = db.connection()
    # TODO(Thalia): wrap in method and move to utilities
    # tables = conn.execute(
@@ -44,10 +45,9 @@ def test_initialize_existing_database_works():
    assert conn is not None
    assert len(result) > 0
 
-   db.close()
 
-def test_search_works():
-    db = AISDatabase("test_db.duckdb")
+def test_search_works(setup_db):
+    db = setup_db
     conn = db.connection()
     result_all = db.search()
     print("Result (No filters):", result_all)
@@ -83,13 +83,11 @@ def test_search_works():
     # assert not result_polygon.empty
     # assert any(result_polygon.geometry.within(Point(30.0, -90.0)))  # Check if known point is inside
 
-    db.clear_cache()
-    db.close()
 
 
-def test_get_csv():
+def test_get_csv(setup_db):
     """Test exporting AIS data to CSV format."""
-    db = AISDatabase("test_db.duckdb")
+    db = setup_db
     file_path = "test_data.csv"
 
     result = db.get_csv(mmsi=9111254, file_path=file_path)
@@ -97,14 +95,9 @@ def test_get_csv():
     assert os.path.exists(file_path), "CSV file should be created"
     assert "CSV saved at" in result, "CSV export function should return success message"
 
-    # Cleanup
-    os.remove(file_path)
-    db.close()
-
-
-def test_get_parquet():
+def test_get_parquet(setup_db):
     """Test exporting AIS data to Parquet format."""
-    db = AISDatabase("test_db.duckdb")
+    db = setup_db
     file_path = "test_data.parquet"
 
     result = db.get_parquet(mmsi=9111254, file_path=file_path)
@@ -112,14 +105,9 @@ def test_get_parquet():
     assert os.path.exists(file_path), "Parquet file should be created"
     assert "Parquet file saved at" in result, "Parquet export function should return success message"
 
-    # Cleanup
-    os.remove(file_path)
-    db.close()
-
-
-def test_get_json():
+def test_get_json(setup_db):
     """Test exporting AIS data to JSON format."""
-    db = AISDatabase("test_db.duckdb")
+    db = setup_db
     file_path = "test_data.json"
 
     result = db.get_json(mmsi=9111254, file_path=file_path)
@@ -127,57 +115,68 @@ def test_get_json():
     assert os.path.exists(file_path)
     assert len(result) >= 1
 
-    # Cleanup
-    os.remove(file_path)
-    db.close()
+def test_get_shapefile(setup_db):
+    db = setup_db
+    file_path = "test_shapefile"
 
-# def test_get_shapefile(setup_db):
-#     db = setup_db
-#     file_path = "test_shapefile"
-#
-#     result = db.get_shapefile(file_path=file_path, mmsi=9111254)
-#
-#     # Check if shapefile components are created
-#     assert os.path.exists(f"{file_path}.shp"), "Shapefile (.shp) was not created."
-#     assert os.path.exists(f"{file_path}.shx"), "Shapefile index (.shx) was not created."
-#     assert os.path.exists(f"{file_path}.dbf"), "Shapefile attributes (.dbf) were not created."
-#
-#     gdf = gpd.read_file(f"{file_path}.shp")
-#     assert not gdf.empty, "Shapefile should not be empty."
-#
-# def test_get_kml(setup_db):
-#     db = setup_db
-#     file_path = "test_data.kml"
-#
-#     result = db.get_kml(file_path=file_path, mmsi=9111254)
-#
-#     # Check if KML file is created
-#     assert os.path.exists(file_path), "KML file was not created."
-#
-#     gdf = gpd.read_file(file_path)
-#     assert not gdf.empty, "KML file should not be empty."
-#
-# def test_get_excel(setup_db):
-#     db = setup_db
-#     file_path = "test_data.xlsx"
-#
-#     result = db.get_excel(file_path=file_path, mmsi=9111254)
-#
-#     # Check if Excel file is created
-#     assert os.path.exists(file_path), "Excel file was not created."
-#
-#     df = pd.read_excel(file_path)
-#     assert not df.empty, "Excel file should not be empty."
-#
-# def test_get_wkt(setup_db):
-#     db = setup_db
-#
-#     wkt_list = db.get_wkt(mmsi=9111254)
-#
-#     # Check that WKT list is not empty
-#     assert isinstance(wkt_list, list), "WKT output should be a list."
-#     assert len(wkt_list) > 0, "WKT list should not be empty."
-#     assert "POINT" in wkt_list[0], "WKT should contain 'POINT'."
+    try:
+        # Run the function to generate the shapefile
+        db.get_shapefile(file_path=file_path, mmsi=9111254)
+
+        # Ensure the folder and required files exist
+        assert os.path.exists(file_path), "Shapefile folder was not created"
+
+        # Check that the required shapefile components exist
+        expected_files = ["shp", "shx", "dbf", "prj"]
+        for ext in expected_files:
+            file_inside_folder = os.path.join(file_path,
+                                              f"{os.path.basename(file_path)}.{ext}")
+            assert os.path.exists(
+                file_inside_folder), f"Missing {ext} file inside the shapefile folder"
+
+            # Attempt to load the shapefile
+            gdf = gpd.read_file(
+                os.path.join(file_path, f"{os.path.basename(file_path)}.shp"))
+            assert not gdf.empty, "Generated shapefile is empty"
+
+    finally:
+        # Cleanup: Recursively delete the shapefile directory
+        if os.path.exists(file_path):
+            shutil.rmtree(file_path)
+
+def test_get_kml(setup_db):
+    db = setup_db
+    file_path = "test_data.kml"
+
+    result = db.get_kml(file_path=file_path, mmsi=9111254)
+
+    # Check if KML file is created
+    assert os.path.exists(file_path), "KML file was not created."
+
+    gdf = gpd.read_file(file_path)
+    assert not gdf.empty, "KML file should not be empty."
+
+def test_get_excel(setup_db):
+    db = setup_db
+    file_path = "test_data.xlsx"
+
+    result = db.get_excel(file_path=file_path, mmsi=9111254)
+
+    # Check if Excel file is created
+    assert os.path.exists(file_path), "Excel file was not created."
+
+    df = pd.read_excel(file_path)
+    assert not df.empty, "Excel file should not be empty."
+
+def test_get_wkt(setup_db):
+    db = setup_db
+
+    wkt_list = db.get_wkt(mmsi=9111254)
+
+    # Check that WKT list is not empty
+    assert isinstance(wkt_list, list), "WKT output should be a list."
+    assert len(wkt_list) > 0, "WKT list should not be empty."
+    assert "POINT" in wkt_list[0], "WKT should contain 'POINT'."
 
 '''
 def test_process_file():
