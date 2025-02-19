@@ -73,27 +73,39 @@ class Map:
         if not route_geojson:
             print("Empty or invalid GeoJSON. Nothing to plot.")
             return
+
         gdf = gpd.read_file(route_geojson)
+
         if gdf.empty:
             print("No valid ship route data found.")
-            return
+        else:
+            # Extract latitude and longitude if not already present
+            if "latitude" not in gdf.columns or "longitude" not in gdf.columns:
+                gdf["longitude"] = gdf["geometry"].apply(lambda geom: geom.x if geom else None)
+                gdf["latitude"] = gdf["geometry"].apply(lambda geom: geom.y if geom else None)
 
-        if "latitude" not in gdf.columns or "longitude" not in gdf.columns:
-            gdf["longitude"] = gdf["geometry"].apply(lambda geom: geom.x)
-            gdf["latitude"] = gdf["geometry"].apply(lambda geom: geom.y)
+            # Ensure there are valid coordinates
+            if gdf["latitude"].isnull().all() or gdf["longitude"].isnull().all():
+                print("No valid coordinates found in the data.")
+            else:
+                self.m = leafmap.Map(location=[gdf.latitude.mean(), gdf.longitude.mean()], zoom_start=4)
 
-        self.m = leafmap.Map(location=[gdf.latitude.mean(), gdf.longitude.mean()], zoom_start=4)
+                for _, row in gdf.iterrows():
+                    # Extract all available data dynamically
+                    info_text = "<br>".join(
+                        [f"{key}: {value}" for key, value in row.items() if value and key != "geometry"])
 
-        for _, row in gdf.iterrows():
-            popup_text = f"Ship ID: {row['mmsi']}<br>Speed: {row['speed']} knots"
-            tooltip_text = f"Ship ID: {row['mmsi']} | Speed: {row['speed']} knots"
 
-            folium.Marker(
-                icon=folium.Icon(color="blue", icon="ship", prefix='fa'),
-                location=[row.geometry.y, row.geometry.x],  # Latitude, Longitude
-                popup=folium.Popup(popup_text, max_width=250),  # Click for details
-                tooltip=tooltip_text  # Hover to see info
-            ).add_to(self.m)
+                    name = row.get("mmsi", row.get("name", row.get("id", "Unknown")))
+
+                    # Ensure latitude and longitude are valid
+                    if row.geometry and hasattr(row.geometry, "x") and hasattr(row.geometry, "y"):
+                        folium.Marker(
+                            icon=folium.Icon(color="blue", icon="ship", prefix="fa"),
+                            location=[row.geometry.y, row.geometry.x],  # Latitude, Longitude
+                            popup=folium.Popup(info_text, max_width=300),  # Display all available info
+                            tooltip='Press for more info'
+                        ).add_to(self.m)
 
 
         return self.m
