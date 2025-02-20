@@ -2,6 +2,7 @@ import os
 import json
 from . import logger
 import datetime
+from typing import TypedDict, List, Union
 
 def estimate_lines_by_size(file_path, avg_bytes_per_line=90):
     """
@@ -189,3 +190,14 @@ def tagblock_timestamp_to_date(tagblock_timestamp):
     readable_time = dt.strftime("%Y-%m-%d %H:%M:%S")
 
     return readable_time
+
+class FilterCriteria(TypedDict, total=False): # total set to False to make all fields optional
+    mmsi: Union[int, List[int]]
+    start_date: str
+    end_date: str
+    polygon_bounds: str
+    min_velocity: float      # Minimum speed (sog)
+    max_velocity: float      # Maximum speed (sog)
+    direction: str           # Cardinal direction filter ("N", "E", "S", "W")
+    min_turn_rate: float     # Minimum rate of turn (rot)
+    max_turn_rate: float     # Maximum rate of turn (rot)
