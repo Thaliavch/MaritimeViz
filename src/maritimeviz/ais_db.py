@@ -1,5 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import lru_cache
+from typing import Optional
 
 import duckdb
 import pandas as pd
@@ -21,8 +22,20 @@ class AISDatabase:
     def __init__(self, db_path="ais_data.duckdb", enable_cache=True):
         self._db_path = db_path
         self._conn = self.init_db(db_path)
+        self._filter: Optional[FilterCriteria] = None  # Store user-defined filters
         # TODO(Thalia) maybe add options for using to disable caching at class or method levels, since it may cause issues
         #self.enable_cache = enable_cache
+
+    def set_filter(self, filter_obj: Optional[FilterCriteria]):
+        """Sets or clears the filter object."""
+        if filter_obj is not None and not isinstance(filter_obj, dict):
+            raise TypeError(
+                "Filter object must be a dictionary following FilterCriteria structure.")
+
+        self._filter = filter_obj
+
+    def clear_filter(self):
+        self._filter = None
 
     # All results will be verified here for previous cache
     @lru_cache(maxsize=100)  # Cache up to 100 unique query results
@@ -195,19 +208,34 @@ class AISDatabase:
         """Manually clear the search cache."""
         self._cached_query.cache_clear()
 
-    def search(self, mmsi: int | list[int] = None, conn=None, start_date=None, end_date=None, polygon_bounds=None):
+    def search(self,
+               mmsi: Optional[Union[int, List[int]]] = None,
+               conn: Optional[duckdb.Connection] = None,
+               start_date: Optional[str] = None,
+               end_date: Optional[str] = None,
+               polygon_bounds: Optional[str] = None,
+               min_velocity: Optional[float] = None,
+               max_velocity: Optional[float] = None,
+               direction: Optional[str] = None,
+               min_turn_rate: Optional[float] = None,
+               max_turn_rate: Optional[float] = None) -> gpd.GeoDataFrame:
         """
-        Enhanced search function to retrieve AIS data based on MMSI and optional filters.
+        Search AIS data with optional filters.
 
         Parameters:
-        - mmsi (int | list[int], optional): The MMSI number(s) of the vessel(s) to filter by.
-        - conn (duckdb.Connection, optional): The DuckDB connection to execute the query. Defaults to `self._conn`.
-        - start_date (str, optional): Start date in ISO 8601 format ('YYYY-MM-DD').
-        - end_date (str, optional): End date in ISO 8601 format ('YYYY-MM-DD').
-        - polygon_bounds (str, optional): A WKT polygon for spatial filtering.
+        - mmsi (int | list[int], optional): MMSI number(s) to filter.
+        - conn (duckdb.Connection, optional): DuckDB connection (defaults to self._conn).
+        - start_date (str, optional): Start date in 'YYYY-MM-DD' format.
+        - end_date (str, optional): End date in 'YYYY-MM-DD' format.
+        - polygon_bounds (str, optional): WKT polygon for spatial filtering.
+        - min_velocity (float, optional): Minimum speed over ground (sog).
+        - max_velocity (float, optional): Maximum speed over ground (sog).
+        - direction (str, optional): Cardinal direction ("N", "E", "S", or "W") to filter by course over ground (cog).
+        - min_turn_rate (float, optional): Minimum rate of turn (rot).
+        - max_turn_rate (float, optional): Maximum rate of turn (rot).
 
         Returns:
-        - gpd.GeoDataFrame: Filtered AIS data as a GeoDataFrame.
+        - gpd.GeoDataFrame: Filtered AIS data.
         """
         if not conn:
             conn = self._conn
@@ -217,52 +245,112 @@ class AISDatabase:
             query = "SELECT * FROM ais_msg_123 WHERE 1=1"
             params = []
 
+            # Apply stored filter if set (stored filter values are used unless explicitly overridden)
+            if self._filter:
+                mmsi = mmsi or self._filter.get("mmsi")
+                start_date = start_date or self._filter.get("start_date")
+                end_date = end_date or self._filter.get("end_date")
+                polygon_bounds = polygon_bounds or self._filter.get(
+                    "polygon_bounds")
+                min_velocity = min_velocity or self._filter.get("min_velocity")
+                max_velocity = max_velocity or self._filter.get("max_velocity")
+                direction = direction or self._filter.get("direction")
+                min_turn_rate = min_turn_rate or self._filter.get(
+                    "min_turn_rate")
+                max_turn_rate = max_turn_rate or self._filter.get(
+                    "max_turn_rate")
+
             # MMSI filtering
             if mmsi:
                 if isinstance(mmsi, int):
                     query += " AND mmsi = ?"
                     params.append(mmsi)
-                elif isinstance(mmsi, list) and all(isinstance(i, int) for i in mmsi):
+                elif isinstance(mmsi, list) and all(
+                    isinstance(i, int) for i in mmsi):
                     placeholders = ', '.join(['?'] * len(mmsi))
                     query += f" AND mmsi IN ({placeholders})"
                     params.extend(mmsi)
                 else:
-                    raise ValueError("MMSI must be an integer or a list of integers.")
+                    raise ValueError(
+                        "MMSI must be an integer or a list of integers.")
 
             # Date range filter
             if start_date and end_date:
-                start_timestamp = date_to_tagblock_timestamp(
-                    *map(int, start_date.split("-")))
-                end_timestamp = date_to_tagblock_timestamp(
-                    *map(int, end_date.split("-")))
-                query += " AND tagblock_timestamp BETWEEN ? AND ?"
-                params.extend([start_timestamp, end_timestamp])
+                try:
+                    start_timestamp = date_to_tagblock_timestamp(
+                        *map(int, start_date.split("-")))
+                    end_timestamp = date_to_tagblock_timestamp(
+                        *map(int, end_date.split("-")))
+                    query += " AND tagblock_timestamp BETWEEN ? AND ?"
+                    params.extend([start_timestamp, end_timestamp])
+                except ValueError:
+                    raise ValueError(
+                        "Invalid date format. Expected YYYY-MM-DD.")
 
-            # Polygon bounds filter
+            # Polygon bounds filter (using parameterized query)
             if polygon_bounds:
-                query += f"""
-                AND ST_Within(
-                    ST_Point(x, y),
-                    ST_GeomFromText('{polygon_bounds}')
-                )
-                """
+                query += " AND ST_Within(ST_Point(x, y), ST_GeomFromText(?))"
+                params.append(polygon_bounds)
+
+            # Velocity filter
+            if min_velocity is not None:
+                query += " AND sog >= ?"
+                params.append(min_velocity)
+            if max_velocity is not None:
+                query += " AND sog <= ?"
+                params.append(max_velocity)
+
+            # Turn rate filter
+            if min_turn_rate is not None:
+                query += " AND rot >= ?"
+                params.append(min_turn_rate)
+            if max_turn_rate is not None:
+                query += " AND rot <= ?"
+                params.append(max_turn_rate)
+
+            # Direction filter (based on course over ground, cog)
+            if direction:
+                direction = direction.upper()
+                if direction == "N":
+                    # North: cog >= 315 or cog < 45
+                    query += " AND (cog >= ? OR cog < ?)"
+                    params.extend([315, 45])
+                elif direction == "E":
+                    query += " AND (cog >= ? AND cog < ?)"
+                    params.extend([45, 135])
+                elif direction == "S":
+                    query += " AND (cog >= ? AND cog < ?)"
+                    params.extend([135, 225])
+                elif direction == "W":
+                    query += " AND (cog >= ? AND cog < ?)"
+                    params.extend([225, 315])
+                else:
+                    raise ValueError(
+                        "Direction must be one of 'N', 'E', 'S', 'W'.")
+
+            # Log query for debugging
+            logger.info(f"Executing query: {query} with params: {params}")
 
             # Execute query
-            print("Query: ", query)
-            print("Params: ", params)
-            df = self._conn.execute(query, params).fetchdf()#self._cached_query(query, params, True)
+            df = conn.execute(query, params).fetchdf()
             if df.empty:
-                return gpd.GeoDataFrame(columns=["geometry"])  # Return empty GeoDataFrame if no results
+                return gpd.GeoDataFrame(
+                    columns=["geometry"])  # Return empty GeoDataFrame
 
             # Build GeoDataFrame
-            df["geometry"] =  gpd.points_from_xy(df["x"], df["y"])
-            gdf = gpd.GeoDataFrame(df, geometry="geometry", crs="EPSG:4326")  # lat/lon WGS84
-
+            df["geometry"] = gpd.points_from_xy(df["x"], df["y"])
+            gdf = gpd.GeoDataFrame(df, geometry="geometry", crs="EPSG:4326")
             return gdf
 
+        except duckdb.DatabaseError as db_err:
+            logger.error(f"DuckDB error: {db_err}")
+        except ValueError as ve:
+            logger.error(f"Value error: {ve}")
         except Exception as e:
-            logger.error(f"Error retrieving data: {e}")
-            return gpd.GeoDataFrame()  # Return empty GeoDataFrame on error
+            logger.error(f"Unexpected error: {e}")
+
+        return gpd.GeoDataFrame()  # Return empty GeoDataFrame on failure
+
 
     # Change so it also takes a list of vessels
     def static_info(self, mmsi: int | list[int] = None, conn=None):
