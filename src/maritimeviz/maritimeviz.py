@@ -136,31 +136,30 @@ class GFW_api:
             return data["entries"]  # List of fishing events
         return None
 
+    def get_worldwide_stats_by_timerange(self, start_date, end_date):
+        """
+        Get worldwide fishing effort statistics for a given date range.
+        
+        :param start_date: Start date in YYYY-MM-DD format.
+        :param end_date: End date in YYYY-MM-DD format.
+        :return: JSON response with fishing statistics.
+        """
+        endpoint = "4wings/stats/"  # API endpoint
 
-def get_worldwide_stats_by_timerange(self, start_date, end_date):
-    """
-    Get worldwide fishing effort statistics for a given date range.
-    
-    :param start_date: Start date in YYYY-MM-DD format.
-    :param end_date: End date in YYYY-MM-DD format.
-    :return: JSON response with fishing statistics.
-    """
-    endpoint = "4wings/stats/"  # API endpoint
+        params = {
+            "datasets[0]": "public-global-fishing-effort:latest",
+            "fields": "flags,vessel-ids,activity-hours",
+            "date-range": f"{start_date},{end_date}"
+        }
 
-    params = {
-        "datasets[0]": "public-global-fishing-effort:latest",
-        "fields": "flags,vessel-ids,activity-hours",
-        "date-range": f"{start_date},{end_date}"
-    }
+        # Use the existing `_make_request` function
+        data = self._make_request(endpoint, params)
 
-    # Use the existing `_make_request` function
-    data = self._make_request(endpoint, params)
-
-    if data:
-        return data  # Return the JSON response
-    else:
-        print("No data available for the specified date range.")
-        return None
+        if data:
+            return data  # Return the JSON response
+        else:
+            print("No data available for the specified date range.")
+            return None
 
 '''
 #token = input('Enter TOKEN: ')
