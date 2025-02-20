@@ -160,6 +160,34 @@ class GFW_api:
         else:
             print("No data available for the specified date range.")
             return None
+        
+    def get_fishing_effort_by_polygon(self, start_date, end_date, wkt_polygon):
+        """
+        Get fishing effort statistics for a given date range within a WKT
+        polygon.
+        
+        :param start_date: Start date in YYYY-MM-DD format.
+        :param end_date: End date in YYYY-MM-DD format.
+        :param wkt_polygon: Polygon in WKT format.
+        :return: JSON response with fishing statistics.
+        """
+        endpoint = "4wings/stats/"
+
+        params = {
+            "datasets[0]": "public-global-fishing-effort:latest",
+            "fields": "flags,vessel-ids,activity-hours",
+            "date-range": f"{start_date},{end_date}",
+            "geopolygon": wkt_polygon  # Add WKT-formatted polygon
+        }
+
+        # Gettin data response
+        data = self._make_request(endpoint, params)
+        
+        if data:
+            return data
+        else:
+            print("No data available for the specified date range.")
+            return None
 
 '''
 #token = input('Enter TOKEN: ')
