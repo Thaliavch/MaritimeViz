@@ -1,5 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from functools import lru_cache
+from functools import cache
 from typing import Optional
 
 import duckdb
@@ -38,7 +38,7 @@ class AISDatabase:
         self._filter = None
 
     # All results will be verified here for previous cache
-    @lru_cache(maxsize=100)  # Cache up to 100 unique query results
+    @cache
     def _cached_query(self, query, params, df=False):
         """
         Verify requested query for cached results.

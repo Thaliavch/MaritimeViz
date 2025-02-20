@@ -2,7 +2,7 @@
 import os
 import getpass
 import requests
-from functools import lru_cache
+from functools import cache
 
 
 class GFW_api:
@@ -48,7 +48,7 @@ class GFW_api:
         """Manually clear the search cache."""
         self._cached_query.cache_clear()
 
-    @lru_cache(maxsize=100)  # Cache up to 100 unique query results
+    @cache
     def _cached_query(self, query, params, df=False):
         """
         Verify requested query for cached results.
@@ -180,7 +180,7 @@ class GFW_api:
             "geopolygon": wkt_polygon  # Add WKT-formatted polygon
         }
 
-        # Gettin data response
+        # Getting data response
         data = self._make_request(endpoint, params)
         
         if data:
