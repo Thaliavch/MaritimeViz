@@ -186,7 +186,7 @@ class GFW_api:
         if data:
             return data
         else:
-            print("No data available for the specified date range.")
+            print("No data available for the specified date range & polygon.")
             return None
 
 '''
