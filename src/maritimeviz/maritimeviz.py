@@ -2,13 +2,13 @@
 import os
 import getpass
 import requests
-from functools import cache
 
 
 class GFW_api:
     BASE_URL = "https://gateway.api.globalfishingwatch.org/v3"
     VESSEL_API_ENDPOINT = "vessels/search"
     EVENTS_API_ENDPOINT = "events"
+    STATS_API_ENDPOINT = "4wings/stats"
 
 
 
@@ -43,54 +43,21 @@ class GFW_api:
             os.environ["GFW_API_TOKEN"] = new_token  # Store in session
         else:
             raise ValueError("Token cannot be empty!")
-        
-    def clear_cache(self):
-        """Manually clear the search cache."""
-        self._cached_query.cache_clear()
-
-    @cache
-    def _cached_query(self, query, params, df=False):
-        """
-        Verify requested query for cached results.
-        """
-        if not params:
-            return self._conn.execute(
-                query).fetchdf() if df else self._conn.execute(
-                query).fetchall()
-
-        if type(params) is not tuple:
-            if type(params) is not list:
-                params = [params]
-            params = tuple(params)
-
-        return self._conn.execute(query,
-                                  params).fetchdf() if df else self._conn.execute(
-            query, params).fetchall()
 
     def _make_request(self, endpoint, params=None):
         """
-        Private method to send a GET request to the GFW API with caching.
+        Private method to send a GET request to the GFW API.
         :param endpoint: API endpoint (excluding the base URL).
         :param params: Dictionary of query parameters.
         :return: JSON response or None if an error occurs.
         """
-        query = f"API_REQUEST:{endpoint}"  # Unique identifier for caching
-        cached_result = self._cached_query(query, params, df=False)
-
-        if cached_result:
-            return cached_result  # Return cached response if available
-
         url = f"{self.BASE_URL}/{endpoint}"
         headers = {"Authorization": f"Bearer {self._token}"}
 
         try:
             response = requests.get(url, headers=headers, params=params)
             response.raise_for_status()  # Raise an error for HTTP issues
-            json_data = response.json()
-
-            # Store the result in the cache
-            self._cached_query(query, params, df=False)  # Cache the response
-            return json_data
+            return response.json()
         except requests.exceptions.RequestException as e:
             print(f"Error fetching data: {e}")
             return None
@@ -105,9 +72,9 @@ class GFW_api:
                   "datasets[0]": "public-global-vessel-identity:latest"}
 
         response = self._make_request(self.VESSEL_API_ENDPOINT, params)
-        print(response)
 
         if response and "entries" in response:
+            print(response)
             return response["entries"]  # List of vessels matching the query
         return None
 
@@ -135,33 +102,8 @@ class GFW_api:
         if data and "entries" in data:
             return data["entries"]  # List of fishing events
         return None
-
-    def get_worldwide_stats_by_timerange(self, start_date, end_date):
-        """
-        Get worldwide fishing effort statistics for a given date range.
-        
-        :param start_date: Start date in YYYY-MM-DD format.
-        :param end_date: End date in YYYY-MM-DD format.
-        :return: JSON response with fishing statistics.
-        """
-        endpoint = "4wings/stats/"  # API endpoint
-
-        params = {
-            "datasets[0]": "public-global-fishing-effort:latest",
-            "fields": "flags,vessel-ids,activity-hours",
-            "date-range": f"{start_date},{end_date}"
-        }
-
-        # Use the existing `_make_request` function
-        data = self._make_request(endpoint, params)
-
-        if data:
-            return data  # Return the JSON response
-        else:
-            print("No data available for the specified date range.")
-            return None
-        
-    def get_fishing_effort_by_polygon(self, start_date, end_date, wkt_polygon):
+    
+    def get_fishing_stats(self, start_date, end_date, wkt_polygon=None):
         """
         Get fishing effort statistics for a given date range within a WKT
         polygon.
@@ -171,28 +113,28 @@ class GFW_api:
         :param wkt_polygon: Polygon in WKT format.
         :return: JSON response with fishing statistics.
         """
-        endpoint = "4wings/stats/"
 
         params = {
             "datasets[0]": "public-global-fishing-effort:latest",
-            "fields": "flags,vessel-ids,activity-hours",
             "date-range": f"{start_date},{end_date}",
-            "geopolygon": wkt_polygon  # Add WKT-formatted polygon
+            "fields": "FLAGS,VESSEL-IDS,ACTIVITY-HOURS"  
         }
 
-        # Getting data response
-        data = self._make_request(endpoint, params)
+        if wkt_polygon:
+            params["geopolygon"] = wkt_polygon 
+
+        # Gettin data response
+        data = self._make_request(self.STATS_API_ENDPOINT, params)
         
         if data:
             return data
         else:
-            print("No data available for the specified date range & polygon.")
+            print("No data available for the specified date range.")
             return None
 
-'''
+
 #token = input('Enter TOKEN: ')
 
-gfw = GFW_api(token)
+#gfw = GFW_api()
 
-gfw.search_vessel('7831410')
-'''
+#gfw.search_vessel('7831410')
