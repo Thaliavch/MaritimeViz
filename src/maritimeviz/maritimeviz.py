@@ -2,6 +2,7 @@
 import os
 import getpass
 import requests
+from cachetools import TTLCache
 
 
 class GFW_api:
@@ -16,6 +17,9 @@ class GFW_api:
         """
         Initialize the GFW API client.
         """
+        #cache up to 100 results for 300 seconds
+        self._cache = TTLCache(maxsize=100, ttl=300)
+
         if token:
             self._token = token
         else:
@@ -43,7 +47,7 @@ class GFW_api:
             os.environ["GFW_API_TOKEN"] = new_token  # Store in session
         else:
             raise ValueError("Token cannot be empty!")
-
+        
     def _make_request(self, endpoint, params=None):
         """
         Private method to send a GET request to the GFW API.
@@ -51,12 +55,22 @@ class GFW_api:
         :param params: Dictionary of query parameters.
         :return: JSON response or None if an error occurs.
         """
+        # Create an immutable cache key (tuple: endpoint + sorted params)
+        cache_key = (endpoint, frozenset(params.items()) if params else None)
+
+        # Check if the request is already cached
+        if cache_key in self._cache:
+            print(f"\nData fetched from cache. Cache key: {cache_key}\n")  # For debugging purposes
+            return self._cache[cache_key]
+
         url = f"{self.BASE_URL}/{endpoint}"
         headers = {"Authorization": f"Bearer {self._token}"}
 
         try:
             response = requests.get(url, headers=headers, params=params)
             response.raise_for_status()  # Raise an error for HTTP issues
+            data = response.json()
+            self._cache[cache_key] = data  # Store response in cache
             return response.json()
         except requests.exceptions.RequestException as e:
             print(f"Error fetching data: {e}")
@@ -127,6 +141,7 @@ class GFW_api:
         data = self._make_request(self.STATS_API_ENDPOINT, params)
         
         if data:
+            print(data)
             return data
         else:
             print("No data available for the specified date range.")
@@ -134,7 +149,11 @@ class GFW_api:
 
 
 #token = input('Enter TOKEN: ')
-
-#gfw = GFW_api()
-
+#
+#gfw = GFW_api(token)
+#
 #gfw.search_vessel('7831410')
+#
+#gfw.get_fishing_stats(start_date='2022-01-01', end_date='2023-01-01')
+#
+#gfw.get_fishing_stats(start_date='2022-01-01', end_date='2023-01-01')
