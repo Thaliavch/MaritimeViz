@@ -10,6 +10,7 @@ class GFW_api:
     VESSEL_API_ENDPOINT = "vessels/search"
     EVENTS_API_ENDPOINT = "events"
     STATS_API_ENDPOINT = "4wings/stats"
+    INSIGHTS_API_ENDPOINT = "insights/vessels"
 
 
 
@@ -47,6 +48,28 @@ class GFW_api:
             os.environ["GFW_API_TOKEN"] = new_token  # Store in session
         else:
             raise ValueError("Token cannot be empty!")
+    
+    #Caching POST requests is not useful    
+    def _post_request(self, endpoint, payload):
+        """
+        Private method to send a POST request to the GFW API.
+        :param endpoint: API endpoint (excluding the base URL).
+        :param payload: Dictionary containing the request body.
+        :return: JSON response or None if an error occurs.
+        """
+        url = f"{self.BASE_URL}/{endpoint}"
+        headers = {
+            "Authorization": f"Bearer {self._token}",
+            "Content-Type": "application/json"
+        }
+
+        try:
+            response = requests.post(url, json=payload, headers=headers)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            print(f"Error fetching data: {e}")
+            return None
         
     def _make_request(self, endpoint, params=None):
         """
@@ -146,6 +169,32 @@ class GFW_api:
         else:
             print("No data available for the specified date range.")
             return None
+        
+    #GET INSIGHTS FOR A VESSEL RELATED TO FISHING EVENTS
+    def get_vessel_insights(self, start_date, end_date, vessels):
+        """
+        Fetches vessel insights for the given vessels within a specific time range.
+
+        :param start_date: Start date in "YYYY-MM-DD" format.
+        :param end_date: End date in "YYYY-MM-DD" format.
+        :param vessels: List of dictionaries containing datasetId and vesselId.
+        :return: JSON response with vessel insights or an error message.
+        """
+        payload = {
+            "includes": ["FISHING"],
+            "startDate": start_date,
+            "endDate": end_date,
+            "vessels": vessels
+        }
+
+        data = self._post_request(self.INSIGHTS_API_ENDPOINT, payload)
+        
+        if data:
+            print(data)
+            return data
+        else:
+            print("No data available for the specified date range.")
+            return None
 
 
 #token = input('Enter TOKEN: ')
@@ -157,3 +206,7 @@ class GFW_api:
 #gfw.get_fishing_stats(start_date='2022-01-01', end_date='2023-01-01')
 #
 #gfw.get_fishing_stats(start_date='2022-01-01', end_date='2023-01-01')
+#
+#gfw.get_vessel_insights(start_date='2022-01-01', end_date='2023-01-01', vessels = [
+#    {"datasetId": "public-global-vessel-identity:latest", "vesselId": "785101812-2127-e5d2-e8bf-7152c5259f5f"}
+#])
