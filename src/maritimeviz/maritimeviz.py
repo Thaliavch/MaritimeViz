@@ -3,6 +3,7 @@ import os
 import getpass
 import requests
 from cachetools import TTLCache
+import json
 
 
 class GFW_api:
@@ -11,6 +12,7 @@ class GFW_api:
     EVENTS_API_ENDPOINT = "events"
     STATS_API_ENDPOINT = "4wings/stats"
     INSIGHTS_API_ENDPOINT = "insights/vessels"
+    GENERATE_PNG_API_ENDPOINT = "4wings/generate-png"
 
 
 
@@ -64,9 +66,15 @@ class GFW_api:
         }
 
         try:
-            response = requests.post(url, json=payload, headers=headers)
+
+            if endpoint == "4wings/generate-png":
+                response = requests.post(url, params=payload, headers=headers)
+            else:
+                response = requests.post(url, json=payload, headers=headers)
+                
             response.raise_for_status()
             return response.json()
+        
         except requests.exceptions.RequestException as e:
             print(f"Error fetching data: {e}")
             return None
@@ -196,6 +204,34 @@ class GFW_api:
             print("No data available for the specified date range.")
             return None
 
+    #EXAMPLE 1: AIS APPARENT FISHING EFFORT - GENERATE PNG TILES WITH TEMPORAL FILTER
+    def generate_fishing_effort_png_tiles(self, interval, dataset, color, start_date, end_date):
+        """
+        Generates a PNG map of fishing effort and saves it as an image file.
+
+        :param interval: Time interval for the visualization (e.g., "DAY").
+        :param dataset: Dataset to use (default: "public-global-fishing-effort:latest").
+        :param color: Hex color code for visualization (default: "#361c0c").
+        :param start_date: Start date in "YYYY-MM-DD" format.
+        :param end_date: End date in "YYYY-MM-DD" format.
+        """
+
+        params = {
+            "interval": interval,
+            "datasets[0]": dataset,
+            "color": color,
+            "date-range": f"{start_date},{end_date}"
+        }
+
+        data = self._post_request(self.GENERATE_PNG_API_ENDPOINT, params)
+
+        if data:
+            print(data)
+            return data
+        else:
+            print("Error retrieving PNG tiles.")
+            return None
+
 
 #token = input('Enter TOKEN: ')
 #
@@ -210,3 +246,5 @@ class GFW_api:
 #gfw.get_vessel_insights(start_date='2022-01-01', end_date='2023-01-01', vessels = [
 #    {"datasetId": "public-global-vessel-identity:latest", "vesselId": "785101812-2127-e5d2-e8bf-7152c5259f5f"}
 #])
+#gfw.generate_fishing_effort_png_tiles(interval="DAY", dataset = "public-global-fishing-effort:latest",
+#                                color="#361c0c", start_date="2020-01-01", end_date="2020-01-31",)
