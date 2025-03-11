@@ -3,7 +3,6 @@ import os
 import getpass
 import requests
 from cachetools import TTLCache
-import json
 
 
 class GFW_api:
