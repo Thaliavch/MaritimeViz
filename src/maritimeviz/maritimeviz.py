@@ -206,7 +206,7 @@ class GFW_api:
     #EXAMPLE 1: AIS APPARENT FISHING EFFORT - GENERATE PNG TILES WITH TEMPORAL FILTER
     def generate_fishing_effort_png_tiles(self, interval, dataset, color, start_date, end_date):
         """
-        Generates a PNG map of fishing effort and saves it as an image file.
+        Generates PNG tiles of fishing effort.
 
         :param interval: Time interval for the visualization (e.g., "DAY").
         :param dataset: Dataset to use (default: "public-global-fishing-effort:latest").
