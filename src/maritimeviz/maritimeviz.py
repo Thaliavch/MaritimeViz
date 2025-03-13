@@ -8,12 +8,8 @@ import matplotlib as plt
 import geopandas as gpd
 import folium
 from folium.plugins import HeatMap
+from auth import load_or_get_token, GFW
 
-"""
-Tracking current API calls
-
-* Vessels
-"""
 
 class GFW_api:
     BASE_URL = "https://gateway.api.globalfishingwatch.org/v3"
@@ -35,13 +31,7 @@ class GFW_api:
         if token:
             self._token = token
         else:
-            self._token = os.environ.get(
-                "GFW_API_TOKEN")  # Check environment variable
-            if not self._token:
-                self._token = getpass.getpass(
-                    "Enter your Global Fishing Watch API token: ")
-                os.environ[
-                    "GFW_API_TOKEN"] = self._token  # Store for session reuse
+            self._token = load_or_get_token(GFW)
         print(
             "Powered by Global Fishing Watch. https://globalfishingwatch.org/")
 
