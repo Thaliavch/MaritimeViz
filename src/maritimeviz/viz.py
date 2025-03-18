@@ -94,7 +94,7 @@ class Map:
                     # Extract all available data dynamically
                     info_text = "<br>".join(
                         [f"{key}: {value}" for key, value in row.items() if value and key != "geometry"])
-
+                        # testing
 
                     name = row.get("mmsi", row.get("name", row.get("id", "Unknown")))
 
