@@ -3,6 +3,12 @@ import os
 import getpass
 import requests
 from cachetools import TTLCache
+import pandas as pd
+import matplotlib as plt
+import geopandas as gpd
+import folium
+from folium.plugins import HeatMap
+from auth import load_or_get_token, GFW
 
 
 class GFW_api:
@@ -10,6 +16,8 @@ class GFW_api:
     VESSEL_API_ENDPOINT = "vessels/search"
     EVENTS_API_ENDPOINT = "events"
     STATS_API_ENDPOINT = "4wings/stats"
+    INSIGHTS_API_ENDPOINT = "insights/vessels"
+    GENERATE_PNG_API_ENDPOINT = "4wings/generate-png"
 
 
 
@@ -23,13 +31,7 @@ class GFW_api:
         if token:
             self._token = token
         else:
-            self._token = os.environ.get(
-                "GFW_API_TOKEN")  # Check environment variable
-            if not self._token:
-                self._token = getpass.getpass(
-                    "Enter your Global Fishing Watch API token: ")
-                os.environ[
-                    "GFW_API_TOKEN"] = self._token  # Store for session reuse
+            self._token = load_or_get_token(GFW)
         print(
             "Powered by Global Fishing Watch. https://globalfishingwatch.org/")
 
@@ -47,8 +49,36 @@ class GFW_api:
             os.environ["GFW_API_TOKEN"] = new_token  # Store in session
         else:
             raise ValueError("Token cannot be empty!")
-        
-    def _make_request(self, endpoint, params=None):
+
+    #Caching POST requests is not useful
+    def _post_request(self, endpoint, payload):
+        """
+        Private method to send a POST request to the GFW API.
+        :param endpoint: API endpoint (excluding the base URL).
+        :param payload: Dictionary containing the request body.
+        :return: JSON response or None if an error occurs.
+        """
+        url = f"{self.BASE_URL}/{endpoint}"
+        headers = {
+            "Authorization": f"Bearer {self._token}",
+            "Content-Type": "application/json"
+        }
+
+        try:
+
+            if endpoint == "4wings/generate-png":
+                response = requests.post(url, params=payload, headers=headers)
+            else:
+                response = requests.post(url, json=payload, headers=headers)
+
+            response.raise_for_status()
+            return response.json()
+
+        except requests.exceptions.RequestException as e:
+            print(f"Error fetching data: {e}")
+            return None
+
+    def _get_request(self, endpoint, params=None):
         """
         Private method to send a GET request to the GFW API.
         :param endpoint: API endpoint (excluding the base URL).
@@ -85,7 +115,7 @@ class GFW_api:
         params = {"query": identifier,
                   "datasets[0]": "public-global-vessel-identity:latest"}
 
-        response = self._make_request(self.VESSEL_API_ENDPOINT, params)
+        response = self._get_request(self.VESSEL_API_ENDPOINT, params)
 
         if response and "entries" in response:
             print(response)
@@ -95,13 +125,15 @@ class GFW_api:
     def get_fishing_events(self, vessel_id, start_date, end_date, limit=10,
                            offset=0):
         """
-        Get fishing events for a specific vessel.
+        Get fishing events for a specific vessel and return structured output.
+        Includes structured DataFrame, charts, and maps.
+
         :param vessel_id: Vessel ID (found in the search response).
         :param start_date: Start date (YYYY-MM-DD).
         :param end_date: End date (YYYY-MM-DD).
         :param limit: Number of records to return (default: 10).
         :param offset: Offset for pagination (default: 0).
-        :return: JSON response with fishing events.
+        :return: Pandas DataFrame with structured event data.
         """
         params = {
             "vessels[0]": vessel_id,
@@ -113,15 +145,125 @@ class GFW_api:
         }
 
         data = self._make_request(self.EVENTS_API_ENDPOINT, params)
-        if data and "entries" in data:
-            return data["entries"]  # List of fishing events
-        return None
-    
+
+        if not data or "entries" not in data:
+            print("⚠️ No fishing events found for the given vessel.")
+            return None
+
+        # Extract relevant fishing event details
+        events_data = []
+        for event in data["entries"]:
+            events_data.append({
+                "Event ID": event.get("id"),
+                "Type": event.get("type"),
+                "Start Time": event.get("start"),
+                "End Time": event.get("end"),
+                "Latitude": event["position"][
+                    "lat"] if "position" in event else None,
+                "Longitude": event["position"][
+                    "lon"] if "position" in event else None,
+                "EEZ": event["regions"]["eez"] if "regions" in event else [],
+                "RFMO": event["regions"]["rfmo"] if "regions" in event else [],
+                "Total Distance (km)": event["fishing"][
+                    "totalDistanceKm"] if "fishing" in event else None,
+                "Avg Speed (knots)": event["fishing"][
+                    "averageSpeedKnots"] if "fishing" in event else None
+            })
+
+        df = pd.DataFrame(events_data)
+
+        return df
+
+    # None of the following three methods are finished
+    @staticmethod
+    def fishing_event_charts(df):
+        """
+        Generate charts for fishing event insights.
+        """
+        if df.empty:
+            print("No data available for chart generation.")
+            return
+
+        # Convert dates to datetime format
+        df["Start Time"] = pd.to_datetime(df["Start Time"])
+        df["End Time"] = pd.to_datetime(df["End Time"])
+
+        # Fishing Events Over Time
+        plt.figure(figsize=(12, 6))
+        df["Start Time"].dt.date.value_counts().sort_index().plot(kind="bar",
+                                                                  color="skyblue")
+        plt.xlabel("Date")
+        plt.ylabel("Number of Events")
+        plt.title("Fishing Events Over Time")
+        plt.xticks(rotation=45)
+        plt.show()
+
+        # 2️Total Distance per Event
+        plt.figure(figsize=(10, 5))
+        plt.barh(df["Event ID"], df["Total Distance (km)"], color="coral")
+        plt.xlabel("Total Distance (km)")
+        plt.ylabel("Event ID")
+        plt.title("Total Distance Covered During Fishing Events")
+        plt.gca().invert_yaxis()
+        plt.show()
+
+        # Average Speed Per Event
+        plt.figure(figsize=(10, 5))
+        plt.barh(df["Event ID"], df["Avg Speed (knots)"], color="teal")
+        plt.xlabel("Average Speed (knots)")
+        plt.ylabel("Event ID")
+        plt.title("Average Speed During Fishing Events")
+        plt.gca().invert_yaxis()
+        plt.show()
+
+    @staticmethod
+    def fishing_event_map(df):
+        """
+        Generate an interactive map of fishing events.
+        """
+        if df.empty or "Latitude" not in df or "Longitude" not in df:
+            print("No valid location data available for mapping.")
+            return
+
+        # Create Map Centered at the First Event Location
+        lat, lon = df["Latitude"].mean(), df["Longitude"].mean()
+        fishing_map = folium.Map(location=[lat, lon], zoom_start=4)
+
+        # Add Fishing Event Markers
+        for _, row in df.iterrows():
+            folium.Marker(
+                location=[row["Latitude"], row["Longitude"]],
+                popup=f'Event ID: {row["Event ID"]}\nType: {row["Type"]}',
+                icon=folium.Icon(color="blue", icon="info-sign")
+            ).add_to(fishing_map)
+
+        return fishing_map
+
+    @staticmethod
+    def fishing_event_heatmap(df):
+        """
+        Generate a heatmap of fishing event locations.
+        """
+        if df.empty or "Latitude" not in df or "Longitude" not in df:
+            print("No valid location data available for mapping.")
+            return
+
+        # Create Map Centered at the Mean Location
+        lat, lon = df["Latitude"].mean(), df["Longitude"].mean()
+        fishing_map = folium.Map(location=[lat, lon], zoom_start=4)
+
+        # Add Heatmap Layer
+        heat_data = [[row["Latitude"], row["Longitude"]] for _, row in
+                     df.iterrows()]
+        HeatMap(heat_data).add_to(fishing_map)
+
+        return fishing_map
+
     def get_fishing_stats(self, start_date, end_date, wkt_polygon=None):
         """
         Get fishing effort statistics for a given date range within a WKT
         polygon.
-        
+
         :param start_date: Start date in YYYY-MM-DD format.
         :param end_date: End date in YYYY-MM-DD format.
         :param wkt_polygon: Polygon in WKT format.
@@ -131,20 +273,74 @@ class GFW_api:
         params = {
             "datasets[0]": "public-global-fishing-effort:latest",
             "date-range": f"{start_date},{end_date}",
-            "fields": "FLAGS,VESSEL-IDS,ACTIVITY-HOURS"  
+            "fields": "FLAGS,VESSEL-IDS,ACTIVITY-HOURS"
         }
 
         if wkt_polygon:
-            params["geopolygon"] = wkt_polygon 
+            params["geopolygon"] = wkt_polygon
 
-        # Gettin data response
-        data = self._make_request(self.STATS_API_ENDPOINT, params)
-        
+        # Getting data response
+        data = self._get_request(self.STATS_API_ENDPOINT, params)
+
         if data:
             print(data)
             return data
         else:
             print("No data available for the specified date range.")
+            return None
+
+    #GET INSIGHTS FOR A VESSEL RELATED TO FISHING EVENTS
+    def get_vessel_insights(self, start_date, end_date, vessels):
+        """
+        Fetches vessel insights for the given vessels within a specific time range.
+
+        :param start_date: Start date in "YYYY-MM-DD" format.
+        :param end_date: End date in "YYYY-MM-DD" format.
+        :param vessels: List of dictionaries containing datasetId and vesselId.
+        :return: JSON response with vessel insights or an error message.
+        """
+        payload = {
+            "includes": ["FISHING"],
+            "startDate": start_date,
+            "endDate": end_date,
+            "vessels": vessels
+        }
+
+        data = self._post_request(self.INSIGHTS_API_ENDPOINT, payload)
+
+        if data:
+            print(data)
+            return data
+        else:
+            print("No data available for the specified date range.")
+            return None
+
+    #EXAMPLE 1: AIS APPARENT FISHING EFFORT - GENERATE PNG TILES WITH TEMPORAL FILTER
+    def generate_fishing_effort_png_tiles(self, interval, dataset, color, start_date, end_date):
+        """
+        Generates PNG tiles of fishing effort.
+
+        :param interval: Time interval for the visualization (e.g., "DAY").
+        :param dataset: Dataset to use (default: "public-global-fishing-effort:latest").
+        :param color: Hex color code for visualization (default: "#361c0c").
+        :param start_date: Start date in "YYYY-MM-DD" format.
+        :param end_date: End date in "YYYY-MM-DD" format.
+        """
+
+        params = {
+            "interval": interval,
+            "datasets[0]": dataset,
+            "color": color,
+            "date-range": f"{start_date},{end_date}"
+        }
+
+        data = self._post_request(self.GENERATE_PNG_API_ENDPOINT, params)
+
+        if data:
+            print(data)
+            return data
+        else:
+            print("Error retrieving PNG tiles.")
             return None
 
 
@@ -157,3 +353,9 @@ class GFW_api:
 #gfw.get_fishing_stats(start_date='2022-01-01', end_date='2023-01-01')
 #
 #gfw.get_fishing_stats(start_date='2022-01-01', end_date='2023-01-01')
+#
+#gfw.get_vessel_insights(start_date='2022-01-01', end_date='2023-01-01', vessels = [
+#    {"datasetId": "public-global-vessel-identity:latest", "vesselId": "785101812-2127-e5d2-e8bf-7152c5259f5f"}
+#])
+#gfw.generate_fishing_effort_png_tiles(interval="DAY", dataset = "public-global-fishing-effort:latest",
+#                                color="#361c0c", start_date="2020-01-01", end_date="2020-01-31",)
