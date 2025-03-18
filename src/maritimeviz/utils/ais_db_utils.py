@@ -2,7 +2,7 @@ import os
 import json
 from . import logger
 import datetime
-from typing import TypedDict, List, Union
+
 
 def estimate_lines_by_size(file_path, avg_bytes_per_line=90):
     """
@@ -64,21 +64,21 @@ def split_file_generator(file_path, chunk_size=500):
                 chunk = []
         if chunk:  # Yield any remaining lines
             yield chunk
+# TODO(Thalia): get rid of it once tests pass for refactored code
+# def process_chunk_to_db(conn, chunk):
+#     """
+#     Process a chunk of lines and insert messages into the database.
+#     """
+#     import ais.stream  # Import required for threading compatibility
+#
+#     for msg in ais.stream.decode(chunk):
+#         try:
+#             if msg['id'] in {1, 2, 3, 5}:  # Filter messages
+#                 insert_msg_to_db(conn, msg)  # Insert message into database
+#         except Exception as e:
+#             logger.error(f"Error processing message: {msg} - {e}")
 
-def process_chunk_to_db(conn, chunk):
-    """
-    Process a chunk of lines and insert messages into the database.
-    """
-    import ais.stream  # Import required for threading compatibility
-
-    for msg in ais.stream.decode(chunk):
-        try:
-            if msg['id'] in {1, 2, 3, 5}:  # Filter messages
-                insert_msg_to_db(conn, msg)  # Insert message into database
-        except Exception as e:
-            logger.error(f"Error processing message: {msg} - {e}")
-
-def insert_msg_to_db(conn, msg):
+def insert_msg_A_to_db(conn, msg):
     populate_table_1_2_3 = """
         INSERT INTO ais_msg_123 (
             id, repeat_indicator, mmsi, nav_status, rot_over_range, rot, sog,
@@ -97,7 +97,29 @@ def insert_msg_to_db(conn, msg):
     """
 
     # Use .get() to provide default values for missing attributes
-    if msg.get('id') >= 1 and msg.get('id') <= 3:
+    # Note in _process_chunk we are already filtering per messages of type A
+    if msg.get('id') == 5:
+        query = populate_table_5
+        params = (
+            msg.get('id'),
+            msg.get('repeat_indicator'),
+            msg.get('mmsi'),
+            msg.get('ais_version_indicator'),
+            msg.get('imo'),
+            msg.get('call_sign'),
+            msg.get('ship_name'),
+            msg.get('type_of_ship_and_cargo'),
+            msg.get('dimension_to_bow'),
+            msg.get('dimension_to_stern'),
+            msg.get('dimension_to_port'),
+            msg.get('dimension_to_starboard'),
+            msg.get('position_fixing_device'),
+            msg.get('eta'),
+            msg.get('max_present_static_draught'),
+            msg.get('destination'),
+            msg.get('dte')
+        )
+    else:
         query = populate_table_1_2_3
         params = (
             msg.get('id'),
@@ -124,27 +146,6 @@ def insert_msg_to_db(conn, msg):
             msg.get('tagblock_line_count'),
             msg.get('tagblock_station'),
             msg.get('tagblock_timestamp')
-        )
-    elif msg.get('id') == 5:
-        query = populate_table_5
-        params = (
-            msg.get('id'),
-            msg.get('repeat_indicator'),
-            msg.get('mmsi'),
-            msg.get('ais_version_indicator'),
-            msg.get('imo'),
-            msg.get('call_sign'),
-            msg.get('ship_name'),
-            msg.get('type_of_ship_and_cargo'),
-            msg.get('dimension_to_bow'),
-            msg.get('dimension_to_stern'),
-            msg.get('dimension_to_port'),
-            msg.get('dimension_to_starboard'),
-            msg.get('position_fixing_device'),
-            msg.get('eta'),
-            msg.get('max_present_static_draught'),
-            msg.get('destination'),
-            msg.get('dte')
         )
 
     conn.execute(query, params)
@@ -191,13 +192,4 @@ def tagblock_timestamp_to_date(tagblock_timestamp):
 
     return readable_time
 
-class FilterCriteria(TypedDict, total=False): # total set to False to make all fields optional
-    mmsi: Union[int, List[int]]
-    start_date: str
-    end_date: str
-    polygon_bounds: str
-    min_velocity: float      # Minimum speed (sog)
-    max_velocity: float      # Maximum speed (sog)
-    direction: str           # Cardinal direction filter ("N", "E", "S", "W")
-    min_turn_rate: float     # Minimum rate of turn (rot)
-    max_turn_rate: float     # Maximum rate of turn (rot)
+

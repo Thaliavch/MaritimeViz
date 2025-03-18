@@ -1,6 +1,8 @@
 """
-Constant variables
+Universal constants, variables and user defined data types
 """
+from typing import TypedDict, List, Union
+from enum import Enum
 
 """
 Table Columns
@@ -128,4 +130,30 @@ QUERY_CREATE_TABLE_24 = """
             """
 
 # List of all table creation queries
-DATABASE_TABLE_CREATION_QUERIES = [QUERY_CREATE_TABLE_1_2_3, QUERY_CREATE_TABLE_5, QUERY_CREATE_TABLE_18_19, QUERY_CREATE_TABLE_24]
+DATABASE_ALL_TABLE_CREATION_QUERIES = [QUERY_CREATE_TABLE_1_2_3, QUERY_CREATE_TABLE_5, QUERY_CREATE_TABLE_18_19, QUERY_CREATE_TABLE_24]
+DATABASE_TYPE_A_TABLE_CREATION_QUERIES = [QUERY_CREATE_TABLE_1_2_3, QUERY_CREATE_TABLE_5]
+DATABASE_TYPE_B_TABLE_CREATION_QUERIES = [QUERY_CREATE_TABLE_18_19, QUERY_CREATE_TABLE_24]
+
+ALLOWED_FILTER_KEYS = {
+    "mmsi", "start_date", "end_date", "polygon_bounds",
+    "min_velocity", "max_velocity", "direction",
+    "min_turn_rate", "max_turn_rate"
+}
+
+# TODO(Thalia): Crete global filter object and one per class.
+class FilterCriteria(TypedDict, total=False): # total set to False to make all fields optional
+    mmsi: Union[int, List[int]]
+    start_date: str
+    end_date: str
+    polygon_bounds: str
+    min_velocity: float      # Minimum speed (sog)
+    max_velocity: float      # Maximum speed (sog)
+    direction: str           # Cardinal direction filter ("N", "E", "S", "W")
+    min_turn_rate: float     # Minimum rate of turn (rot)
+    max_turn_rate: float     # Maximum rate of turn (rot)
+
+# enum for message types TODO(Thalia): get rid of it if not used after refactoring
+class MessageType(Enum):
+    A = "A"
+    B = "B"
+    C = "C"
