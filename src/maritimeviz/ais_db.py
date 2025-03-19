@@ -892,7 +892,73 @@ class ClassAMessages(BaseMessageProcessor):
         return msg.get('id') in {1, 2, 3, 5}
 
     def _insert_message(self, msg: dict):
-        insert_msg_A_to_db(self._conn, msg)
+        # Use .get() to provide default values for missing attributes
+        # Note in _process_chunk we are already filtering per messages of type A
+        if msg.get('id') == 5:
+            query = """
+                    INSERT INTO ais_msg_5 (
+                        id, repeat_indicator, mmsi, ais_version, imo, call_sign, ship_name,
+                        type_of_ship_and_cargo, to_bow, to_stern, to_port, to_starboard,
+                        position_fixing_device, eta, max_present_static_draught, destination, dte
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                    """
+            params = (
+                msg.get('id'),
+                msg.get('repeat_indicator'),
+                msg.get('mmsi'),
+                msg.get('ais_version_indicator'),
+                msg.get('imo'),
+                msg.get('call_sign'),
+                msg.get('ship_name'),
+                msg.get('type_of_ship_and_cargo'),
+                msg.get('dimension_to_bow'),
+                msg.get('dimension_to_stern'),
+                msg.get('dimension_to_port'),
+                msg.get('dimension_to_starboard'),
+                msg.get('position_fixing_device'),
+                msg.get('eta'),
+                msg.get('max_present_static_draught'),
+                msg.get('destination'),
+                msg.get('dte')
+            )
+        else:
+            # For dynamic messages (Type 1, 2, 3)
+            query = """
+                    INSERT INTO ais_msg_123 (
+                        id, repeat_indicator, mmsi, nav_status, rot_over_range, rot, sog,
+                        position_accuracy, x, y, cog, true_heading, timestamp, special_manoeuvre,
+                        spare, raim, sync_state, slot_timeout, slot_number, tagblock_group,
+                        tagblock_line_count, tagblock_station, tagblock_timestamp
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                    """
+            params = (
+                msg.get('id'),
+                msg.get('repeat_indicator'),
+                msg.get('mmsi'),
+                msg.get('nav_status'),
+                msg.get('rot_over_range'),
+                msg.get('rot'),
+                msg.get('sog'),
+                msg.get('position_accuracy'),
+                msg.get('x'),
+                msg.get('y'),
+                msg.get('cog'),
+                msg.get('true_heading'),
+                msg.get('timestamp'),
+                msg.get('special_manoeuvre'),
+                msg.get('spare'),
+                msg.get('raim'),
+                msg.get('sync_state'),
+                msg.get('slot_timeout'),
+                msg.get('slot_number', None),  # Default to None if not present
+                json.dumps(msg.get('tagblock_group', {})),
+                # Default to an empty JSON object
+                msg.get('tagblock_line_count'),
+                msg.get('tagblock_station'),
+                msg.get('tagblock_timestamp')
+            )
+
+        self._conn.execute(query, params)
 
     def search(self,
                mmsi: Optional[Union[int, List[int]]] = None,
@@ -1121,9 +1187,135 @@ class ClassBMessages(BaseMessageProcessor):
         # Process only if the message id is one of the Class B types.
         return msg.get('id') in {18, 19, 24}
 
-    # TODO(Thalia): implement this method
     def _insert_message(self, msg: dict):
-        pass
+        if msg.get('id') == 24:
+            query = """
+                INSERT INTO ais_msg_24 (
+                    id, repeat_indicator, mmsi, part_num, name, type_and_cargo,
+                    vendor_id, callsign, dim_a, dim_b, dim_c, dim_d, spare,
+                    tagblock_group, tagblock_line_count, tagblock_station, tagblock_timestamp
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            """
+            params = (
+                msg.get('id'),
+                msg.get('repeat_indicator'),
+                msg.get('mmsi'),
+                msg.get('part_num'),
+                msg.get('name'),
+                msg.get('type_and_cargo'),
+                msg.get('vendor_id'),
+                msg.get('call_sign'),
+                msg.get('dimension_to_bow'),
+                msg.get('dimension_to_stern'),
+                msg.get('dimension_to_port'),
+                msg.get('dimension_to_starboard'),
+                msg.get('spare'),
+                json.dumps(msg.get('tagblock_group', {})),
+                msg.get('tagblock_line_count'),
+                msg.get('tagblock_station'),
+                msg.get('tagblock_timestamp')
+            )
+        else:
+            # For dynamic messages (Types 18 and 19)
+            query = """
+                INSERT INTO ais_msg_18_19 (
+                    id, repeat_indicator, mmsi, spare, sog, position_accuracy,
+                    x, y, cog, true_heading, timestamp, spare2, unit_flag, display_flag,
+                    dsc_flag, band_flag, m22_flag, mode_flag, raim, commstate_flag,
+                    commstate_cs_fill, tagblock_group, tagblock_line_count, tagblock_station,
+                    tagblock_timestamp
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            """
+            params = (
+                msg.get('id'),
+                msg.get('repeat_indicator'),
+                msg.get('mmsi'),
+                msg.get('spare'),
+                msg.get('sog'),
+                msg.get('position_accuracy'),
+                msg.get('x'),
+                msg.get('y'),
+                msg.get('cog'),
+                msg.get('true_heading'),
+                msg.get('timestamp'),
+                msg.get('spare2'),
+                msg.get('unit_flag'),
+                msg.get('display_flag'),
+                msg.get('dsc_flag'),
+                msg.get('band_flag'),
+                msg.get('m22_flag'),
+                msg.get('mode_flag'),
+                msg.get('raim'),
+                msg.get('commstate_flag'),
+                msg.get('commstate_cs_fill'),
+                json.dumps(msg.get('tagblock_group', {})),
+                msg.get('tagblock_line_count'),
+                msg.get('tagblock_station'),
+                msg.get('tagblock_timestamp')
+            )
+        self._conn.execute(query, params)
+
+    def search(self,
+               mmsi: Optional[Union[int, List[int]]] = None,
+               start_date: Optional[str] = None,
+               end_date: Optional[str] = None,
+               **kwargs) -> pd.DataFrame:
+        """
+        Searches dynamic Class B messages in the ais_msg_18_19 table.
+        """
+        query = "SELECT * FROM ais_msg_18_19 WHERE 1=1"
+        params = []
+        if mmsi is not None:
+            if isinstance(mmsi, int):
+                query += " AND mmsi = ?"
+                params.append(mmsi)
+            elif isinstance(mmsi, list) and all(isinstance(i, int) for i in mmsi):
+                placeholders = ", ".join(["?"] * len(mmsi))
+                query += f" AND mmsi IN ({placeholders})"
+                params.extend(mmsi)
+            else:
+                raise ValueError("MMSI must be an integer or a list of integers.")
+        if start_date and end_date:
+            try:
+                start_timestamp = date_to_tagblock_timestamp(*map(int, start_date.split("-")))
+                end_timestamp = date_to_tagblock_timestamp(*map(int, end_date.split("-")))
+                query += " AND timestamp BETWEEN ? AND ?"
+                params.extend([start_timestamp, end_timestamp])
+            except Exception as e:
+                raise ValueError("Invalid date format. Expected YYYY-MM-DD.") from e
+
+        try:
+            df = self._conn.execute(query, params).fetchdf()
+            return df
+        except Exception as e:
+            logger.error(f"Error executing dynamic search for ClassB: {e}")
+            return pd.DataFrame()
+
+    def static_info(self,
+                    mmsi: Optional[Union[int, List[int]]] = None,
+                    **kwargs) -> pd.DataFrame:
+        """
+        Retrieves static/voyage-related Class B information from the ais_msg_24 table.
+        """
+        query = "SELECT * FROM ais_msg_24 WHERE 1=1"
+        params = []
+        if mmsi is not None:
+            if isinstance(mmsi, int):
+                query += " AND mmsi = ?"
+                params.append(mmsi)
+            elif isinstance(mmsi, list) and all(isinstance(i, int) for i in mmsi):
+                placeholders = ", ".join(["?"] * len(mmsi))
+                query += f" AND mmsi IN ({placeholders})"
+                params.extend(mmsi)
+            else:
+                raise ValueError("MMSI must be an integer or a list of integers.")
+
+        try:
+            df = self._conn.execute(query, params).fetchdf()
+            return df
+        except Exception as e:
+            logger.error(f"Error executing static_info search for ClassB: {e}")
+            return pd.DataFrame()
 
 # TODO(Thalia) need to define how to process rest of AIS messages types.
 class OtherMessages(BaseMessageProcessor):
