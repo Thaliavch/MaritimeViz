@@ -5,6 +5,7 @@ from functools import cache
 import duckdb
 import pandas as pd
 from typing import Union, List
+import geopandas as gpd
 
 
 @cache
@@ -153,5 +154,31 @@ def tagblock_timestamp_to_date(tagblock_timestamp):
     readable_time = dt.strftime("%Y-%m-%d %H:%M:%S")
 
     return readable_time
+
+def merge_dfs(dfs: List[pd.DataFrame], as_geodf: bool = True) -> Union[pd.DataFrame, gpd.GeoDataFrame]:
+    """
+    Merge a list of AIS DataFrames into a single DataFrame or GeoDataFrame.
+
+    Parameters:
+        dfs (List[pd.DataFrame]): List of DataFrames to merge.
+        as_geodf (bool, optional): If True, converts the merged DataFrame into a GeoDataFrame
+            by creating a geometry column from 'x' and 'y'. If False, returns a plain DataFrame.
+            Defaults to True.
+
+    Returns:
+        Union[pd.DataFrame, gpd.GeoDataFrame]: The merged DataFrame (GeoDataFrame if as_geodf is True).
+    """
+    valid_dfs = [df for df in dfs if not df.empty]
+    if not valid_dfs:
+        return gpd.GeoDataFrame(columns=["geometry"]) if as_geodf else pd.DataFrame()
+
+    merged_df = pd.concat(valid_dfs, ignore_index=True)
+
+    if as_geodf and "x" in merged_df.columns and "y" in merged_df.columns:
+        merged_df["geometry"] = gpd.points_from_xy(merged_df["x"], merged_df["y"])
+        return gpd.GeoDataFrame(merged_df, geometry="geometry", crs="EPSG:4326")
+    else:
+        return merged_df
+
 
 

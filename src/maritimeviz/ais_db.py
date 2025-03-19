@@ -562,47 +562,149 @@ class AISDatabase:
     def connection(self):
         return self._conn
 
-    def clear_cache(self) -> None:
+    @staticmethod
+    def clear_cache() -> None:
         '''
         This will clear cache for all modules
         '''
         cached_query.cache_clear()
 
+    def get_all_dfs(self, mmsi: Optional[int] = None,
+                           start_date: Optional[str] = None,
+                           end_date: Optional[str] = None,
+                           polygon_bounds: Optional[str] = None):
+        # Query data from each processor
+        df_a = self.typeA().search(mmsi=mmsi, start_date=start_date,
+                                   end_date=end_date,
+                                   polygon_bounds=polygon_bounds)
+        df_b = self.typeB().search(mmsi=mmsi, start_date=start_date,
+                                   end_date=end_date,
+                                   polygon_bounds=polygon_bounds)
+        # Optionally, include results from OtherMessages if implemented:
+        # df_o = self.others().search(mmsi=mmsi, start_date=start_date, end_date=end_date, polygon_bounds=polygon_bounds)
+
+        return [df_a, df_b]
+
     # TODO(Thalia): implement this methods from a global scope to get all the tables in the database
     #  regardless of message type.
-    # def get_geojson(self, mmsi: None, start_date=None, end_date=None,
-    #                 polygon_bounds=None):
-    #     """
-    #     Return a GeoJSON representation of the vessel route (from `ais_msg_123` data).
-    #     This GeoJSON can be passed directly to a Leafmap/Geemap layer.
-    #     """
-    #     try:
-    #         gdf = self.search(
-    #             mmsi=mmsi,
-    #             start_date=start_date,
-    #             end_date=end_date,
-    #             polygon_bounds=polygon_bounds,
-    #             styled=False
-    #         )
-    #         if gdf.empty:
-    #             logger.info(f"No AIS data found for {mmsi}")
-    #             return {}
-    #
-    #         # Setting datetime to json serializable format
-    #         gdf["datetime"] = gdf["datetime"].astype(str)
-    #
-    #
-    #         # Convert to GeoJSON
-    #         # gdf.to_json() returns a JSON string; we can convert it to a dictionary with json.loads
-    #         geojson_str = gdf.to_json()
-    #
-    #         geojson_dict = json.loads(geojson_str)
-    #         return geojson_dict
-    #
-    #     except Exception as e:
-    #         logger.error(f"Error generating GeoJSON for MMSI {mmsi}: {e}")
-    #         return {}
-    #
+    def get_geojson(self, mmsi: Optional[int] = None,
+                           start_date: Optional[str] = None,
+                           end_date: Optional[str] = None,
+                           polygon_bounds: Optional[str] = None) -> dict:
+        """
+        Return a GeoJSON representation of global AIS data, merging results from multiple message types.
+        """
+        # Merge the DataFrames using the helper function
+        merged_gdf = merge_dfs(self.get_all_dfs(mmsi, start_date, end_date, polygon_bounds))
+
+        if merged_gdf.empty:
+            logger.info(f"No AIS data available for MMSI {mmsi}")
+            return {}
+
+        # Convert datetime to string if needed
+        if "datetime" in merged_gdf.columns:
+            merged_gdf["datetime"] = merged_gdf["datetime"].astype(str)
+
+        return json.loads(merged_gdf.to_json())
+
+    def get_csv(self, file_path: str = "ais_data.csv",
+                       mmsi: Optional[int] = None,
+                       start_date: Optional[str] = None,
+                       end_date: Optional[str] = None,
+                       polygon_bounds: Optional[str] = None) -> str:
+        """
+        Exports global AIS data to a CSV file.
+        """
+        # TODO(Thalia): See if there is a way to optimize this. Can we have as an attribute that is update otf?
+        merged_gdf = merge_dfs(self.get_all_dfs(mmsi, start_date, end_date, polygon_bounds), False)
+        if merged_gdf.empty:
+            return "No data available to export."
+        merged_gdf.to_csv(file_path, index=False)
+        return f"CSV saved at {file_path}"
+
+    def get_parquet(self, file_path: str = "ais_data.parquet",
+                           mmsi: Optional[int] = None,
+                           start_date: Optional[str] = None,
+                           end_date: Optional[str] = None,
+                           polygon_bounds: Optional[str] = None) -> str:
+        """
+        Exports global AIS data to a Parquet file.
+        """
+        merged_gdf = merge_dfs(self.get_all_dfs(mmsi, start_date, end_date, polygon_bounds), False)
+        if merged_gdf.empty:
+            return "No data available to export."
+        merged_gdf.to_parquet(file_path)
+        return f"Parquet file saved at {file_path}"
+
+    def get_json(self, file_path: str = "ais_data.json",
+                        mmsi: Optional[int] = None,
+                        start_date: Optional[str] = None,
+                        end_date: Optional[str] = None,
+                        polygon_bounds: Optional[str] = None):
+        """
+        Returns a JSON object and exports the global AIS data to a JSON file.
+        """
+        merged_gdf = merge_dfs(self.get_all_dfs(mmsi, start_date, end_date, polygon_bounds), False)
+        if merged_gdf.empty:
+            return "No data available to export."
+        with open(file_path, "w") as f:
+            f.write(merged_gdf.to_json())
+        return json.loads(merged_gdf.to_json())
+
+    def get_shapefile(self, file_path: str = "ais_shapefile",
+                             mmsi: Optional[int] = None,
+                             start_date: Optional[str] = None,
+                             end_date: Optional[str] = None,
+                             polygon_bounds: Optional[str] = None) -> str:
+        """
+        Exports global AIS data to a Shapefile.
+        """
+        merged_gdf = merge_dfs(self.get_all_dfs(mmsi, start_date, end_date, polygon_bounds))
+        if merged_gdf.empty:
+            return "No data available to export."
+        merged_gdf.to_file(file_path, driver="ESRI Shapefile")
+        return f"Shapefile saved at {file_path}"
+
+    def get_kml(self, file_path: str = "ais_data.kml",
+                       mmsi: Optional[int] = None,
+                       start_date: Optional[str] = None,
+                       end_date: Optional[str] = None,
+                       polygon_bounds: Optional[str] = None) -> str:
+        """
+        Exports global AIS data to a KML file.
+        """
+        merged_gdf = merge_dfs(self.get_all_dfs(mmsi, start_date, end_date, polygon_bounds))
+        if merged_gdf.empty:
+            return "No data available to export."
+        merged_gdf.to_file(file_path, driver="KML")
+        return f"KML file saved at {file_path}"
+
+    def get_excel(self, file_path: str = "ais_data.xlsx",
+                         mmsi: Optional[int] = None,
+                         start_date: Optional[str] = None,
+                         end_date: Optional[str] = None,
+                         polygon_bounds: Optional[str] = None) -> str:
+        """
+        Exports global AIS data to an Excel file.
+        """
+        merged_gdf = merge_dfs(self.get_all_dfs(mmsi, start_date, end_date, polygon_bounds), False)
+        if merged_gdf.empty:
+            return "No data available to export."
+        merged_gdf.to_excel(file_path, index=False)
+        return f"Excel file saved at {file_path}"
+
+    def get_wkt(self, mmsi: Optional[int] = None,
+                       start_date: Optional[str] = None,
+                       end_date: Optional[str] = None,
+                       polygon_bounds: Optional[str] = None):
+        """
+        Returns global AIS data in Well-Known Text (WKT) format.
+        """
+        merged_gdf = merge_dfs(self.get_all_dfs(mmsi, start_date, end_date, polygon_bounds))
+        if merged_gdf.empty:
+            return "No data available to export."
+        return merged_gdf["geometry"].apply(lambda geom: geom.wkt).tolist()
+
     # def get_csv(self, file_path="ais_data.csv", mmsi=None, start_date=None, end_date=None, polygon_bounds=None):
     #     """
     #     Exports AIS data to a CSV file.
