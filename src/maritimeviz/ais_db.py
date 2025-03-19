@@ -505,6 +505,7 @@ class AISDatabase:
     def __init__(self, db_path: Optional[str] = None, enable_cache: bool = True):
         self._db_path = db_path if db_path else self._get_default_db_path() # create new file_name if one is not given or if given an emtpy string
         self._conn = self._init_db(db_path)
+        self._init_table()
         self._filter: Optional[dict] = None
 
     @staticmethod
@@ -515,6 +516,12 @@ class AISDatabase:
         except Exception as e:
             print(f"Error connecting to database at {db_path}: {e}")
             raise e
+
+    @staticmethod
+    def _init_table(self):
+        # Call query to init all tables when database is created
+        for query in DATABASE_ALL_TABLE_CREATION_QUERIES:
+            self._conn.execute(query)
 
     @staticmethod
     def _get_default_db_path() -> str:
@@ -573,6 +580,9 @@ class AISDatabase:
                            start_date: Optional[str] = None,
                            end_date: Optional[str] = None,
                            polygon_bounds: Optional[str] = None):
+        '''
+        Merges all the dataframes
+        '''
         # Query data from each processor
         df_a = self.typeA().search(mmsi=mmsi, start_date=start_date,
                                    end_date=end_date,
@@ -580,13 +590,14 @@ class AISDatabase:
         df_b = self.typeB().search(mmsi=mmsi, start_date=start_date,
                                    end_date=end_date,
                                    polygon_bounds=polygon_bounds)
-        # Optionally, include results from OtherMessages if implemented:
+        # Include results from OtherMessages here:
         # df_o = self.others().search(mmsi=mmsi, start_date=start_date, end_date=end_date, polygon_bounds=polygon_bounds)
 
         return [df_a, df_b]
 
     # TODO(Thalia): implement this methods from a global scope to get all the tables in the database
     #  regardless of message type.
+    # The objective for this exporting methods is that we return all the data in the database basically.
     def get_geojson(self, mmsi: Optional[int] = None,
                            start_date: Optional[str] = None,
                            end_date: Optional[str] = None,
@@ -898,12 +909,6 @@ class ClassAMessages(BaseMessageProcessor):
     """
     def __init__(self, conn: duckdb.DuckDBPyConnection):
         super().__init__(conn)
-        self._init_table()
-
-    def _init_table(self):
-        # Call query to init tables for type A
-        for query in DATABASE_TYPE_A_TABLE_CREATION_QUERIES:
-            self._conn.execute(query)
 
     def _filter_message(self, msg: dict) -> bool:
         # Process only if the message id is one of the Class A types.
@@ -1195,12 +1200,6 @@ class ClassBMessages(BaseMessageProcessor):
     """
     def __init__(self, conn: duckdb.DuckDBPyConnection):
         super().__init__(conn)
-        self._init_table()
-
-    def _init_table(self):
-        # Call query to init tables for type A
-        for query in DATABASE_TYPE_B_TABLE_CREATION_QUERIES:
-            self._conn.execute(query)
 
     def _filter_message(self, msg: dict) -> bool:
         # Process only if the message id is one of the Class B types.
