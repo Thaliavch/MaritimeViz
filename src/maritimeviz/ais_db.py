@@ -519,9 +519,14 @@ class AISDatabase:
 
     @staticmethod
     def _init_table(self):
-        # Call query to init all tables when database is created
-        for query in DATABASE_ALL_TABLE_CREATION_QUERIES:
-            self._conn.execute(query)
+        try:
+            # Call query to init all tables when database is created
+            for query in DATABASE_ALL_TABLE_CREATION_QUERIES:
+                self._conn.execute(query)
+            # View of Union of all database's tables
+            self._conn.execute(QUERY_CREATE_GLOBAL_VIEW)
+        except Exception as e:
+            print(f"Error connecting to database a {self._db_path}: {e}")
 
     @staticmethod
     def _get_default_db_path() -> str:
