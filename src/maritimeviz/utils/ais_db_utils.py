@@ -1,8 +1,42 @@
 import os
-import json
 from . import logger
 import datetime
+from functools import cache
+import duckdb
+import pandas as pd
+from typing import Union, List
 
+
+@cache
+def cached_query(conn: duckdb.DuckDBPyConnection, query: str, params: Union[List, tuple], df: bool = False) -> Union[pd.DataFrame, List]:
+    """
+    Execute an SQL query on the given DuckDB connection with caching.
+
+    This function runs the provided SQL query with the given parameters on the
+    DuckDB connection. If `df` is True, it returns the query results as a pandas
+    DataFrame using `fetchdf()`. If `df` is False, it returns the raw results (a
+    list of rows) using `fetchall()`.
+
+    Parameters:
+        conn (duckdb.DuckDBPyConnection): The DuckDB connection object.
+        query (str): The SQL query string to execute.
+        params (Union[List, tuple]): The parameters to use with the SQL query.
+        df (bool, optional): Determines the format of the return value.
+            - True: Return a pandas DataFrame.
+            - False: Return a list of rows.
+            Defaults to False.
+
+    Returns:
+        Union[pd.DataFrame, List]: The query results as a pandas DataFrame if `df`
+        is True, or as a list of rows if `df` is False.
+    """
+    if not params:
+        return conn.execute(query).fetchdf() if df else conn.execute(query).fetchall()
+    if not isinstance(params, tuple):
+        if not isinstance(params, list):
+            params = [params]
+        params = tuple(params)
+    return conn.execute(query, params).fetchdf() if df else conn.execute(query, params).fetchall()
 
 def estimate_lines_by_size(file_path, avg_bytes_per_line=90):
     """

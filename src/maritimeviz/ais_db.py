@@ -506,7 +506,6 @@ class AISDatabase:
         self._db_path = db_path if db_path else self._get_default_db_path() # create new file_name if one is not given or if given an emtpy string
         self._conn = self._init_db(db_path)
         self._filter: Optional[dict] = None
-        self._cache = duckdb.DuckDBPyConnection  # Not used directly; see _cached_query decorator TODO(Thalia)
 
     @staticmethod
     def _init_db(self, db_path: str) -> duckdb.DuckDBPyConnection:
@@ -535,20 +534,7 @@ class AISDatabase:
     def clear_filter(self) -> None:
         self._filter = None
 
-    @cache
-    def _cached_query(self, query: str, params: Union[List, tuple], df: bool = False) -> Union[pd.DataFrame, List]:
-        """
-        Verify requested query for cached results.
-        """
-        if not params:
-            return self._conn.execute(query).fetchdf() if df else self._conn.execute(query).fetchall()
-        if not isinstance(params, tuple):
-            if not isinstance(params, list):
-                params = [params]
-            params = tuple(params)
-        return self._conn.execute(query, params).fetchdf() if df else self._conn.execute(query, params).fetchall()
-
-    # TODO(Thalia): See what I will do with this method. We may call it since this block of code is repeated several times along the package.
+    # TODO(Thalia): See what I will do with this method. We may call it since this block of code is repeated on two methods so far.
     # def _filter_mmsi_query(self, mmsi: Union[int, List[int]], query: str, params: List) -> str:
     #     if mmsi is not None:
     #         if isinstance(mmsi, int):
@@ -577,7 +563,10 @@ class AISDatabase:
         return self._conn
 
     def clear_cache(self) -> None:
-        self._cached_query.cache_clear()
+        '''
+        This will clear cache for all modules
+        '''
+        cached_query.cache_clear()
 
     # TODO(Thalia): implement this methods from a global scope to get all the tables in the database
     #  regardless of message type.
@@ -750,7 +739,7 @@ class BaseMessageProcessor:
         raise NotImplementedError("Subclasses must implement static_info.")
 
     '''
-    Public methods
+    Public methods start here
     '''
     # TODO(Thalia) Update so the process function checks for file extension and call function to process raw or csv file types.
     def process(self, file_path: str, threading_stats=(4, 500)):
@@ -762,6 +751,9 @@ class BaseMessageProcessor:
             for future in as_completed(futures):
                 future.result()
 
+    '''
+    Export Methods
+    '''
     # Note that because search() is abstract, the methods below will query from each
     # subclass' respective table.
     def get_geojson(self, mmsi: None, start_date=None, end_date=None,
@@ -989,6 +981,7 @@ class ClassAMessages(BaseMessageProcessor):
         Returns:
         - gpd.GeoDataFrame: Filtered AIS data.
         """
+        # TODO(Thalia) I wonder if this is really necessary. May refactor later ....
         if not conn:
             conn = self._conn
 
@@ -1084,7 +1077,7 @@ class ClassAMessages(BaseMessageProcessor):
             logger.info(f"Executing query: {query} with params: {params}")
 
             # Execute query
-            df = conn.execute(query, params).fetchdf()
+            df = cached_query(conn, query, params, True)
             if df.empty:
                 return gpd.GeoDataFrame(
                     columns=["geometry"])  # Return empty GeoDataFrame
@@ -1149,7 +1142,7 @@ class ClassAMessages(BaseMessageProcessor):
                         "MMSI must be an integer or a list of integers.")
 
             # Execute query
-            df = self._cached_query(query, params, True)
+            df = cached_query(conn, query, params, True)
 
             if df.empty:
                 return {"No static MMSI info found."}
@@ -1285,8 +1278,7 @@ class ClassBMessages(BaseMessageProcessor):
                 raise ValueError("Invalid date format. Expected YYYY-MM-DD.") from e
 
         try:
-            df = self._conn.execute(query, params).fetchdf()
-            return df
+            return cached_query(self._conn, query, params, True)
         except Exception as e:
             logger.error(f"Error executing dynamic search for ClassB: {e}")
             return pd.DataFrame()
@@ -1311,8 +1303,7 @@ class ClassBMessages(BaseMessageProcessor):
                 raise ValueError("MMSI must be an integer or a list of integers.")
 
         try:
-            df = self._conn.execute(query, params).fetchdf()
-            return df
+            return cached_query(self._conn, query, params, True)
         except Exception as e:
             logger.error(f"Error executing static_info search for ClassB: {e}")
             return pd.DataFrame()
