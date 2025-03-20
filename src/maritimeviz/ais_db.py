@@ -505,7 +505,7 @@ class AISDatabase:
     def __init__(self, db_path: Optional[str] = None, enable_cache: bool = True):
         self._db_path = db_path if db_path else self._get_default_db_path() # create new file_name if one is not given or if given an emtpy string
         self._conn = self._init_db(db_path)
-        self._init_table()
+        self._init_tables()
         self._filter: Optional[dict] = None
 
     @staticmethod
@@ -518,13 +518,11 @@ class AISDatabase:
             raise e
 
     @staticmethod
-    def _init_table(self):
+    def _init_tables(self):
         try:
             # Call query to init all tables when database is created
-            for query in DATABASE_ALL_TABLE_CREATION_QUERIES:
+            for query in DATABASE_ALL_TABLE_CREATION_QUERIES + DATABASE_ALL_VIEWS_CREATION_QUERIES:
                 self._conn.execute(query)
-            # View of Union of all database's tables
-            self._conn.execute(QUERY_CREATE_GLOBAL_VIEW)
         except Exception as e:
             print(f"Error connecting to database a {self._db_path}: {e}")
 
@@ -581,64 +579,138 @@ class AISDatabase:
         '''
         cached_query.cache_clear()
 
-    def get_all_dfs(self, mmsi: Optional[int] = None,
-                           start_date: Optional[str] = None,
-                           end_date: Optional[str] = None,
-                           polygon_bounds: Optional[str] = None):
-        '''
-        Merges all the dataframes
-        '''
-        # Query data from each processor
-        df_a = self.typeA().search(mmsi=mmsi, start_date=start_date,
-                                   end_date=end_date,
-                                   polygon_bounds=polygon_bounds)
-        df_b = self.typeB().search(mmsi=mmsi, start_date=start_date,
-                                   end_date=end_date,
-                                   polygon_bounds=polygon_bounds)
-        # Include results from OtherMessages here:
-        # df_o = self.others().search(mmsi=mmsi, start_date=start_date, end_date=end_date, polygon_bounds=polygon_bounds)
+    def _get_view_name(self, data: str) -> str:
+        """
+        Determine the view name based on the 'data' parameter.
 
-        return [df_a, df_b]
+        Parameters:
+            data (str): One of "all", "dynamic", or "static".
 
-    # TODO(Thalia): implement this methods from a global scope to get all the tables in the database
-    #  regardless of message type.
-    # The objective for this exporting methods is that we return all the data in the database basically.
-    def get_geojson(self, mmsi: Optional[int] = None,
+        Returns:
+            str: The name of the view to query.
+        """
+        mapping = {
+            "all": "global_ais_data",
+            "dynamic": "global_ais_dynamic",
+            "static": "global_ais_static"
+        }
+        if data not in mapping:
+            raise ValueError(
+                "Invalid data parameter. Must be 'all', 'dynamic', or 'static'.")
+        return mapping[data]
+
+    def _get_global_df(self, data: str = "all",
+                       mmsi: Optional[int] = None,
+                       start_date: Optional[str] = None,
+                       end_date: Optional[str] = None,
+                       polygon_bounds: Optional[str] = None,
+                       as_geodf: bool = True) -> Union[
+        pd.DataFrame, gpd.GeoDataFrame]:
+        """
+        Query the appropriate global view (all/dynamic/static) with optional filters.
+
+        Parameters:
+            data (str): Which dataset to query – "all", "dynamic", or "static".
+            mmsi (Optional[int]): Optional MMSI filter.
+            start_date (Optional[str]): Start date ("YYYY-MM-DD").
+            end_date (Optional[str]): End date ("YYYY-MM-DD").
+            polygon_bounds (Optional[str]): WKT polygon for spatial filtering.
+            as_geodf (bool): If True, returns a GeoDataFrame (assumes x and y exist).
+
+        Returns:
+            DataFrame or GeoDataFrame with the query result.
+        """
+        view_name = self._get_view_name(data)
+        query = f"SELECT * FROM {view_name} WHERE 1=1"
+        params = []
+
+        # MMSI filter
+        if mmsi is not None:
+            query += " AND mmsi = ?"
+            params.append(mmsi)
+
+        # Date range filter:
+        if start_date:
+            try:
+                start_ts = date_to_tagblock_timestamp(
+                    *map(int, start_date.split("-")))
+                query += " AND tagblock_timestamp >= ?"
+                params.append(start_ts)
+            except Exception as e:
+                raise ValueError(
+                    "Invalid start date format. Expected YYYY-MM-DD.") from e
+        if end_date:
+            try:
+                end_ts = date_to_tagblock_timestamp(
+                    *map(int, end_date.split("-")))
+                query += " AND tagblock_timestamp <= ?"
+                params.append(end_ts)
+            except Exception as e:
+                raise ValueError(
+                    "Invalid end date format. Expected YYYY-MM-DD.") from e
+
+        # Polygon bounds filter (if applicable)
+        if polygon_bounds:
+            query += " AND ST_Within(ST_Point(x, y), ST_GeomFromText(?))"
+            params.append(polygon_bounds)
+
+        try:
+            df = cached_query(self._conn, query, tuple(params), True)
+        except Exception as e:
+            logger.error(f"Error querying view {view_name}: {e}")
+            return pd.DataFrame()
+
+        if as_geodf and "x" in df.columns and "y" in df.columns:
+            df["geometry"] = gpd.points_from_xy(df["x"], df["y"])
+            return gpd.GeoDataFrame(df, geometry="geometry", crs="EPSG:4326")
+        return df
+
+    def search(self,data: str = "all",
+                    mmsi: Optional[int] = None,
+                    start_date: Optional[str] = None,
+                    end_date: Optional[str] = None,
+                    polygon_bounds: Optional[str] = None):
+        return self._get_global_df(data, mmsi, start_date, end_date, polygon_bounds)
+
+    def get_global_geojson(self, data: str = "all",
+                           mmsi: Optional[int] = None,
                            start_date: Optional[str] = None,
                            end_date: Optional[str] = None,
                            polygon_bounds: Optional[str] = None) -> dict:
         """
-        Return a GeoJSON representation of global AIS data, merging results from multiple message types.
-        """
-        # Merge the DataFrames using the helper function
-        merged_gdf = merge_dfs(self.get_all_dfs(mmsi, start_date, end_date, polygon_bounds))
+        Return a GeoJSON representation of global AIS data.
 
-        if merged_gdf.empty:
+        Parameters:
+            data (str): One of "all", "dynamic", or "static".
+            ... (other filters)
+
+        Returns:
+            dict: The GeoJSON representation.
+        """
+        gdf = self._get_global_df(data, mmsi, start_date, end_date,
+                                  polygon_bounds, as_geodf=True)
+        if gdf.empty:
             logger.info(f"No AIS data available for MMSI {mmsi}")
             return {}
+        if "datetime" in gdf.columns:
+            gdf["datetime"] = gdf["datetime"].astype(str)
+        return json.loads(gdf.to_json())
 
-        # Convert datetime to string if needed
-        if "datetime" in merged_gdf.columns:
-            merged_gdf["datetime"] = merged_gdf["datetime"].astype(str)
-
-        return json.loads(merged_gdf.to_json())
-
-    def get_csv(self, file_path: str = "ais_data.csv",
+    def get_global_csv(self, file_path: str = "ais_data.csv",
+                       data: str = "all",
                        mmsi: Optional[int] = None,
                        start_date: Optional[str] = None,
                        end_date: Optional[str] = None,
                        polygon_bounds: Optional[str] = None) -> str:
-        """
-        Exports global AIS data to a CSV file.
-        """
-        # TODO(Thalia): See if there is a way to optimize this. Can we have as an attribute that is update otf?
-        merged_gdf = merge_dfs(self.get_all_dfs(mmsi, start_date, end_date, polygon_bounds), False)
-        if merged_gdf.empty:
+        df = self._get_global_df(data, mmsi, start_date, end_date,
+                                 polygon_bounds, as_geodf=False)
+        if df.empty:
             return "No data available to export."
-        merged_gdf.to_csv(file_path, index=False)
+        df.to_csv(file_path, index=False)
         return f"CSV saved at {file_path}"
 
-    def get_parquet(self, file_path: str = "ais_data.parquet",
+    def get_global_parquet(self, file_path: str = "ais_data.parquet",
+                           data: str = "all",
                            mmsi: Optional[int] = None,
                            start_date: Optional[str] = None,
                            end_date: Optional[str] = None,
@@ -646,13 +718,15 @@ class AISDatabase:
         """
         Exports global AIS data to a Parquet file.
         """
-        merged_gdf = merge_dfs(self.get_all_dfs(mmsi, start_date, end_date, polygon_bounds), False)
-        if merged_gdf.empty:
+        df = self._get_global_df(data, mmsi, start_date, end_date, polygon_bounds,
+                                 as_geodf=False)
+        if df.empty:
             return "No data available to export."
-        merged_gdf.to_parquet(file_path)
+        df.to_parquet(file_path)
         return f"Parquet file saved at {file_path}"
 
-    def get_json(self, file_path: str = "ais_data.json",
+    def get_global_json(self, file_path: str = "ais_data.json",
+                        data: str = "all",
                         mmsi: Optional[int] = None,
                         start_date: Optional[str] = None,
                         end_date: Optional[str] = None,
@@ -660,14 +734,16 @@ class AISDatabase:
         """
         Returns a JSON object and exports the global AIS data to a JSON file.
         """
-        merged_gdf = merge_dfs(self.get_all_dfs(mmsi, start_date, end_date, polygon_bounds), False)
-        if merged_gdf.empty:
+        df = self._get_global_df(data, mmsi, start_date, end_date, polygon_bounds,
+                                 as_geodf=False)
+        if df.empty:
             return "No data available to export."
         with open(file_path, "w") as f:
-            f.write(merged_gdf.to_json())
-        return json.loads(merged_gdf.to_json())
+            f.write(df.to_json())
+        return json.loads(df.to_json())
 
-    def get_shapefile(self, file_path: str = "ais_shapefile",
+    def get_global_shapefile(self, file_path: str = "ais_shapefile",
+                             data: str = "all",
                              mmsi: Optional[int] = None,
                              start_date: Optional[str] = None,
                              end_date: Optional[str] = None,
@@ -675,13 +751,15 @@ class AISDatabase:
         """
         Exports global AIS data to a Shapefile.
         """
-        merged_gdf = merge_dfs(self.get_all_dfs(mmsi, start_date, end_date, polygon_bounds))
-        if merged_gdf.empty:
+        gdf = self._get_global_df(data, mmsi, start_date, end_date, polygon_bounds,
+                                  as_geodf=True)
+        if gdf.empty:
             return "No data available to export."
-        merged_gdf.to_file(file_path, driver="ESRI Shapefile")
+        gdf.to_file(file_path, driver="ESRI Shapefile")
         return f"Shapefile saved at {file_path}"
 
-    def get_kml(self, file_path: str = "ais_data.kml",
+    def get_global_kml(self, file_path: str = "ais_data.kml",
+                       data: str = "all",
                        mmsi: Optional[int] = None,
                        start_date: Optional[str] = None,
                        end_date: Optional[str] = None,
@@ -689,13 +767,15 @@ class AISDatabase:
         """
         Exports global AIS data to a KML file.
         """
-        merged_gdf = merge_dfs(self.get_all_dfs(mmsi, start_date, end_date, polygon_bounds))
-        if merged_gdf.empty:
+        gdf = self._get_global_df(data, mmsi, start_date, end_date, polygon_bounds,
+                                  as_geodf=True)
+        if gdf.empty:
             return "No data available to export."
-        merged_gdf.to_file(file_path, driver="KML")
+        gdf.to_file(file_path, driver="KML")
         return f"KML file saved at {file_path}"
 
-    def get_excel(self, file_path: str = "ais_data.xlsx",
+    def get_global_excel(self, file_path: str = "ais_data.xlsx",
+                         data: str = "all",
                          mmsi: Optional[int] = None,
                          start_date: Optional[str] = None,
                          end_date: Optional[str] = None,
@@ -703,23 +783,26 @@ class AISDatabase:
         """
         Exports global AIS data to an Excel file.
         """
-        merged_gdf = merge_dfs(self.get_all_dfs(mmsi, start_date, end_date, polygon_bounds), False)
-        if merged_gdf.empty:
+        df = self._get_global_df(data, mmsi, start_date, end_date, polygon_bounds,
+                                 as_geodf=False)
+        if df.empty:
             return "No data available to export."
-        merged_gdf.to_excel(file_path, index=False)
+        df.to_excel(file_path, index=False)
         return f"Excel file saved at {file_path}"
 
-    def get_wkt(self, mmsi: Optional[int] = None,
+    def get_global_wkt(self, mmsi: Optional[int] = None,
+                       data: str = "all",
                        start_date: Optional[str] = None,
                        end_date: Optional[str] = None,
                        polygon_bounds: Optional[str] = None):
         """
         Returns global AIS data in Well-Known Text (WKT) format.
         """
-        merged_gdf = merge_dfs(self.get_all_dfs(mmsi, start_date, end_date, polygon_bounds))
-        if merged_gdf.empty:
+        gdf = self._get_global_df(data, mmsi, start_date, end_date, polygon_bounds,
+                                  as_geodf=True)
+        if gdf.empty:
             return "No data available to export."
-        return merged_gdf["geometry"].apply(lambda geom: geom.wkt).tolist()
+        return gdf["geometry"].apply(lambda geom: geom.wkt).tolist()
 
     # Factory methods for message-type processing.
     def typeA(self):
@@ -770,6 +853,14 @@ class BaseMessageProcessor:
         """Insert the message into the appropriate table."""
         raise NotImplementedError("Subclasses must implement _insert_message.")
 
+    # TODO(Thalia): to update view when new data is inserted
+    def _update_global_views(self):
+        try:
+            for query in DATABASE_ALL_VIEWS_CREATION_QUERIES:
+                self._conn.execute(query)
+        except Exception as e:
+            logger.error(f"Error updating views: {e}")
+
     @abstractmethod
     def search(self, **kwargs) -> pd.DataFrame:
         """Query vessel dynamic data applying given arguments"""
@@ -792,6 +883,7 @@ class BaseMessageProcessor:
             ]
             for future in as_completed(futures):
                 future.result()
+        self._update_global_views()
 
     '''
     Export Methods
