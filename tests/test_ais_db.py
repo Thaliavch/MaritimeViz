@@ -209,7 +209,7 @@ from src.maritimeviz.ais_db import AISDatabase
 from src.maritimeviz.constants import *
 
 # Database and AIS files for testing
-TEST_DB_PATH = "test_db.duckdb"
+TEST_DB_PATH = "ais_data .duckdb"
 AIS_FILE_PATH = "tests/ais_2016_07_28_aa"
 
 
@@ -228,7 +228,7 @@ def setup_existing_db():
     db.close()
 
     # Remove any exported files
-    for fname in ["test_data.csv", "test_data.parquet", "test_data.json",
+    for fname in ["test_data.geojson", "test_data.csv", "test_data.parquet", "test_data.json",
                   "ais_shapefile", "test_data.kml", "test_data.xlsx"]:
         if os.path.exists(fname):
             if os.path.isdir(fname):
@@ -259,6 +259,19 @@ def setup_new_db():
                 shutil.rmtree(fname)
             else:
                 os.remove(fname)
+
+def test_initialize_existing_database_works(setup_existing_db):
+   db = setup_existing_db
+   conn = db.connection()
+   # TODO(Thalia): wrap in method and move to utilities
+   # tables = conn.execute(
+   #     "SELECT table_name FROM information_schema.tables WHERE table_schema = 'main';").fetchall()
+   # print(tables)
+   result = conn.execute("SELECT * FROM ais_msg_123 LIMIT 10").fetchdf()
+   print(result)
+
+   assert conn is not None
+   assert len(result) > 0
 
 def test_db_default_name():
     # Reset the class-level counter
@@ -304,16 +317,16 @@ class TestGlobalExports:
     """
     Testing global export methods in AISDatabase
     """
-
-    def test_get_global_geojson(setup_existing_db):
+    def test_get_global_geojson(self, setup_existing_db):
         db = setup_existing_db
-        # Call global geojson export with default parameters
         result = db.get_geojson(data="all")
-        # Expect a dictionary (even if empty)
+        # Check that result is a dictionary
         assert isinstance(result, dict)
+        # Verify it has a FeatureCollection structure
+        assert result.get("type") == "FeatureCollection"
+        assert isinstance(result.get("features"), list)
 
-
-    def test_get_global_csv(setup_db):
+    def test_get_global_csv(self, setup_db):
         db = setup_db
         file_path = "test_data.csv"
         result = db.get_csv(file_path=file_path, data="all")
@@ -327,7 +340,7 @@ class TestGlobalExports:
         assert isinstance(df, pd.DataFrame)
 
 
-    def test_get_global_parquet(setup_db):
+    def test_get_global_parquet(self, setup_db):
         db = setup_db
         file_path = "test_data.parquet"
         result = db.get_parquet(file_path=file_path, data="all")
@@ -338,7 +351,7 @@ class TestGlobalExports:
         assert isinstance(df, pd.DataFrame)
 
 
-    def test_get_global_json(setup_db):
+    def test_get_global_json(self, setup_db):
         db = setup_db
         file_path = "test_data.json"
         result = db.get_json(file_path=file_path, data="all")
@@ -349,7 +362,7 @@ class TestGlobalExports:
         assert os.path.exists(file_path)
 
 
-    def test_get_global_shapefile(setup_db):
+    def test_get_global_shapefile(self, setup_db):
         db = setup_db
         folder_path = "ais_shapefile"
         result = db.get_shapefile(file_path=folder_path, data="all")
@@ -364,7 +377,7 @@ class TestGlobalExports:
         assert isinstance(gdf, gpd.GeoDataFrame)
 
 
-    def test_get_global_kml(setup_db):
+    def test_get_global_kml(self, setup_db):
         db = setup_db
         file_path = "test_data.kml"
         result = db.get_kml(file_path=file_path, data="all")
@@ -375,7 +388,7 @@ class TestGlobalExports:
         assert isinstance(gdf, gpd.GeoDataFrame)
 
 
-    def test_get_global_excel(setup_db):
+    def test_get_global_excel(self, setup_db):
         db = setup_db
         file_path = "test_data.xlsx"
         result = db.get_excel(file_path=file_path, data="all")
@@ -386,7 +399,7 @@ class TestGlobalExports:
         assert isinstance(df, pd.DataFrame)
 
 
-    def test_get_global_wkt(setup_db):
+    def test_get_global_wkt(self, setup_db):
         db = setup_db
         result = db.get_wkt(data="all")
         if isinstance(result, str) and result.startswith("No data"):

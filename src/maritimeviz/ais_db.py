@@ -519,7 +519,6 @@ class AISDatabase:
         try:
             # Call query to init all tables when database is created
             for query in DATABASE_ALL_TABLE_CREATION_QUERIES + DATABASE_ALL_VIEWS_CREATION_QUERIES:
-                print(query + "/n")
                 self._conn.execute(query)
         except Exception as e:
             print(f"Error connecting to database a {self._db_path}: {e}")
