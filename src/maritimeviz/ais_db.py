@@ -672,7 +672,7 @@ class AISDatabase:
                     polygon_bounds: Optional[str] = None):
         return self._get_global_df(data, mmsi, start_date, end_date, polygon_bounds)
 
-    def get_global_geojson(self, data: str = "all",
+    def get_geojson(self, data: str = "all",
                            mmsi: Optional[int] = None,
                            start_date: Optional[str] = None,
                            end_date: Optional[str] = None,
@@ -696,7 +696,7 @@ class AISDatabase:
             gdf["datetime"] = gdf["datetime"].astype(str)
         return json.loads(gdf.to_json())
 
-    def get_global_csv(self, file_path: str = "ais_data.csv",
+    def get_csv(self, file_path: str = "ais_data.csv",
                        data: str = "all",
                        mmsi: Optional[int] = None,
                        start_date: Optional[str] = None,
@@ -709,7 +709,7 @@ class AISDatabase:
         df.to_csv(file_path, index=False)
         return f"CSV saved at {file_path}"
 
-    def get_global_parquet(self, file_path: str = "ais_data.parquet",
+    def get_parquet(self, file_path: str = "ais_data.parquet",
                            data: str = "all",
                            mmsi: Optional[int] = None,
                            start_date: Optional[str] = None,
@@ -725,7 +725,7 @@ class AISDatabase:
         df.to_parquet(file_path)
         return f"Parquet file saved at {file_path}"
 
-    def get_global_json(self, file_path: str = "ais_data.json",
+    def get_json(self, file_path: str = "ais_data.json",
                         data: str = "all",
                         mmsi: Optional[int] = None,
                         start_date: Optional[str] = None,
@@ -742,7 +742,7 @@ class AISDatabase:
             f.write(df.to_json())
         return json.loads(df.to_json())
 
-    def get_global_shapefile(self, file_path: str = "ais_shapefile",
+    def get_shapefile(self, file_path: str = "ais_shapefile",
                              data: str = "all",
                              mmsi: Optional[int] = None,
                              start_date: Optional[str] = None,
@@ -758,7 +758,7 @@ class AISDatabase:
         gdf.to_file(file_path, driver="ESRI Shapefile")
         return f"Shapefile saved at {file_path}"
 
-    def get_global_kml(self, file_path: str = "ais_data.kml",
+    def get_kml(self, file_path: str = "ais_data.kml",
                        data: str = "all",
                        mmsi: Optional[int] = None,
                        start_date: Optional[str] = None,
@@ -774,7 +774,7 @@ class AISDatabase:
         gdf.to_file(file_path, driver="KML")
         return f"KML file saved at {file_path}"
 
-    def get_global_excel(self, file_path: str = "ais_data.xlsx",
+    def get_excel(self, file_path: str = "ais_data.xlsx",
                          data: str = "all",
                          mmsi: Optional[int] = None,
                          start_date: Optional[str] = None,
@@ -790,7 +790,7 @@ class AISDatabase:
         df.to_excel(file_path, index=False)
         return f"Excel file saved at {file_path}"
 
-    def get_global_wkt(self, mmsi: Optional[int] = None,
+    def get_wkt(self, mmsi: Optional[int] = None,
                        data: str = "all",
                        start_date: Optional[str] = None,
                        end_date: Optional[str] = None,
