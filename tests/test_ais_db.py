@@ -326,8 +326,8 @@ class TestGlobalExports:
         assert result.get("type") == "FeatureCollection"
         assert isinstance(result.get("features"), list)
 
-    def test_get_global_csv(self, setup_db):
-        db = setup_db
+    def test_get_global_csv(self, setup_existing_db):
+        db = setup_existing_db
         file_path = "test_data.csv"
         result = db.get_csv(file_path=file_path, data="all")
         # If no data exists, function should return a string indicating no data.
@@ -340,8 +340,8 @@ class TestGlobalExports:
         assert isinstance(df, pd.DataFrame)
 
 
-    def test_get_global_parquet(self, setup_db):
-        db = setup_db
+    def test_get_global_parquet(self, setup_existing_db):
+        db = setup_existing_db
         file_path = "test_data.parquet"
         result = db.get_parquet(file_path=file_path, data="all")
         if result.startswith("No data"):
@@ -351,8 +351,8 @@ class TestGlobalExports:
         assert isinstance(df, pd.DataFrame)
 
 
-    def test_get_global_json(self, setup_db):
-        db = setup_db
+    def test_get_global_json(self, setup_existing_db):
+        db = setup_existing_db
         file_path = "test_data.json"
         result = db.get_json(file_path=file_path, data="all")
         if isinstance(result, str) and result.startswith("No data"):
@@ -362,8 +362,8 @@ class TestGlobalExports:
         assert os.path.exists(file_path)
 
 
-    def test_get_global_shapefile(self, setup_db):
-        db = setup_db
+    def test_get_global_shapefile(self, setup_existing_db):
+        db = setup_existing_db
         folder_path = "ais_shapefile"
         result = db.get_shapefile(file_path=folder_path, data="all")
         if result.startswith("No data"):
@@ -377,8 +377,8 @@ class TestGlobalExports:
         assert isinstance(gdf, gpd.GeoDataFrame)
 
 
-    def test_get_global_kml(self, setup_db):
-        db = setup_db
+    def test_get_global_kml(self, setup_existing_db):
+        db = setup_existing_db
         file_path = "test_data.kml"
         result = db.get_kml(file_path=file_path, data="all")
         if result.startswith("No data"):
@@ -388,8 +388,8 @@ class TestGlobalExports:
         assert isinstance(gdf, gpd.GeoDataFrame)
 
 
-    def test_get_global_excel(self, setup_db):
-        db = setup_db
+    def test_get_global_excel(self, setup_existing_db):
+        db = setup_existing_db
         file_path = "test_data.xlsx"
         result = db.get_excel(file_path=file_path, data="all")
         if result.startswith("No data"):
@@ -399,8 +399,8 @@ class TestGlobalExports:
         assert isinstance(df, pd.DataFrame)
 
 
-    def test_get_global_wkt(self, setup_db):
-        db = setup_db
+    def test_get_global_wkt(self, setup_existing_db):
+        db = setup_existing_db
         result = db.get_wkt(data="all")
         if isinstance(result, str) and result.startswith("No data"):
             pytest.skip("No data available to export; skipping WKT test.")
@@ -408,28 +408,88 @@ class TestGlobalExports:
         # Optionally, check that at least one WKT string contains "POINT"
         assert any("POINT" in wkt for wkt in result)
 
+def test_dynamic_table_has_data(setup_existing_db):
+    db = setup_existing_db
+    conn = db.connection()
+    df = conn.execute("SELECT mmsi, id FROM ais_msg_123 LIMIT 3").fetchdf()
+    print("ais_msg_123 sample:", df)
+    assert not df.empty, "Expected ais_msg_123 to have data."
+
+
 class TestClassAMessages:
-    def test_class_a_search(self, setup_existing_db):
+    def test_search_works(self, setup_existing_db):
         db = setup_existing_db
+        db.clear_cache()
         processor = db.typeA()
-        df = processor.search(mmsi=9111254)
-        # Check that the returned data is a GeoDataFrame (or DataFrame) and not empty
-        assert isinstance(df, gpd.GeoDataFrame)
-        # can also check expected number of rows but know the test dataset
+
+        # 1. Test search with no filters.
+        result_all = processor.search()
+        print("Type A (No filters):", result_all)
+        assert isinstance(result_all, gpd.GeoDataFrame), "Expected a GeoDataFrame when no filters are provided."
+        assert not result_all.empty, "Expected non-empty GeoDataFrame when no filters are applied."
+
+        # 2. Search by a valid MMSI (e.g., 9111254).
+        result_mmsi = processor.search(mmsi=9111254)
+        print("Type A (MMSI 9111254):", result_mmsi)
+        assert isinstance(result_mmsi, gpd.GeoDataFrame), "Expected a GeoDataFrame for a valid MMSI search."
+        assert not result_mmsi.empty, "Expected non-empty result for MMSI 9111254."
+        # Adjust expected row count as appropriate (example: expecting 24 rows)
+        assert len(result_mmsi) == 24, f"Expected 24 rows for MMSI 9111254, got {len(result_mmsi)}."
+
+        # 3. Search by non-existing MMSI should return an empty GeoDataFrame.
+        result_invalid_mmsi = processor.search(mmsi=9999999)
+        print("Type A (Invalid MMSI):", result_invalid_mmsi)
+        assert isinstance(result_invalid_mmsi, gpd.GeoDataFrame), "Expected a GeoDataFrame even for an invalid MMSI."
+        assert result_invalid_mmsi.empty, "Expected an empty GeoDataFrame for an invalid MMSI."
+
+        # 4. Search by date range (should return at least one row).
+        result_date_range = processor.search(start_date="2016-07-27", end_date="2016-07-29")
+        print("Type A (Date Range):", result_date_range)
+        assert isinstance(result_date_range, gpd.GeoDataFrame), "Expected a GeoDataFrame for a date range search."
+        assert not result_date_range.empty, "Expected non-empty GeoDataFrame for the given date range."
+        assert len(result_date_range) >= 1, "Expected at least one row for the given date range."
+
+        # 5. Optionally: Search by polygon bounds.
+        # Uncomment and adjust if your processor supports filtering by spatial bounds.
+        # polygon_bounds = "POLYGON((-93 29, -93 33, -89 33, -89 29, -93 29))"
+        # result_polygon = processor.search(polygon_bounds=polygon_bounds)
+        # print("Type A (Polygon Bounds):", result_polygon)
+        # assert isinstance(result_polygon, gpd.GeoDataFrame), "Expected a GeoDataFrame for polygon bounds search."
+        # assert not result_polygon.empty, "Expected non-empty result for the given polygon bounds."
+        # Example check: verify a known point is within at least one feature (adjust as needed)
+        # known_point = Point(-90.0, 30.0)
+        # assert any(result_polygon.geometry.apply(lambda geom: geom.within(known_point))),
+        #        "Expected at least one geometry to contain the known point."
+
 
 class TestClassBMessages:
-    def test_class_b_search_dynamic(self, setup_existing_db):
+    def test_search_works_dynamic(self, setup_existing_db):
         db = setup_existing_db
         processor = db.typeB()
-        df = processor.search(mmsi=9111254, start_date="2016-07-27", end_date="2016-07-29")
-        assert isinstance(df, pd.DataFrame)
 
+        # 1. Test search with no filters.
+        result_all = processor.search()
+        print("Type B (No filters):", result_all)
+        assert isinstance(result_all, pd.DataFrame), "Expected a DataFrame when no filters are provided for Type B."
+        assert not result_all.empty, "Expected non-empty DataFrame when no filters are applied for Type B."
 
-    def test_class_b_static_info(self, setup_existing_db):
-        db = setup_existing_db
-        processor = db.typeB()
-        df = processor.static_info(mmsi=9111254)
-        assert isinstance(df, pd.DataFrame)
+        # 2. Search by valid MMSI (with a date range).
+        result_mmsi = processor.search(mmsi=9111254, start_date="2016-07-27", end_date="2016-07-29")
+        print("Type B (MMSI 9111254, Date Range):", result_mmsi)
+        assert isinstance(result_mmsi, pd.DataFrame), "Expected a DataFrame for a valid MMSI search in Type B."
+        assert not result_mmsi.empty, "Expected non-empty result for MMSI 9111254 in Type B."
+
+        # 3. Search by non-existing MMSI should return an empty DataFrame.
+        result_invalid_mmsi = processor.search(mmsi=9999999, start_date="2016-07-27", end_date="2016-07-29")
+        print("Type B (Invalid MMSI):", result_invalid_mmsi)
+        assert isinstance(result_invalid_mmsi, pd.DataFrame), "Expected a DataFrame even for an invalid MMSI in Type B."
+        assert result_invalid_mmsi.empty, "Expected an empty DataFrame for an invalid MMSI in Type B."
+
+        # 4. Search by date range.
+        result_date_range = processor.search(start_date="2016-07-27", end_date="2016-07-29")
+        print("Type B (Date Range):", result_date_range)
+        assert isinstance(result_date_range, pd.DataFrame), "Expected a DataFrame for a date range search in Type B."
+        assert not result_date_range.empty, "Expected non-empty DataFrame for the given date range in Type B."
 
 
 

@@ -1146,18 +1146,25 @@ class ClassAMessages(BaseMessageProcessor):
                     raise ValueError(
                         "MMSI must be an integer or a list of integers.")
 
-            # Date range filter
-            if start_date and end_date:
+            # Date range filter:
+            if start_date:
                 try:
-                    start_timestamp = date_to_tagblock_timestamp(
+                    start_ts = date_to_tagblock_timestamp(
                         *map(int, start_date.split("-")))
-                    end_timestamp = date_to_tagblock_timestamp(
-                        *map(int, end_date.split("-")))
-                    query += " AND tagblock_timestamp BETWEEN ? AND ?"
-                    params.extend([start_timestamp, end_timestamp])
-                except ValueError:
+                    query += " AND tagblock_timestamp >= ?"
+                    params.append(start_ts)
+                except Exception as e:
                     raise ValueError(
-                        "Invalid date format. Expected YYYY-MM-DD.")
+                        "Invalid start date format. Expected YYYY-MM-DD.") from e
+            if end_date:
+                try:
+                    end_ts = date_to_tagblock_timestamp(
+                        *map(int, end_date.split("-")))
+                    query += " AND tagblock_timestamp <= ?"
+                    params.append(end_ts)
+                except Exception as e:
+                    raise ValueError(
+                        "Invalid end date format. Expected YYYY-MM-DD.") from e
 
             # Polygon bounds filter (using parameterized query)
             if polygon_bounds:
@@ -1212,9 +1219,10 @@ class ClassAMessages(BaseMessageProcessor):
             # Build GeoDataFrame
             df["geometry"] = gpd.points_from_xy(df["x"], df["y"])
             gdf = gpd.GeoDataFrame(df, geometry="geometry", crs="EPSG:4326")
+            print(gdf) #debuggin
             return gdf
 
-        except duckdb.DatabaseError as db_err:
+        except duckdb.Error as db_err:
             logger.error(f"DuckDB error: {db_err}")
         except ValueError as ve:
             logger.error(f"Value error: {ve}")
