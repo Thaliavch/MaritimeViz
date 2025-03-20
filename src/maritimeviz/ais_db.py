@@ -494,21 +494,19 @@ from src.maritimeviz.utils.ais_db_utils import *
 from . import logger
 from abc import ABC, abstractmethod
 
-# module counter for database instances on same runtime
-_default_db_counter = 0
-
 class AISDatabase:
     """
     Parent class that manages the initialization, connection, and common queries for the AIS database.
     It also provides factory methods to get message-type processors.
     """
+    # module counter for database instances on same runtime
+    _default_db_counter = 0
     def __init__(self, db_path: Optional[str] = None, enable_cache: bool = True):
         self._db_path = db_path if db_path else self._get_default_db_path() # create new file_name if one is not given or if given an emtpy string
-        self._conn = self._init_db(db_path)
+        self._conn = self._init_db(self._db_path)
         self._init_tables()
         self._filter: Optional[dict] = None
 
-    @staticmethod
     def _init_db(self, db_path: str) -> duckdb.DuckDBPyConnection:
         try:
             conn = duckdb.connect(db_path)
@@ -517,20 +515,19 @@ class AISDatabase:
             print(f"Error connecting to database at {db_path}: {e}")
             raise e
 
-    @staticmethod
     def _init_tables(self):
         try:
             # Call query to init all tables when database is created
             for query in DATABASE_ALL_TABLE_CREATION_QUERIES + DATABASE_ALL_VIEWS_CREATION_QUERIES:
+                print(query + "/n")
                 self._conn.execute(query)
         except Exception as e:
             print(f"Error connecting to database a {self._db_path}: {e}")
 
-    @staticmethod
-    def _get_default_db_path() -> str:
-        global _default_db_counter
-        _default_db_counter += 1
-        return f"ais_data_{_default_db_counter}.duckdb"
+    @classmethod
+    def _get_default_db_path(cls) -> str:
+        cls._default_db_counter += 1
+        return f"ais_data_{cls._default_db_counter}.duckdb"
 
     # TODO(Thalia): have one universal filter object and one per subclass
     def set_filter(self, filter_obj: Optional[dict]) -> None:
@@ -571,6 +568,9 @@ class AISDatabase:
 
     def connection(self):
         return self._conn
+
+    def path(self):
+        return self._db_path
 
     @staticmethod
     def clear_cache() -> None:
@@ -1082,7 +1082,7 @@ class ClassAMessages(BaseMessageProcessor):
 
     def search(self,
                mmsi: Optional[Union[int, List[int]]] = None,
-               conn: Optional[duckdb.Connection] = None,
+               conn: Optional[duckdb.DuckDBPyConnection] = None,
                start_date: Optional[str] = None,
                end_date: Optional[str] = None,
                polygon_bounds: Optional[str] = None,
@@ -1096,7 +1096,7 @@ class ClassAMessages(BaseMessageProcessor):
 
         Parameters:
         - mmsi (int | list[int], optional): MMSI number(s) to filter.
-        - conn (duckdb.Connection, optional): DuckDB connection (defaults to self._conn).
+        - conn (duckdb.DuckDBPyConnection, optional): DuckDB connection (defaults to self._conn).
         - start_date (str, optional): Start date in 'YYYY-MM-DD' format.
         - end_date (str, optional): End date in 'YYYY-MM-DD' format.
         - polygon_bounds (str, optional): WKT polygon for spatial filtering.

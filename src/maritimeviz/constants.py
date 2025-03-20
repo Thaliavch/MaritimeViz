@@ -132,6 +132,8 @@ QUERY_CREATE_TABLE_24 = """
 QUERY_CREATE_GLOBAL_DYNAMIC_VIEW = """
             CREATE OR REPLACE VIEW global_ais_dynamic AS
             SELECT
+              id,
+              repeat_indicator,
               mmsi,
               x,
               y,
@@ -167,10 +169,22 @@ QUERY_CREATE_GLOBAL_DYNAMIC_VIEW = """
               NULL AS max_present_static_draught,
               NULL AS destination,
               NULL AS dte,
+              NULL AS part_num,
+              NULL AS name,
+              NULL AS type_and_cargo,
+              NULL AS vendor_id,
+              NULL AS callsign,
+              NULL AS dim_a,
+              NULL AS dim_b,
+              NULL AS dim_c,
+              NULL AS dim_d,
+              NULL AS spare,
               'dynamicA' AS message_type
             FROM ais_msg_123
             UNION ALL
             SELECT
+              id,
+              repeat_indicator,
               mmsi,
               x,
               y,
@@ -206,6 +220,16 @@ QUERY_CREATE_GLOBAL_DYNAMIC_VIEW = """
               NULL AS max_present_static_draught,
               NULL AS destination,
               NULL AS dte,
+              NULL AS part_num,
+              NULL AS name,
+              NULL AS type_and_cargo,
+              NULL AS vendor_id,
+              NULL AS callsign,
+              NULL AS dim_a,
+              NULL AS dim_b,
+              NULL AS dim_c,
+              NULL AS dim_d,
+              NULL AS spare,
               'dynamicB' AS message_type
             FROM ais_msg_18_19;
 
@@ -214,10 +238,12 @@ QUERY_CREATE_GLOBAL_DYNAMIC_VIEW = """
 QUERY_CREATE_GLOBAL_STATIC_VIEW = """
             CREATE OR REPLACE VIEW global_ais_static AS
             SELECT
+              id,
+              repeat_indicator,
               mmsi,
               NULL AS x,
               NULL AS y,
-              tagblock_timestamp,
+              NULL AS tagblock_timestamp,
               NULL AS nav_status,
               NULL AS rot_over_range,
               NULL AS rot,
@@ -249,10 +275,22 @@ QUERY_CREATE_GLOBAL_STATIC_VIEW = """
               max_present_static_draught,
               destination,
               dte,
+              NULL AS part_num,
+              NULL AS name,
+              NULL AS type_and_cargo,
+              NULL AS vendor_id,
+              NULL AS callsign,
+              NULL AS dim_a,
+              NULL AS dim_b,
+              NULL AS dim_c,
+              NULL AS dim_d,
+              NULL AS spare,
               'staticA' AS message_type
             FROM ais_msg_5
             UNION ALL
             SELECT
+              id,
+              repeat_indicator,
               mmsi,
               NULL AS x,
               NULL AS y,
@@ -288,6 +326,16 @@ QUERY_CREATE_GLOBAL_STATIC_VIEW = """
               NULL AS max_present_static_draught,
               NULL AS destination,
               NULL AS dte,
+              part_num,
+              name,
+              type_and_cargo,
+              vendor_id,
+              callsign,
+              dim_a,
+              dim_b,
+              dim_c,
+              dim_d,
+              spare,
               'staticB' AS message_type
             FROM ais_msg_24;
 
