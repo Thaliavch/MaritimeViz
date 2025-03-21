@@ -5,8 +5,12 @@ import json
 from sys import prefix
 
 import folium
+from folium import Map, Marker, Icon, Popup
+from branca.element import Element
 import leafmap.foliumap as leafmap
 import geopandas as gpd
+from shapely.wkt import loads
+from src.maritimeviz.utils.viz_utils import *
 
 class Map:
     """
@@ -68,8 +72,6 @@ class Map:
                 map_object  # Display the map in a Jupyter Notebook or web interface.
             """
 
-
-
         if not route_geojson:
             print("Empty or invalid GeoJSON. Nothing to plot.")
             return
@@ -107,6 +109,75 @@ class Map:
                             tooltip='Press for more info'
                         ).add_to(self.m)
 
-
         return self.m
+
+    def filter_ships_by_polygon(self, wkt_polygon, gdf):
+        """
+        Filters ships that fall inside the given WKT polygon.
+
+        Parameters:
+        - wkt_polygon (str): WKT string of the polygon area.
+        - gdf (GeoDataFrame): GeoDataFrame containing ships with 'latitude' and 'longitude'.
+
+        Returns:
+        - Filtered GeoDataFrame with ships inside the polygon.
+        """
+        polygon = loads(wkt_polygon)  # Convert WKT string to Shapely Polygon
+        gdf["geometry"] = gpd.points_from_xy(gdf.longitude, gdf.latitude)  # Convert lat/lon to points
+
+        return gdf[gdf.geometry.within(polygon)]  # Filter points within the polygon
+
+    def ship_map_with_speed(self, wkt_polygon, gdf):
+        """
+        Creates a folium map displaying ships inside the given WKT polygon, with markers colored based on ship speed.
+
+        Parameters:
+        - wkt_polygon (str): WKT string representing the polygon area.
+        - gdf (GeoDataFrame): GeoDataFrame containing ship data with 'latitude', 'longitude', and 'speed' attributes.
+
+        Returns:
+        - folium.Map: A folium map object centered on the filtered ships, with markers indicating ship positions and speeds.
+        """
+
+        # Filter ships inside the polygon
+        filtered_gdf = self.filter_ships_by_polygon(wkt_polygon, gdf)
+
+        if filtered_gdf.empty:
+            print("No ships found in the selected area.")
+            return None
+
+        # Create map centered around filtered ships
+        m = folium.Map(
+            location=[filtered_gdf.latitude.mean(), filtered_gdf.longitude.mean()],
+            zoom_start=6
+        )
+
+        for _, row in filtered_gdf.iterrows():
+            name, info_text = get_info(row)  # Keep the existing logic
+
+            # Assign color based on speed
+            speed = row["speed"]
+            if speed <= 2:
+                color = "green"
+            elif speed <= 10:
+                color = "blue"
+            elif speed <= 25:
+                color = "orange"
+            elif speed <= 30:
+                color = "red"
+            else:
+                color = "purple"
+
+            # Add marker
+            Marker(
+                icon=Icon(color=color, icon="ship", prefix="fa"),
+                location=[row.latitude, row.longitude],
+                popup=Popup(info_text, max_width=300),
+            ).add_to(m)
+
+        # Add legend
+        legend_html = create_speed_legend()
+        m.get_root().html.add_child(Element(legend_html))
+
+        return m
 
