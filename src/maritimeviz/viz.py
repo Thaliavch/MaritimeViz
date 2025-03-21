@@ -10,7 +10,8 @@ from branca.element import Element
 import leafmap.foliumap as leafmap
 import geopandas as gpd
 from shapely.wkt import loads
-from src.maritimeviz.utils.viz_utils import *
+
+from src.maritimeviz.utils.viz_utils import plot_with_info, get_info, create_speed_legend
 
 class Map:
     """
