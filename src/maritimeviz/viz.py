@@ -128,17 +128,8 @@ class Map:
 
         return gdf[gdf.geometry.within(polygon)]  # Filter points within the polygon
 
-    def ship_map_with_speed(self, wkt_polygon, gdf):
-        """
-        Creates a folium map displaying ships inside the given WKT polygon, with markers colored based on ship speed.
-
-        Parameters:
-        - wkt_polygon (str): WKT string representing the polygon area.
-        - gdf (GeoDataFrame): GeoDataFrame containing ship data with 'latitude', 'longitude', and 'speed' attributes.
-
-        Returns:
-        - folium.Map: A folium map object centered on the filtered ships, with markers indicating ship positions and speeds.
-        """
+    def ship_map_with_speed(self, wkt_polygon, gdf, map_tile='HYBRID'):
+        """Creates a map with ships **inside the given WKT polygon**, colored by speed."""
 
         # Filter ships inside the polygon
         filtered_gdf = self.filter_ships_by_polygon(wkt_polygon, gdf)
@@ -148,13 +139,26 @@ class Map:
             return None
 
         # Create map centered around filtered ships
-        m = folium.Map(
-            location=[filtered_gdf.latitude.mean(), filtered_gdf.longitude.mean()],
-            zoom_start=6
-        )
+        m = leafmap.foliumap.Map(location=[filtered_gdf.latitude.mean(), filtered_gdf.longitude.mean()], zoom_start=6)
+
+        if map_tile is not None:
+            m.add_basemap(map_tile)
+
+        # Highlight the WKT polygon region
+        polygon_geom = loads(wkt_polygon)
+        polygon_coords = list(polygon_geom.exterior.coords)
+        folium.Polygon(
+            locations=[(lat, lon) for lon, lat in polygon_coords],
+            color='#FFA500',
+            weight=3,
+            fill=True,
+            fill_color='#FFD580',
+            fill_opacity=0.2,
+            popup="WKT Region"
+        ).add_to(m)
 
         for _, row in filtered_gdf.iterrows():
-            name, info_text = get_info(row)  # Keep the existing logic
+            info_text = get_info(row)  # Keep the existing logic
 
             # Assign color based on speed
             speed = row["speed"]
