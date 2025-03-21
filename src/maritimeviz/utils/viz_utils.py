@@ -1,10 +1,12 @@
-import gpd
-import leafmap
-import geopandas as gpd
+# import gpd
+# import leafmap
+# import geopandas as gpd
+from IPython.display import display
+
 
 
 def create_speed_legend():
-    """Generates an HTML legend for the speed color map."""
+
     legend_html = '''
     <div style="
         position: fixed;
@@ -29,6 +31,22 @@ def create_speed_legend():
     return legend_html
 
 def get_info(row):
+    """
+        Extracts and formats information from a dictionary representing a data row.
+
+        Parameters:
+            row (dict): A dictionary containing key-value pairs. Expected to possibly contain
+                        keys such as "mmsi", "name", "id", and "geometry", among others.
+
+        Returns:
+            tuple:
+                - name (str): The value of the "mmsi" key if present, otherwise "name",
+                              then "id", and defaults to "Unknown" if none are found.
+                - info_text (str): An HTML-formatted string where each key-value pair
+                                   (excluding the "geometry" key and any empty values) is
+                                   presented on a separate line using <br> tags.
+        """
+
     info_text = "<br>".join([f"{key}: {value}" for key, value in row.items() if value and key != "geometry"])
     name = row.get("mmsi", row.get("name", row.get("id", "Unknown")))
 
@@ -36,28 +54,28 @@ def get_info(row):
 
 
 
-def map(self, route_geojson):
-    if not route_geojson:
-        print("Empty or invalid GeoJSON. Nothing to plot.")
-        return
-
-    gdf = gpd.read_file(route_geojson)
-
-    if gdf.empty:
-        print("No valid ship route data found.")
-    else:
-        # Extract latitude and longitude if not already present
-        if "latitude" not in gdf.columns or "longitude" not in gdf.columns:
-            gdf["longitude"] = gdf["geometry"].apply(lambda geom: geom.x if geom else None)
-            gdf["latitude"] = gdf["geometry"].apply(lambda geom: geom.y if geom else None)
-
-        # Ensure there are valid coordinates
-        if gdf["latitude"].isnull().all() or gdf["longitude"].isnull().all():
-            print("No valid coordinates found in the data.")
-        else:
-            self.m = leafmap.Map(location=[gdf.latitude.mean(), gdf.longitude.mean()], zoom_start=4)
-
-
-    return self.m
-
-
+# def mapViz(self, route_geojson):
+#     if not route_geojson:
+#         print("Empty or invalid GeoJSON. Nothing to plot.")
+#         return
+#
+#     gdf = gpd.read_file(route_geojson)
+#
+#     if gdf.empty:
+#         print("No valid ship route data found.")
+#     else:
+#         # Extract latitude and longitude if not already present
+#         if "latitude" not in gdf.columns or "longitude" not in gdf.columns:
+#             gdf["longitude"] = gdf["geometry"].apply(lambda geom: geom.x if geom else None)
+#             gdf["latitude"] = gdf["geometry"].apply(lambda geom: geom.y if geom else None)
+#
+#         # Ensure there are valid coordinates
+#         if gdf["latitude"].isnull().all() or gdf["longitude"].isnull().all():
+#             print("No valid coordinates found in the data.")
+#         else:
+#             self.m = leafmap.Map(location=[gdf.latitude.mean(), gdf.longitude.mean()], zoom_start=4)
+#
+#
+#     return self.m
+#
+#

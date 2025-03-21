@@ -409,7 +409,7 @@ class BaseMessageProcessor:
     # Note that because search() is abstract, the methods below will query from each
     # subclass' respective table.
     def get_geojson(self, mmsi: None, start_date=None, end_date=None,
-                    polygon_bounds=None):
+                         polygon_bounds=None):
         """
         Return a GeoJSON representation of the vessel route.
         This GeoJSON can be passed directly to a Leafmap/Geemap layer.
