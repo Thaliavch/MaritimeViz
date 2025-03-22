@@ -347,11 +347,10 @@ class BaseMessageProcessor:
             Process a chunk of lines and insert messages into the database.
             """
         import ais.stream  # Import required for threading compatibility
-
         for msg in ais.stream.decode(chunk):
             try:
                 if self._filter_message(msg):  # Filter messages
-                    self._insert_msg(msg)  # Insert message into database
+                    self._insert_message(msg)  # Insert message into database
             except Exception as e:
                 logger.error(f"Error processing message: {msg} - {e}")
 
@@ -596,7 +595,6 @@ class ClassAMessages(BaseMessageProcessor):
                 msg.get('tagblock_station'),
                 msg.get('tagblock_timestamp')
             )
-
         self._conn.execute(query, params)
 
     def set_filter(self, filter_obj: Optional[dict]) -> None:
@@ -832,6 +830,7 @@ class ClassBMessages(BaseMessageProcessor):
     """
     def __init__(self, conn: duckdb.DuckDBPyConnection):
         super().__init__(conn)
+        print("Inside class B messages constructor...") #debugging
 
     def _filter_message(self, msg: dict) -> bool:
         # Process only if the message id is one of the Class B types.
@@ -866,6 +865,7 @@ class ClassBMessages(BaseMessageProcessor):
                 msg.get('tagblock_timestamp')
             )
         else:
+            print("Message is 18 or 19")
             # For dynamic messages (Types 18 and 19)
             query = """
                 INSERT INTO ais_msg_18_19 (
@@ -909,6 +909,7 @@ class ClassBMessages(BaseMessageProcessor):
     def set_filter(self, filter_obj: Optional[dict]) -> None:
         pass
 
+    #TODO(Update this search function and global search function)
     def search(self,
                mmsi: Optional[Union[int, List[int]]] = None,
                start_date: Optional[str] = None,
@@ -929,14 +930,26 @@ class ClassBMessages(BaseMessageProcessor):
                 params.extend(mmsi)
             else:
                 raise ValueError("MMSI must be an integer or a list of integers.")
-        if start_date and end_date:
+
+        # Date range filter:
+        if start_date:
             try:
-                start_timestamp = date_to_tagblock_timestamp(*map(int, start_date.split("-")))
-                end_timestamp = date_to_tagblock_timestamp(*map(int, end_date.split("-")))
-                query += " AND timestamp BETWEEN ? AND ?"
-                params.extend([start_timestamp, end_timestamp])
+                start_ts = date_to_tagblock_timestamp(
+                    *map(int, start_date.split("-")))
+                query += " AND tagblock_timestamp >= ?"
+                params.append(start_ts)
             except Exception as e:
-                raise ValueError("Invalid date format. Expected YYYY-MM-DD.") from e
+                raise ValueError(
+                    "Invalid start date format. Expected YYYY-MM-DD.") from e
+        if end_date:
+            try:
+                end_ts = date_to_tagblock_timestamp(
+                    *map(int, end_date.split("-")))
+                query += " AND tagblock_timestamp <= ?"
+                params.append(end_ts)
+            except Exception as e:
+                raise ValueError(
+                    "Invalid end date format. Expected YYYY-MM-DD.") from e
 
         try:
             return cached_query(self._conn, query, params, True)

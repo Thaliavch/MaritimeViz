@@ -5,13 +5,14 @@ import duckdb
 import pandas as pd
 import geopandas as gpd
 import shutil
+from typing import Optional
 
 from src.maritimeviz.ais_db import AISDatabase
 from src.maritimeviz.constants import *
 
 # Database and AIS files for testing
 TEST_DB_PATH = "ais_data .duckdb"
-AIS_FILE_PATH = "tests/ais_2016_07_28_aa"
+AIS_FILE_PATH = "ais_2016_07_28_aa"
 
 
 
@@ -38,20 +39,26 @@ def setup_existing_db():
                 os.remove(fname)
 
 @pytest.fixture(scope="function")
-def setup_new_db():
+def setup_new_db(request):
     """
     Fixture to create and clean up a test AISDatabase instance instantiated
     with default db path.
     """
     # Initialize empty database
-    db = AISDatabase()  # existing db
+    db_path = request.param if hasattr(request, "param") else None
+    if db_path:
+        db = AISDatabase(db_path)
+    else:
+        db = AISDatabase()
+
     yield db
     # Clear cache if needed and close connection
     db.clear_cache()
     db.close()
-    # Remove the test database file after tests run
-    if os.path.exists("ais_data_1.duckdb"):
-        os.remove("ais_data_1.duckdb")
+    # Remove the test database files after tests run
+    for fname in ["ais_data_1.duckdb", "ais_class_A_only.duckdb", "ais_class_B_only.duckdb"]:
+        if os.path.exists(fname):
+            os.remove(fname)
     # Remove any exported files
     for fname in ["test_data.csv", "test_data.parquet", "test_data.json",
                   "ais_shapefile", "test_data.kml", "test_data.xlsx"]:
@@ -250,8 +257,7 @@ class TestClassAMessages:
         assert not result_date_range.empty, "Expected non-empty GeoDataFrame for the given date range."
         assert len(result_date_range) >= 1, "Expected at least one row for the given date range."
 
-        # 5. Optionally: Search by polygon bounds.
-        # Uncomment and adjust if your processor supports filtering by spatial bounds.
+        # Search by polygon bounds.
         # polygon_bounds = "POLYGON((-93 29, -93 33, -89 33, -89 29, -93 29))"
         # result_polygon = processor.search(polygon_bounds=polygon_bounds)
         # print("Type A (Polygon Bounds):", result_polygon)
@@ -262,9 +268,29 @@ class TestClassAMessages:
         # assert any(result_polygon.geometry.apply(lambda geom: geom.within(known_point))),
         #        "Expected at least one geometry to contain the known point."
 
+    # TODO(Thalia) in the class ensure user enters duckdb file extension otherwise add the extension
+    @pytest.mark.parametrize("setup_new_db", ["ais_class_A_only.duckdb"],
+                             indirect=True)
+    def test_process_classA(self, setup_new_db):
+        db = setup_new_db
+        processorA = db.typeA()
+        processorA.process(AIS_FILE_PATH)
+
+        conn = db.connection()
+        count_123 = \
+        conn.execute("SELECT COUNT(*) FROM ais_msg_123").fetchone()[0]
+        # Static table for Class A (ais_msg_5) has no data for the current testing file
+        count_5 = conn.execute("SELECT COUNT(*) FROM ais_msg_5").fetchone()[0]
+
+        print("Rows in ais_msg_123:", count_123)
+        print("Rows in ais_msg_5:", count_5)
+
+        assert count_123 > 0, "Expected ais_msg_123 to have data after processing Class A messages."
+        assert count_5 == 0, "Expected ais_msg_5 to have no data after processing Class A messages."
+
 
 class TestClassBMessages:
-    def test_search_works_dynamic(self, setup_existing_db):
+    def test_search_works(self, setup_existing_db):
         db = setup_existing_db
         processor = db.typeB()
 
@@ -274,11 +300,11 @@ class TestClassBMessages:
         assert isinstance(result_all, pd.DataFrame), "Expected a DataFrame when no filters are provided for Type B."
         assert not result_all.empty, "Expected non-empty DataFrame when no filters are applied for Type B."
 
-        # 2. Search by valid MMSI (with a date range).
-        result_mmsi = processor.search(mmsi=9111254, start_date="2016-07-27", end_date="2016-07-29")
-        print("Type B (MMSI 9111254, Date Range):", result_mmsi)
+        # 2. Search by valid MMSI
+        result_mmsi = processor.search(mmsi=338097623)
+        print("Type B (MMSI 338097623, Date Range):", result_mmsi)
         assert isinstance(result_mmsi, pd.DataFrame), "Expected a DataFrame for a valid MMSI search in Type B."
-        assert not result_mmsi.empty, "Expected non-empty result for MMSI 9111254 in Type B."
+        assert not result_mmsi.empty, "Expected non-empty result for MMSI 338097623 in Type B."
 
         # 3. Search by non-existing MMSI should return an empty DataFrame.
         result_invalid_mmsi = processor.search(mmsi=9999999, start_date="2016-07-27", end_date="2016-07-29")
@@ -287,10 +313,36 @@ class TestClassBMessages:
         assert result_invalid_mmsi.empty, "Expected an empty DataFrame for an invalid MMSI in Type B."
 
         # 4. Search by date range.
-        result_date_range = processor.search(start_date="2016-07-27", end_date="2016-07-29")
+        result_date_range = processor.search(start_date="2016-07-26", end_date="2016-07-30")
         print("Type B (Date Range):", result_date_range)
         assert isinstance(result_date_range, pd.DataFrame), "Expected a DataFrame for a date range search in Type B."
         assert not result_date_range.empty, "Expected non-empty DataFrame for the given date range in Type B."
 
+    @pytest.mark.parametrize("setup_new_db", ["ais_class_B_only.duckdb"],
+                             indirect=True)
+    def test_process_classB(self, setup_new_db):
+        db = setup_new_db
+        db.clear_cache()
+        processorB = db.typeB()
+        # Process the sample file with the Class B processor.
+        processorB.process(AIS_FILE_PATH)
 
+        conn = db.connection()
+        # Check that the dynamic table for Class B (ais_msg_18_19) has data.
+        count_18_19 = \
+        conn.execute("SELECT COUNT(*) FROM ais_msg_18_19").fetchone()[0]
+        # Check that the static table for Class B (ais_msg_24) has data.
+        count_24 = conn.execute("SELECT COUNT(*) FROM ais_msg_24").fetchone()[
+            0]
 
+        print("Rows in ais_msg_18_19:", count_18_19)
+        print("Rows in ais_msg_24:", count_24)
+
+        assert count_18_19 > 0, "Expected ais_msg_18_19 to have data after processing Class B messages."
+        assert count_24 > 0, "Expected ais_msg_24 to have data after processing Class B messages."
+
+# Some messages for type B
+"""
+{'id': 24, 'repeat_indicator': 3, 'mmsi': 366970430, 'part_num': 1, 'type_and_cargo': 60, 'vendor_id': 'COMNAV@', 'callsign': 'WY6769@', 'dim_a': 3, 'dim_b': 16, 'dim_c': 3, 'dim_d': 3, 'spare': 0, 'tagblock_group': {'sentence': 1, 'groupsize': 2, 'id': 6539}, 'tagblock_line_count': 7284, 'tagblock_station': 'D13MN-CR-KELBS1', 'tagblock_timestamp': 1469663999}
+{'id': 18, 'repeat_indicator': 0, 'mmsi': 338097623, 'spare': 0, 'sog': 0.10000000149011612, 'position_accuracy': 1, 'x': -70.19623333333334, 'y': 43.726173333333335, 'cog': 237.3000030517578, 'true_heading': 511, 'timestamp': 59, 'spare2': 0, 'unit_flag': 1, 'display_flag': 0, 'dsc_flag': 1, 'band_flag': 0, 'm22_flag': 1, 'mode_flag': 0, 'raim': False, 'commstate_flag': 1, 'commstate_cs_fill': 393222, 'tagblock_group': {'sentence': 1, 'groupsize': 2, 'id': 1700}, 'tagblock_line_count': 2431, 'tagblock_station': 'D01MN-NE-BRIBS1', 'tagblock_timestamp': 1469664000}
+"""
