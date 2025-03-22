@@ -24,7 +24,7 @@ class AISDatabase:
         self._db_path = db_path if db_path else self._get_default_db_path() # create new file_name if one is not given or if given an emtpy string
         self._conn = self._init_db(self._db_path)
         self._init_tables()
-        self._filter: Optional[dict] = None
+        self._global_filter: Optional[dict] = None
 
     def _init_db(self, db_path: str) -> duckdb.DuckDBPyConnection:
         try:
@@ -47,14 +47,9 @@ class AISDatabase:
         cls._default_db_counter += 1
         return f"ais_data_{cls._default_db_counter}.duckdb"
 
-    # TODO(Thalia): have one universal filter object and one per subclass
+    # TODO(Thalia): have one universal filter object and implement global set_filter function
     def set_filter(self, filter_obj: Optional[dict]) -> None:
-        if filter_obj is not None:
-            if not isinstance(filter_obj, dict):
-                raise TypeError("Filter object must be a dictionary.")
-            if not set(filter_obj.keys()).issubset(ALLOWED_FILTER_KEYS):
-                raise TypeError("Filter object contains invalid keys.") # TODO(Thalia): add link to documentation in error message
-        self._filter = filter_obj
+        pass
 
     def clear_filter(self) -> None:
         self._filter = None
@@ -95,7 +90,7 @@ class AISDatabase:
         '''
         This will clear cache for all modules
         '''
-        cached_query.cache_clear()
+        call_in_cached_query.cache_clear()
 
     def _get_view_name(self, data: str) -> str:
         """
@@ -341,6 +336,8 @@ class BaseMessageProcessor:
     """
     def __init__(self, conn: duckdb.DuckDBPyConnection):
         self._conn = conn
+        self._filter: Optional[dict] = None
+        print("BaseMessageProcessor instantiated ...") #debug
 
     '''
     Private methods
@@ -389,6 +386,10 @@ class BaseMessageProcessor:
         """Query vessel static data applying given arguments"""
         raise NotImplementedError("Subclasses must implement static_info.")
 
+    @abstractmethod
+    def set_filter(self, filter_obj: Optional[dict]) -> None:
+        """ Set filter object for querying data from database """
+        raise NotImplementedError("Subclasses must implement set_filter.")
     '''
     Public methods start here
     '''
@@ -409,7 +410,7 @@ class BaseMessageProcessor:
     # Note that because search() is abstract, the methods below will query from each
     # subclass' respective table.
     def get_geojson(self, mmsi: None, start_date=None, end_date=None,
-                         polygon_bounds=None):
+                    polygon_bounds=None):
         """
         Return a GeoJSON representation of the vessel route.
         This GeoJSON can be passed directly to a Leafmap/Geemap layer.
@@ -598,6 +599,14 @@ class ClassAMessages(BaseMessageProcessor):
 
         self._conn.execute(query, params)
 
+    def set_filter(self, filter_obj: Optional[dict]) -> None:
+        if filter_obj is not None:
+            if not isinstance(filter_obj, dict):
+                raise TypeError("Filter object must be a dictionary.")
+            if not set(filter_obj.keys()).issubset(ALLOWED_FILTER_KEYS_CLASS_A):
+                raise TypeError("Filter object contains invalid keys.") # TODO(Thalia): add link to documentation in error message
+        self._filter = filter_obj
+
     def search(self,
                mmsi: Optional[Union[int, List[int]]] = None,
                conn: Optional[duckdb.DuckDBPyConnection] = None,
@@ -738,7 +747,7 @@ class ClassAMessages(BaseMessageProcessor):
             # Build GeoDataFrame
             df["geometry"] = gpd.points_from_xy(df["x"], df["y"])
             gdf = gpd.GeoDataFrame(df, geometry="geometry", crs="EPSG:4326")
-            print(gdf) #debuggin
+            print(gdf) #debuging
             return gdf
 
         except duckdb.Error as db_err:
@@ -895,6 +904,10 @@ class ClassBMessages(BaseMessageProcessor):
                 msg.get('tagblock_timestamp')
             )
         self._conn.execute(query, params)
+
+    # TODO(Thalia): write function implementation and filter object for messages of class B
+    def set_filter(self, filter_obj: Optional[dict]) -> None:
+        pass
 
     def search(self,
                mmsi: Optional[Union[int, List[int]]] = None,

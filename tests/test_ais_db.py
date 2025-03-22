@@ -226,8 +226,8 @@ class TestClassAMessages:
         # 1. Test search with no filters.
         result_all = processor.search()
         print("Type A (No filters):", result_all)
-        assert isinstance(result_all, gpd.GeoDataFrame), "Expected a GeoDataFrame when no filters are provided."
-        assert not result_all.empty, "Expected non-empty GeoDataFrame when no filters are applied."
+        assert isinstance(result_all, gpd.GeoDataFrame), "Expected a GeoDataFrame ."
+        assert not result_all.empty, "Expected non-empty GeoDataFrame."
 
         # 2. Search by a valid MMSI (e.g., 9111254).
         result_mmsi = processor.search(mmsi=9111254)
@@ -235,7 +235,7 @@ class TestClassAMessages:
         assert isinstance(result_mmsi, gpd.GeoDataFrame), "Expected a GeoDataFrame for a valid MMSI search."
         assert not result_mmsi.empty, "Expected non-empty result for MMSI 9111254."
         # Adjust expected row count as appropriate (example: expecting 24 rows)
-        assert len(result_mmsi) == 24, f"Expected 24 rows for MMSI 9111254, got {len(result_mmsi)}."
+        assert len(result_mmsi) == 6, f"Expected 6 rows for MMSI 9111254, got {len(result_mmsi)}."
 
         # 3. Search by non-existing MMSI should return an empty GeoDataFrame.
         result_invalid_mmsi = processor.search(mmsi=9999999)

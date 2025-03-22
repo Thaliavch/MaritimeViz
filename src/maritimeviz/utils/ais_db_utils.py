@@ -4,12 +4,23 @@ import datetime
 from functools import cache
 import duckdb
 import pandas as pd
-from typing import Union, List
+from typing import Optional, Union, List
 import geopandas as gpd
+
+# TODO(Thalia): thinking about renaming these two
+def cached_query(conn: duckdb.DuckDBPyConnection, query: str, params: Optional[Union[List, tuple]], df: bool = False) -> Union[pd.DataFrame, List]:
+    """
+    Wrapper function for call_in_cached_query to handle conversion before caching
+    """
+    if not isinstance(params, tuple):
+        if not isinstance(params, list):
+            params = [params]
+        params = tuple(params)
+    return call_in_cached_query(conn, query, params, df)
 
 
 @cache
-def cached_query(conn: duckdb.DuckDBPyConnection, query: str, params: Union[List, tuple], df: bool = False) -> Union[pd.DataFrame, List]:
+def call_in_cached_query(conn: duckdb.DuckDBPyConnection, query: str, params: tuple, df: bool = False) -> Union[pd.DataFrame, List]:
     """
     Execute an SQL query on the given DuckDB connection with caching.
 
@@ -33,10 +44,6 @@ def cached_query(conn: duckdb.DuckDBPyConnection, query: str, params: Union[List
     """
     if not params:
         return conn.execute(query).fetchdf() if df else conn.execute(query).fetchall()
-    if not isinstance(params, tuple):
-        if not isinstance(params, list):
-            params = [params]
-        params = tuple(params)
     return conn.execute(query, params).fetchdf() if df else conn.execute(query, params).fetchall()
 
 def estimate_lines_by_size(file_path, avg_bytes_per_line=90):
