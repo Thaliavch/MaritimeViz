@@ -360,6 +360,11 @@ ALLOWED_FILTER_KEYS_CLASS_A = {
     "min_turn_rate", "max_turn_rate"
 }
 
+ALLOWED_FILTER_KEYS_CLASS_B = {
+    "mmsi", "start_date", "end_date", "polygon_bounds",
+    "min_velocity", "max_velocity", "direction"
+}
+
 # TODO(Thalia): Crete global filter object and one per class.
 class FilterCriteria(TypedDict, total=False): # total set to False to make all fields optional
     mmsi: Union[int, List[int]]

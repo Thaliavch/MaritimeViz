@@ -634,7 +634,7 @@ class ClassAMessages(BaseMessageProcessor):
         Returns:
         - gpd.GeoDataFrame: Filtered AIS data.
         """
-        # TODO(Thalia) I wonder if this is really necessary. May refactor later ....
+        # TODO(Thalia) I wonder if this is really necessary. May refactor later .... Get rid of it but ask Kurt first
         if not conn:
             conn = self._conn
 
@@ -906,56 +906,151 @@ class ClassBMessages(BaseMessageProcessor):
         self._conn.execute(query, params)
 
     # TODO(Thalia): write function implementation and filter object for messages of class B
-    def set_filter(self, filter_obj: Optional[dict]) -> None:
-        pass
+
+    def set_filter(self, filter_obj: Optional[dict] = None) -> None:
+        if filter_obj is not None:
+            if not isinstance(filter_obj, dict):
+                raise TypeError("Filter object must be a dictionary.")
+            if not set(filter_obj.keys()).issubset(ALLOWED_FILTER_KEYS_CLASS_B):
+                raise TypeError("Filter object contains invalid keys.") # TODO(Thalia): add link to documentation in error message
+        self._filter = filter_obj
 
     #TODO(Update this search function and global search function)
     def search(self,
                mmsi: Optional[Union[int, List[int]]] = None,
+               conn: Optional[duckdb.DuckDBPyConnection] = None,
                start_date: Optional[str] = None,
                end_date: Optional[str] = None,
-               **kwargs) -> pd.DataFrame:
+               polygon_bounds: Optional[str] = None,
+               min_velocity: Optional[float] = None,
+               max_velocity: Optional[float] = None,
+               direction: Optional[str] = None) -> gpd.GeoDataFrame:
         """
-        Searches dynamic Class B messages in the ais_msg_18_19 table.
-        """
-        query = "SELECT * FROM ais_msg_18_19 WHERE 1=1"
-        params = []
-        if mmsi is not None:
-            if isinstance(mmsi, int):
-                query += " AND mmsi = ?"
-                params.append(mmsi)
-            elif isinstance(mmsi, list) and all(isinstance(i, int) for i in mmsi):
-                placeholders = ", ".join(["?"] * len(mmsi))
-                query += f" AND mmsi IN ({placeholders})"
-                params.extend(mmsi)
-            else:
-                raise ValueError("MMSI must be an integer or a list of integers.")
+        Search AIS data with optional filters.
 
-        # Date range filter:
-        if start_date:
-            try:
-                start_ts = date_to_tagblock_timestamp(
-                    *map(int, start_date.split("-")))
-                query += " AND tagblock_timestamp >= ?"
-                params.append(start_ts)
-            except Exception as e:
-                raise ValueError(
-                    "Invalid start date format. Expected YYYY-MM-DD.") from e
-        if end_date:
-            try:
-                end_ts = date_to_tagblock_timestamp(
-                    *map(int, end_date.split("-")))
-                query += " AND tagblock_timestamp <= ?"
-                params.append(end_ts)
-            except Exception as e:
-                raise ValueError(
-                    "Invalid end date format. Expected YYYY-MM-DD.") from e
+        Parameters:
+        - mmsi (int | list[int], optional): MMSI number(s) to filter.
+        - conn (duckdb.DuckDBPyConnection, optional): DuckDB connection (defaults to self._conn).
+        - start_date (str, optional): Start date in 'YYYY-MM-DD' format.
+        - end_date (str, optional): End date in 'YYYY-MM-DD' format.
+        - polygon_bounds (str, optional): WKT polygon for spatial filtering.
+        - min_velocity (float, optional): Minimum speed over ground (sog).
+        - max_velocity (float, optional): Maximum speed over ground (sog).
+        - direction (str, optional): Cardinal direction ("N", "E", "S", or "W") to filter by course over ground (cog).
+
+        Returns:
+        - gpd.GeoDataFrame: Filtered AIS data.
+        """
+        # TODO(Thalia) I wonder if this is really necessary. May refactor later .... Get rid of it but ask Kurt first
+        if not conn:
+            conn = self._conn
 
         try:
-            return cached_query(self._conn, query, params, True)
+            # Base query
+            query = "SELECT * FROM ais_msg_18_19 WHERE 1=1"
+            params = []
+
+            # Apply stored filter if set (stored filter values are used unless explicitly overridden)
+            if self._filter:
+                mmsi = mmsi or self._filter.get("mmsi")
+                start_date = start_date or self._filter.get("start_date")
+                end_date = end_date or self._filter.get("end_date")
+                polygon_bounds = polygon_bounds or self._filter.get(
+                    "polygon_bounds")
+                min_velocity = min_velocity or self._filter.get("min_velocity")
+                max_velocity = max_velocity or self._filter.get("max_velocity")
+                direction = direction or self._filter.get("direction")
+
+            # MMSI filtering
+            if mmsi:
+                if isinstance(mmsi, int):
+                    query += " AND mmsi = ?"
+                    params.append(mmsi)
+                elif isinstance(mmsi, list) and all(
+                    isinstance(i, int) for i in mmsi):
+                    placeholders = ', '.join(['?'] * len(mmsi))
+                    query += f" AND mmsi IN ({placeholders})"
+                    params.extend(mmsi)
+                else:
+                    raise ValueError(
+                        "MMSI must be an integer or a list of integers.")
+
+            # Date range filter:
+            if start_date:
+                try:
+                    start_ts = date_to_tagblock_timestamp(
+                        *map(int, start_date.split("-")))
+                    query += " AND tagblock_timestamp >= ?"
+                    params.append(start_ts)
+                except Exception as e:
+                    raise ValueError(
+                        "Invalid start date format. Expected YYYY-MM-DD.") from e
+            if end_date:
+                try:
+                    end_ts = date_to_tagblock_timestamp(
+                        *map(int, end_date.split("-")))
+                    query += " AND tagblock_timestamp <= ?"
+                    params.append(end_ts)
+                except Exception as e:
+                    raise ValueError(
+                        "Invalid end date format. Expected YYYY-MM-DD.") from e
+
+            # Polygon bounds filter (using parameterized query)
+            if polygon_bounds:
+                query += " AND ST_Within(ST_Point(x, y), ST_GeomFromText(?))"
+                params.append(polygon_bounds)
+
+            # Velocity filter
+            if min_velocity is not None:
+                query += " AND sog >= ?"
+                params.append(min_velocity)
+            if max_velocity is not None:
+                query += " AND sog <= ?"
+                params.append(max_velocity)
+
+            # Direction filter (based on course over ground, cog)
+            if direction:
+                direction = direction.upper()
+                if direction == "N":
+                    # North: cog >= 315 or cog < 45
+                    query += " AND (cog >= ? OR cog < ?)"
+                    params.extend([315, 45])
+                elif direction == "E":
+                    query += " AND (cog >= ? AND cog < ?)"
+                    params.extend([45, 135])
+                elif direction == "S":
+                    query += " AND (cog >= ? AND cog < ?)"
+                    params.extend([135, 225])
+                elif direction == "W":
+                    query += " AND (cog >= ? AND cog < ?)"
+                    params.extend([225, 315])
+                else:
+                    raise ValueError(
+                        "Direction must be one of 'N', 'E', 'S', 'W'.")
+
+            # Log query for debugging
+            logger.info(f"Executing query: {query} with params: {params}")
+
+            # Execute query
+            df = cached_query(conn, query, params, True)
+            if df.empty:
+                return gpd.GeoDataFrame(
+                    columns=["geometry"])  # Return empty GeoDataFrame
+
+            # Build GeoDataFrame
+            df["geometry"] = gpd.points_from_xy(df["x"], df["y"])
+            gdf = gpd.GeoDataFrame(df, geometry="geometry", crs="EPSG:4326")
+            print(gdf) #debuging
+            return gdf
+
+        except duckdb.Error as db_err:
+            logger.error(f"DuckDB error: {db_err}")
+        except ValueError as ve:
+            logger.error(f"Value error: {ve}")
         except Exception as e:
-            logger.error(f"Error executing dynamic search for ClassB: {e}")
-            return pd.DataFrame()
+            logger.error(f"Unexpected error: {e}")
+
+        return gpd.GeoDataFrame()  # Return empty GeoDataFrame on failure
 
     def static_info(self,
                     mmsi: Optional[Union[int, List[int]]] = None,
