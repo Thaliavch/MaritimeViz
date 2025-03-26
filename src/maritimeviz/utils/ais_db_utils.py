@@ -188,4 +188,19 @@ def merge_dfs(dfs: List[pd.DataFrame], as_geodf: bool = True) -> Union[pd.DataFr
         return merged_df
 
 
+def guess_vessel_type(mmsi: int) -> str:
+    """
+    Guess the vessel type (Class A or Class B "SO") based on the MMSI number.
+
+    According to ITU and IMO guidelines, MMSI numbers in the range 980000000 to 983999999
+    are typically assigned to Class B "Self-Organizing" (SO) AIS transponders.
+    All other MMSI values are assumed to belong to Class A vessels.
+
+    Parameters:
+        mmsi (int): The Maritime Mobile Service Identity number of the vessel.
+
+    Returns:
+        str: "A" if the vessel is likely Class A, "B" if it is likely Class B (SO).
+    """
+    return "B" if 980000000 <= mmsi <= 983999999 else "A"
 

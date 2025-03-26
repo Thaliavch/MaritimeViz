@@ -129,6 +129,34 @@ QUERY_CREATE_TABLE_24 = """
             );
             """
 
+#{'id': 27, 'repeat_indicator': 0, 'mmsi': 538006828, 'position_accuracy': 0, 'raim': False,
+# 'nav_status': 1, 'x': -89.35833333333333, 'y': 28.913333333333334, 'sog': 0, 'cog': 336,
+# 'gnss': True, 'spare': 0, 'tagblock_group': {'sentence': 1, 'groupsize': 2, 'id': 7928},
+# 'tagblock_line_count': 1351, 'tagblock_station': 'D08MN-NO-VENBS1', 'tagblock_timestamp': 1469665321}
+# 16 attributes
+# Long Range dynamic report for vessels of class A and class B 'SO' equipped vessels"
+QUERY_CREATE_TABLE_27 = """
+            CREATE TABLE IF NOT EXISTS ais_msg_27 (
+                id INTEGER,
+                repeat_indicator INTEGER,
+                mmsi INTEGER,
+                position_accuracy INTEGER,
+                raim BOOLEAN,
+                nav_status INTEGER,
+                x DOUBLE,
+                y DOUBLE,
+                sog INTEGER,
+                cog INTEGER,
+                gnss BOOLEAN,
+                spare INTEGER,
+                vessel_type TEXT,
+                tagblock_group JSON,
+                tagblock_line_count INTEGER,
+                tagblock_station TEXT,
+                tagblock_timestamp BIGINT
+            );
+            """
+
 QUERY_CREATE_GLOBAL_DYNAMIC_VIEW = """
             CREATE OR REPLACE VIEW global_ais_dynamic AS
             SELECT
@@ -349,7 +377,7 @@ QUERY_CREATE_GLOBAL_VIEW = """
             """
 
 # List of all table creation queries
-DATABASE_ALL_TABLE_CREATION_QUERIES = [QUERY_CREATE_TABLE_1_2_3, QUERY_CREATE_TABLE_5, QUERY_CREATE_TABLE_18_19, QUERY_CREATE_TABLE_24]
+DATABASE_ALL_TABLE_CREATION_QUERIES = [QUERY_CREATE_TABLE_1_2_3, QUERY_CREATE_TABLE_5, QUERY_CREATE_TABLE_18_19, QUERY_CREATE_TABLE_24, QUERY_CREATE_TABLE_27]
 DATABASE_TYPE_A_TABLE_CREATION_QUERIES = [QUERY_CREATE_TABLE_1_2_3, QUERY_CREATE_TABLE_5]
 DATABASE_TYPE_B_TABLE_CREATION_QUERIES = [QUERY_CREATE_TABLE_18_19, QUERY_CREATE_TABLE_24]
 DATABASE_ALL_VIEWS_CREATION_QUERIES = [QUERY_CREATE_GLOBAL_DYNAMIC_VIEW, QUERY_CREATE_GLOBAL_STATIC_VIEW, QUERY_CREATE_GLOBAL_VIEW]
