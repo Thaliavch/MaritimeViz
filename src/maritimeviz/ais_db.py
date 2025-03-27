@@ -1096,7 +1096,6 @@ class LongRangeMessages(BaseMessageProcessor):
 
     def __init__(self, conn):
         super().__init__(conn)
-        #self._conn.execute(QUERY_CREATE_TABLE_27) TODO(Update query creation in parent)
 
     def _filter_message(self, msg: dict) -> bool:
         return msg.get("id") == 27
@@ -1282,7 +1281,6 @@ class ApplicationSpecificMessages(BaseMessageProcessor):
         super().__init__(conn)
 
     def _insert_message_6_8(self, msg: dict):
-        # Step 1: Gather known columns
         core_cols = {
             "id": msg.get("id"),
             "repeat_indicator": msg.get("repeat_indicator"),
@@ -1305,13 +1303,12 @@ class ApplicationSpecificMessages(BaseMessageProcessor):
             "y": msg.get("y")
         }
 
-        # Step 2: Build leftover dict for any other fields
+        # Build leftover dict for any other fields
         used_keys = set(core_cols.keys()) | {"fi", "fid"}
         leftover = {
             k: v for k, v in msg.items() if k not in used_keys
         }
 
-        #
         query = """
             INSERT INTO ais_msg_6_8 (
               id, repeat_indicator, mmsi, spare, spare2, dac, fid, eu_id,
@@ -1351,7 +1348,7 @@ class ApplicationSpecificMessages(BaseMessageProcessor):
         self._conn.execute(query, params)
 
     def _insert_message_25_26(self, msg: dict):
-        # 1) Core columns
+        # Core columns
         core_cols = {
             "id": msg.get("id"),
             "repeat_indicator": msg.get("repeat_indicator"),
@@ -1362,13 +1359,12 @@ class ApplicationSpecificMessages(BaseMessageProcessor):
             "y": msg.get("y"),
         }
 
-        # 2) Leftover dict for everything else
+        # Leftover dict for everything else
         used_keys = set(core_cols.keys())
         leftover = {
             k: v for k, v in msg.items() if k not in used_keys
         }
 
-        # 3) Insert
         query = """
         INSERT
         INTO
@@ -1405,30 +1401,89 @@ class AidToNavigationMessages(BaseMessageProcessor):
     """
     def __init__(self, conn):
         super().__init__(conn)
-        self._conn.execute(QUERY_CREATE_TABLE_ATON)
 
     def _filter_message(self, msg: dict) -> bool:
         return msg.get("id") == 21
 
     def _insert_message(self, msg: dict):
+        """
+        Insert a parsed AIS Message 21 (AtoN) into the ais_msg_21 table.
+        Known columns are stored in top-level fields, everything else goes into application_data.
+        """
+
+        core_cols = {
+            "id": msg.get("id"),
+            "repeat_indicator": msg.get("repeat_indicator"),
+            "mmsi": msg.get("mmsi"),
+            "spare": msg.get("spare"),
+            "aton_type": msg.get("aton_type"),
+            "name": msg.get("name"),
+            "position_accuracy": msg.get("position_accuracy"),
+            "x": msg.get("x"),
+            "y": msg.get("y"),
+            "dim_a": msg.get("dim_a"),
+            "dim_b": msg.get("dim_b"),
+            "dim_c": msg.get("dim_c"),
+            "dim_d": msg.get("dim_d"),
+            "fix_type": msg.get("fix_type"),
+            "timestamp": msg.get("timestamp"),
+            "off_pos": msg.get("off_pos"),
+            "aton_status": msg.get("aton_status"),
+            "raim": msg.get("raim"),
+            "virtual_aton": msg.get("virtual_aton"),
+            "assigned_mode": msg.get("assigned_mode")
+        }
+
+        # Build leftover dict for anything else
+        used_keys = set(core_cols.keys()) | {"id", "dim_a", "dim_b", "dim_c",
+                                             "dim_d"}  # etc. if your parser uses synonyms
+        leftover = {
+            k: v for k, v in msg.items() if k not in used_keys
+        }
+
         query = """
-        INSERT INTO ais_msg_21 (
-            id, mmsi, aton_type, name, position_accuracy, x, y,
-            dimension_a, dimension_b, dimension_c, dimension_d, epfd,
-            utc_second, off_position, regional, raim, virtual_aton, assigned,
-            tagblock_group, tagblock_line_count, tagblock_station, tagblock_timestamp
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+        INSERT
+        INTO
+        ais_msg_21(
+            id, repeat_indicator, mmsi, spare, aton_type, name,
+            position_accuracy,
+            x, y, dim_a, dim_b, dim_c, dim_d, fix_type, timestamp, off_pos,
+            aton_status, raim, virtual_aton, assigned_mode,
+            application_data,
+            tagblock_group, tagblock_line_count, tagblock_station,
+            tagblock_timestamp
+        )
+        VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
         """
         params = (
-            msg.get("id"), msg.get("mmsi"), msg.get("aton_type"), msg.get("name"),
-            msg.get("position_accuracy"), msg.get("x"), msg.get("y"),
-            msg.get("dimension_a"), msg.get("dimension_b"), msg.get("dimension_c"), msg.get("dimension_d"),
-            msg.get("epfd"), msg.get("utc_second"), msg.get("off_position"),
-            msg.get("regional"), msg.get("raim"), msg.get("virtual_aton"), msg.get("assigned"),
-            json.dumps(msg.get("tagblock_group", {})), msg.get("tagblock_line_count"),
-            msg.get("tagblock_station"), msg.get("tagblock_timestamp")
+            core_cols["id"],
+            core_cols["repeat_indicator"],
+            core_cols["mmsi"],
+            core_cols["spare"],
+            core_cols["aton_type"],
+            core_cols["name"],
+            core_cols["position_accuracy"],
+            core_cols["x"],
+            core_cols["y"],
+            core_cols["dim_a"],
+            core_cols["dim_b"],
+            core_cols["dim_c"],
+            core_cols["dim_d"],
+            core_cols["fix_type"],
+            core_cols["timestamp"],
+            core_cols["off_pos"],
+            core_cols["aton_status"],
+            core_cols["raim"],
+            core_cols["virtual_aton"],
+            core_cols["assigned_mode"],
+            json.dumps(leftover),  # leftover goes into JSON
+            json.dumps(msg.get("tagblock_group", {})),
+            msg.get("tagblock_line_count"),
+            msg.get("tagblock_station"),
+            msg.get("tagblock_timestamp")
         )
         self._conn.execute(query, params)
+
 
 class BaseStationMessages(BaseMessageProcessor):
     """
@@ -1438,27 +1493,82 @@ class BaseStationMessages(BaseMessageProcessor):
     """
     def __init__(self, conn):
         super().__init__(conn)
-        self._conn.execute(QUERY_CREATE_TABLE_BASE)
 
     def _filter_message(self, msg: dict) -> bool:
         return msg.get("id") == 4
 
     def _insert_message(self, msg: dict):
+        core_cols = {
+            "id": msg.get("id"),
+            "repeat_indicator": msg.get("repeat_indicator"),
+            "mmsi": msg.get("mmsi"),
+            "year": msg.get("year"),
+            "month": msg.get("month"),
+            "day": msg.get("day"),
+            "hour": msg.get("hour"),
+            "minute": msg.get("minute"),
+            "second": msg.get("second"),
+            "position_accuracy": msg.get("position_accuracy"),
+            "x": msg.get("x"),
+            "y": msg.get("y"),
+            "fix_type": msg.get("fix_type"),
+            "transmission_ctl": msg.get("transmission_ctl"),
+            "spare": msg.get("spare"),
+            "raim": msg.get("raim"),
+            "sync_state": msg.get("sync_state"),
+            "slot_timeout": msg.get("slot_timeout"),
+            "slot_offset": msg.get("slot_offset"),
+            "slot_number": msg.get("slot_number"),
+            "received_stations": msg.get("received_stations"),
+        }
+
+        # Leftover dict
+        used_keys = set(core_cols.keys())
+        leftover = {k: v for k, v in msg.items() if k not in used_keys}
+
         query = """
-        INSERT INTO ais_msg_4 (
-            id, mmsi, utc_year, utc_month, utc_day, utc_hour,
-            utc_minute, utc_second, position_accuracy, x, y,
-            epfd, raim, sync_state, slot_timeout, slot_number,
-            tagblock_group, tagblock_line_count, tagblock_station, tagblock_timestamp
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+        INSERT
+        INTO
+        ais_msg_4(
+            id, repeat_indicator, mmsi,
+            year, month, day, hour, minute, second,
+            position_accuracy, x, y, fix_type, transmission_ctl, spare, raim,
+            sync_state, slot_timeout, slot_offset, slot_number,
+            received_stations,
+            application_data,
+            tagblock_group, tagblock_line_count, tagblock_station,
+            tagblock_timestamp
+        )
+        VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         params = (
-            msg.get("id"), msg.get("mmsi"), msg.get("utc_year"), msg.get("utc_month"),
-            msg.get("utc_day"), msg.get("utc_hour"), msg.get("utc_minute"), msg.get("utc_second"),
-            msg.get("position_accuracy"), msg.get("x"), msg.get("y"), msg.get("epfd"),
-            msg.get("raim"), msg.get("sync_state"), msg.get("slot_timeout"), msg.get("slot_number"),
-            json.dumps(msg.get("tagblock_group", {})), msg.get("tagblock_line_count"),
-            msg.get("tagblock_station"), msg.get("tagblock_timestamp")
+            core_cols["id"],
+            core_cols["repeat_indicator"],
+            core_cols["mmsi"],
+            core_cols["year"],
+            core_cols["month"],
+            core_cols["day"],
+            core_cols["hour"],
+            core_cols["minute"],
+            core_cols["second"],
+            core_cols["position_accuracy"],
+            core_cols["x"],
+            core_cols["y"],
+            core_cols["fix_type"],
+            core_cols["transmission_ctl"],
+            core_cols["spare"],
+            core_cols["raim"],
+            core_cols["sync_state"],
+            core_cols["slot_timeout"],
+            core_cols["slot_offset"],
+            core_cols["slot_number"],
+            core_cols["received_stations"],
+            json.dumps(leftover),  # store everything else in JSON
+            json.dumps(msg.get("tagblock_group", {})),
+            msg.get("tagblock_line_count"),
+            msg.get("tagblock_station"),
+            msg.get("tagblock_timestamp"),
         )
         self._conn.execute(query, params)
+
 

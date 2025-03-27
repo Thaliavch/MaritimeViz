@@ -129,34 +129,6 @@ QUERY_CREATE_TABLE_24 = """
             );
             """
 
-#{'id': 27, 'repeat_indicator': 0, 'mmsi': 538006828, 'position_accuracy': 0, 'raim': False,
-# 'nav_status': 1, 'x': -89.35833333333333, 'y': 28.913333333333334, 'sog': 0, 'cog': 336,
-# 'gnss': True, 'spare': 0, 'tagblock_group': {'sentence': 1, 'groupsize': 2, 'id': 7928},
-# 'tagblock_line_count': 1351, 'tagblock_station': 'D08MN-NO-VENBS1', 'tagblock_timestamp': 1469665321}
-# 16 attributes
-# Long Range dynamic report for vessels of class A and class B 'SO' equipped vessels"
-QUERY_CREATE_TABLE_27 = """
-            CREATE TABLE IF NOT EXISTS ais_msg_27 (
-                id INTEGER,
-                repeat_indicator INTEGER,
-                mmsi INTEGER,
-                position_accuracy INTEGER,
-                raim BOOLEAN,
-                nav_status INTEGER,
-                x DOUBLE,
-                y DOUBLE,
-                sog INTEGER,
-                cog INTEGER,
-                gnss BOOLEAN,
-                spare INTEGER,
-                vessel_type TEXT,
-                tagblock_group JSON,
-                tagblock_line_count INTEGER,
-                tagblock_station TEXT,
-                tagblock_timestamp BIGINT
-            );
-            """
-
 QUERY_CREATE_TABLE_6_8 = """
 CREATE TABLE IF NOT EXISTS ais_msg_6_8 (
     id INTEGER,                 -- 6 or 8
@@ -218,6 +190,106 @@ QUERY_CREATE_TABLE_25_26 = """
             );
 
             """
+
+# Long Range dynamic report for vessels of class A and class B 'SO' equipped vessels"
+QUERY_CREATE_TABLE_27 = """
+            CREATE TABLE IF NOT EXISTS ais_msg_27 (
+                id INTEGER,
+                repeat_indicator INTEGER,
+                mmsi INTEGER,
+                position_accuracy INTEGER,
+                raim BOOLEAN,
+                nav_status INTEGER,
+                x DOUBLE,
+                y DOUBLE,
+                sog INTEGER,
+                cog INTEGER,
+                gnss BOOLEAN,
+                spare INTEGER,
+                vessel_type TEXT,
+                tagblock_group JSON,
+                tagblock_line_count INTEGER,
+                tagblock_station TEXT,
+                tagblock_timestamp BIGINT
+            );
+            """
+
+# Aid to Navigation (ATON) Messages
+QUERY_CREATE_TABLE_21 = """
+            CREATE TABLE IF NOT EXISTS ais_msg_21 (
+                -- Core AIS fields:
+                id INTEGER,               -- 21
+                repeat_indicator INTEGER, -- 0-3
+                mmsi INTEGER,
+
+                spare INTEGER,
+                aton_type INTEGER,
+                name TEXT,
+                position_accuracy INTEGER,
+                x DOUBLE,
+                y DOUBLE,
+                dim_a INTEGER,
+                dim_b INTEGER,
+                dim_c INTEGER,
+                dim_d INTEGER,
+                fix_type INTEGER,
+                timestamp INTEGER,
+                off_pos BOOLEAN,
+                aton_status INTEGER,
+                raim BOOLEAN,
+                virtual_aton BOOLEAN,
+                assigned_mode BOOLEAN,
+
+                -- Catch-all JSON for leftover fields:
+                application_data JSON,
+
+                -- Tagblock metadata:
+                tagblock_group JSON,
+                tagblock_line_count INTEGER,
+                tagblock_station TEXT,
+                tagblock_timestamp BIGINT
+            );
+            """
+
+# Base Stations Report
+QUERY_CREATE_TABLE_4 = """
+CREATE TABLE IF NOT EXISTS ais_msg_4 (
+    id INTEGER,                   -- 4
+    repeat_indicator INTEGER,     -- 0-3
+    mmsi INTEGER,
+
+    -- Date/time fields (commonly found in Msg 4):
+    year INTEGER,
+    month INTEGER,
+    day INTEGER,
+    hour INTEGER,
+    minute INTEGER,
+    second INTEGER,
+
+    position_accuracy INTEGER,    -- 0 or 1
+    x DOUBLE,                     -- Longitude
+    y DOUBLE,                     -- Latitude
+    fix_type INTEGER,             -- e.g. 7 or 15
+    transmission_ctl INTEGER,     -- e.g. 'transmission_ctl': 0
+    spare INTEGER,
+    raim BOOLEAN,
+    sync_state INTEGER,           -- e.g. 0
+    slot_timeout INTEGER,         -- up to 7
+    slot_offset INTEGER,          -- For some messages
+    slot_number INTEGER,          -- For others
+    received_stations INTEGER,    -- If present
+
+    -- Fallback JSON for anything else:
+    application_data JSON,
+
+    -- Tagblock / metadata:
+    tagblock_group JSON,
+    tagblock_line_count INTEGER,
+    tagblock_station TEXT,
+    tagblock_timestamp BIGINT
+);
+"""
+
 
 QUERY_CREATE_GLOBAL_DYNAMIC_VIEW = """
             CREATE OR REPLACE VIEW global_ais_dynamic AS
@@ -441,10 +513,14 @@ QUERY_CREATE_GLOBAL_VIEW = """
 # List of all table creation queries
 DATABASE_TYPE_A_TABLE_CREATION_QUERIES = [QUERY_CREATE_TABLE_1_2_3, QUERY_CREATE_TABLE_5]
 DATABASE_TYPE_B_TABLE_CREATION_QUERIES = [QUERY_CREATE_TABLE_18_19, QUERY_CREATE_TABLE_24]
-DATABASE_LONG_RANGE_MSG_CREATION_QUERY = QUERY_CREATE_TABLE_27
 DATABASE_ASM_CREATION_QUERIES = [QUERY_CREATE_TABLE_6_8, QUERY_CREATE_TABLE_25_26]
+DATABASE_STANDALONE_MULTIPURPOSE_CREATION_QUERY = [QUERY_CREATE_TABLE_27, QUERY_CREATE_TABLE_21, QUERY_CREATE_TABLE_4] # 27 for long range broadcasting, 21 for aid to navigation, 4 for Base Station Report
 
-DATABASE_ALL_TABLE_CREATION_QUERIES = DATABASE_TYPE_A_TABLE_CREATION_QUERIES + DATABASE_TYPE_B_TABLE_CREATION_QUERIES + DATABASE_LONG_RANGE_MSG_CREATION_QUERY + DATABASE_ASM_CREATION_QUERIES
+DATABASE_ALL_TABLE_CREATION_QUERIES = DATABASE_TYPE_A_TABLE_CREATION_QUERIES /\
+                                      + DATABASE_TYPE_B_TABLE_CREATION_QUERIES /\
+                                      + DATABASE_ASM_CREATION_QUERIES /\
+                                      + DATABASE_STANDALONE_MULTIPURPOSE_CREATION_QUERY
+
 
 DATABASE_ALL_VIEWS_CREATION_QUERIES = [QUERY_CREATE_GLOBAL_DYNAMIC_VIEW, QUERY_CREATE_GLOBAL_STATIC_VIEW, QUERY_CREATE_GLOBAL_VIEW]
 
@@ -478,6 +554,11 @@ class MessageType(Enum):
     C = "C"
 
 # Scratch
+#{'id': 27, 'repeat_indicator': 0, 'mmsi': 538006828, 'position_accuracy': 0, 'raim': False,
+# 'nav_status': 1, 'x': -89.35833333333333, 'y': 28.913333333333334, 'sog': 0, 'cog': 336,
+# 'gnss': True, 'spare': 0, 'tagblock_group': {'sentence': 1, 'groupsize': 2, 'id': 7928},
+# 'tagblock_line_count': 1351, 'tagblock_station': 'D08MN-NO-VENBS1', 'tagblock_timestamp': 1469665321}
+# 16 attributes
 
 # {'id': 8, 'repeat_indicator': 0, 'mmsi': 993161005, 'spare': 0, 'dac': 1,
 # 'fi': 11, 'x': -125.62686666666667, 'y': 48.8853, 'wind_ave': 15, 'wind_gust': 18,
