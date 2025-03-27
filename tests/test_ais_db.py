@@ -228,7 +228,7 @@ class TestClassAMessages:
     def test_search_works(self, setup_existing_db):
         db = setup_existing_db
         db.clear_cache()
-        processor = db.typeA()
+        processor = db.class_a()
 
         # 1. Test search with no filters.
         result_all = processor.search()
@@ -292,7 +292,7 @@ class TestClassAMessages:
 class TestClassBMessages:
     def test_search_works(self, setup_existing_db):
         db = setup_existing_db
-        processor = db.typeB()
+        processor = db.class_b()
 
         # 1. Test search with no filters.
         result_all = processor.search()
