@@ -1096,7 +1096,7 @@ class LongRangeMessages(BaseMessageProcessor):
 
     def __init__(self, conn):
         super().__init__(conn)
-        self._conn.execute(QUERY_CREATE_TABLE_27)
+        #self._conn.execute(QUERY_CREATE_TABLE_27) TODO(Update query creation in parent)
 
     def _filter_message(self, msg: dict) -> bool:
         return msg.get("id") == 27
@@ -1269,4 +1269,196 @@ class LongRangeMessages(BaseMessageProcessor):
     def static_info(self, **kwargs) -> pd.DataFrame:
         logger.info(f"No static info provided by long range")
         return pd.DataFrame()  # Not applicable to Message 27
+
+class ApplicationSpecificMessages(BaseMessageProcessor):
+    """
+    Handles Application Specific Messages (ASMs), including:
+    - Message 6: Addressed Binary Message
+    - Message 8: Broadcast Binary Message
+    - Message 25: Single Slot Binary Message
+    - Message 26: Multi Slot Binary Message
+    """
+    def __init__(self, conn):
+        super().__init__(conn)
+
+    def _insert_message_6_8(self, msg: dict):
+        # Step 1: Gather known columns
+        core_cols = {
+            "id": msg.get("id"),
+            "repeat_indicator": msg.get("repeat_indicator"),
+            "mmsi": msg.get("mmsi"),
+            "spare": msg.get("spare"),
+            "spare2": msg.get("spare2"),
+            "dac": msg.get("dac"),
+            "fid": msg.get("fi") or msg.get("fid"),
+            "eu_id": msg.get("eu_id"),
+            "length": msg.get("length"),
+            "beam": msg.get("beam"),
+            "ship_type": msg.get("ship_type"),
+            "haz_cargo": msg.get("haz_cargo"),
+            "draught": msg.get("draught"),
+            "loaded": msg.get("loaded"),
+            "speed_qual": msg.get("speed_qual"),
+            "course_qual": msg.get("course_qual"),
+            "heading_qual": msg.get("heading_qual"),
+            "x": msg.get("x"),
+            "y": msg.get("y")
+        }
+
+        # Step 2: Build leftover dict for any other fields
+        used_keys = set(core_cols.keys()) | {"fi", "fid"}
+        leftover = {
+            k: v for k, v in msg.items() if k not in used_keys
+        }
+
+        #
+        query = """
+            INSERT INTO ais_msg_6_8 (
+              id, repeat_indicator, mmsi, spare, spare2, dac, fid, eu_id,
+              length, beam, ship_type, haz_cargo, draught, loaded,
+              speed_qual, course_qual, heading_qual, x, y,
+              application_data,
+              tagblock_group, tagblock_line_count, tagblock_station, tagblock_timestamp
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        params = (
+            core_cols["id"],
+            core_cols["repeat_indicator"],
+            core_cols["mmsi"],
+            core_cols["spare"],
+            core_cols["spare2"],
+            core_cols["dac"],
+            core_cols["fid"],
+            core_cols["eu_id"],
+            core_cols["length"],
+            core_cols["beam"],
+            core_cols["ship_type"],
+            core_cols["haz_cargo"],
+            core_cols["draught"],
+            core_cols["loaded"],
+            core_cols["speed_qual"],
+            core_cols["course_qual"],
+            core_cols["heading_qual"],
+            core_cols["x"],
+            core_cols["y"],
+            json.dumps(leftover),
+            json.dumps(msg.get("tagblock_group", {})),
+            msg.get("tagblock_line_count"),
+            msg.get("tagblock_station"),
+            msg.get("tagblock_timestamp"),
+        )
+        self._conn.execute(query, params)
+
+    def _insert_message_25_26(self, msg: dict):
+        # 1) Core columns
+        core_cols = {
+            "id": msg.get("id"),
+            "repeat_indicator": msg.get("repeat_indicator"),
+            "mmsi": msg.get("mmsi"),
+            "dest_mmsi": msg.get("dest_mmsi"),  # Might be None or missing
+            "sync_state": msg.get("sync_state"),
+            "x": msg.get("x"),
+            "y": msg.get("y"),
+        }
+
+        # 2) Leftover dict for everything else
+        used_keys = set(core_cols.keys())
+        leftover = {
+            k: v for k, v in msg.items() if k not in used_keys
+        }
+
+        # 3) Insert
+        query = """
+        INSERT
+        INTO
+        ais_msg_25_26(
+            id, repeat_indicator, mmsi, dest_mmsi, sync_state,
+            x, y, application_data,
+            tagblock_group, tagblock_line_count, tagblock_station,
+            tagblock_timestamp
+        )
+        VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        params = (
+            core_cols["id"],
+            core_cols["repeat_indicator"],
+            core_cols["mmsi"],
+            core_cols["dest_mmsi"],
+            core_cols["sync_state"],
+            core_cols["x"],
+            core_cols["y"],
+            json.dumps(leftover),
+            json.dumps(msg.get("tagblock_group", {})),
+            msg.get("tagblock_line_count"),
+            msg.get("tagblock_station"),
+            msg.get("tagblock_timestamp"),
+        )
+        self._conn.execute(query, params)
+
+
+class AidToNavigationMessages(BaseMessageProcessor):
+    """
+    Handles AIS Aid to Navigation reports (Message Type 21).
+    These represent fixed or virtual navigation aids such as buoys, beacons, etc.
+    Identified by MMSIs starting with 993.
+    """
+    def __init__(self, conn):
+        super().__init__(conn)
+        self._conn.execute(QUERY_CREATE_TABLE_ATON)
+
+    def _filter_message(self, msg: dict) -> bool:
+        return msg.get("id") == 21
+
+    def _insert_message(self, msg: dict):
+        query = """
+        INSERT INTO ais_msg_21 (
+            id, mmsi, aton_type, name, position_accuracy, x, y,
+            dimension_a, dimension_b, dimension_c, dimension_d, epfd,
+            utc_second, off_position, regional, raim, virtual_aton, assigned,
+            tagblock_group, tagblock_line_count, tagblock_station, tagblock_timestamp
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+        """
+        params = (
+            msg.get("id"), msg.get("mmsi"), msg.get("aton_type"), msg.get("name"),
+            msg.get("position_accuracy"), msg.get("x"), msg.get("y"),
+            msg.get("dimension_a"), msg.get("dimension_b"), msg.get("dimension_c"), msg.get("dimension_d"),
+            msg.get("epfd"), msg.get("utc_second"), msg.get("off_position"),
+            msg.get("regional"), msg.get("raim"), msg.get("virtual_aton"), msg.get("assigned"),
+            json.dumps(msg.get("tagblock_group", {})), msg.get("tagblock_line_count"),
+            msg.get("tagblock_station"), msg.get("tagblock_timestamp")
+        )
+        self._conn.execute(query, params)
+
+class BaseStationMessages(BaseMessageProcessor):
+    """
+    Handles AIS Base Station Position Reports (Message Type 4).
+    These are shore-based stations providing time synchronization and position.
+    MMSIs typically begin with 00MIDxxxxx.
+    """
+    def __init__(self, conn):
+        super().__init__(conn)
+        self._conn.execute(QUERY_CREATE_TABLE_BASE)
+
+    def _filter_message(self, msg: dict) -> bool:
+        return msg.get("id") == 4
+
+    def _insert_message(self, msg: dict):
+        query = """
+        INSERT INTO ais_msg_4 (
+            id, mmsi, utc_year, utc_month, utc_day, utc_hour,
+            utc_minute, utc_second, position_accuracy, x, y,
+            epfd, raim, sync_state, slot_timeout, slot_number,
+            tagblock_group, tagblock_line_count, tagblock_station, tagblock_timestamp
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+        """
+        params = (
+            msg.get("id"), msg.get("mmsi"), msg.get("utc_year"), msg.get("utc_month"),
+            msg.get("utc_day"), msg.get("utc_hour"), msg.get("utc_minute"), msg.get("utc_second"),
+            msg.get("position_accuracy"), msg.get("x"), msg.get("y"), msg.get("epfd"),
+            msg.get("raim"), msg.get("sync_state"), msg.get("slot_timeout"), msg.get("slot_number"),
+            json.dumps(msg.get("tagblock_group", {})), msg.get("tagblock_line_count"),
+            msg.get("tagblock_station"), msg.get("tagblock_timestamp")
+        )
+        self._conn.execute(query, params)
 

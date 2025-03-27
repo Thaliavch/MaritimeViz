@@ -157,6 +157,68 @@ QUERY_CREATE_TABLE_27 = """
             );
             """
 
+QUERY_CREATE_TABLE_6_8 = """
+CREATE TABLE IF NOT EXISTS ais_msg_6_8 (
+    id INTEGER,                 -- 6 or 8
+    repeat_indicator INTEGER,   -- 0-3
+    mmsi INTEGER,
+
+    -- Common fields
+    spare INTEGER,
+    spare2 INTEGER,
+    dac INTEGER,
+    fi INTEGER,                -- 'fi' in raw data
+    eu_id TEXT,
+    length DOUBLE,
+    beam DOUBLE,
+    ship_type INTEGER,
+    haz_cargo INTEGER,
+    draught DOUBLE,
+    loaded INTEGER,             -- e.g. 0 or 1
+    speed_qual INTEGER,
+    course_qual INTEGER,
+    heading_qual INTEGER,
+
+    -- Position (if present):
+    x DOUBLE,
+    y DOUBLE,
+
+    -- JSON fallback for anything else:
+    application_data JSON,
+
+    -- Tagblock metadata:
+    tagblock_group JSON,
+    tagblock_line_count INTEGER,
+    tagblock_station TEXT,
+    tagblock_timestamp BIGINT
+);
+"""
+
+QUERY_CREATE_TABLE_25_26 = """
+            CREATE TABLE IF NOT EXISTS ais_msg_25_26 (
+              id INTEGER,
+              repeat_indicator INTEGER,
+              mmsi INTEGER,
+
+              -- Not Shared fields:
+              dest_mmsi INTEGER,
+              sync_state INTEGER,
+              received_stations INTEGER,
+              x DOUBLE,
+              y DOUBLE,
+
+              -- JSON fallback:
+              application_data JSON,
+
+              -- Tagblock/metadata:
+              tagblock_group JSON,
+              tagblock_line_count INTEGER,
+              tagblock_station TEXT,
+              tagblock_timestamp BIGINT
+            );
+
+            """
+
 QUERY_CREATE_GLOBAL_DYNAMIC_VIEW = """
             CREATE OR REPLACE VIEW global_ais_dynamic AS
             SELECT
@@ -377,9 +439,13 @@ QUERY_CREATE_GLOBAL_VIEW = """
             """
 
 # List of all table creation queries
-DATABASE_ALL_TABLE_CREATION_QUERIES = [QUERY_CREATE_TABLE_1_2_3, QUERY_CREATE_TABLE_5, QUERY_CREATE_TABLE_18_19, QUERY_CREATE_TABLE_24, QUERY_CREATE_TABLE_27]
 DATABASE_TYPE_A_TABLE_CREATION_QUERIES = [QUERY_CREATE_TABLE_1_2_3, QUERY_CREATE_TABLE_5]
 DATABASE_TYPE_B_TABLE_CREATION_QUERIES = [QUERY_CREATE_TABLE_18_19, QUERY_CREATE_TABLE_24]
+DATABASE_LONG_RANGE_MSG_CREATION_QUERY = QUERY_CREATE_TABLE_27
+DATABASE_ASM_CREATION_QUERIES = [QUERY_CREATE_TABLE_6_8, QUERY_CREATE_TABLE_25_26]
+
+DATABASE_ALL_TABLE_CREATION_QUERIES = DATABASE_TYPE_A_TABLE_CREATION_QUERIES + DATABASE_TYPE_B_TABLE_CREATION_QUERIES + DATABASE_LONG_RANGE_MSG_CREATION_QUERY + DATABASE_ASM_CREATION_QUERIES
+
 DATABASE_ALL_VIEWS_CREATION_QUERIES = [QUERY_CREATE_GLOBAL_DYNAMIC_VIEW, QUERY_CREATE_GLOBAL_STATIC_VIEW, QUERY_CREATE_GLOBAL_VIEW]
 
 ALLOWED_FILTER_KEYS_CLASS_A = {
@@ -410,3 +476,24 @@ class MessageType(Enum):
     A = "A"
     B = "B"
     C = "C"
+
+# Scratch
+
+# {'id': 8, 'repeat_indicator': 0, 'mmsi': 993161005, 'spare': 0, 'dac': 1,
+# 'fi': 11, 'x': -125.62686666666667, 'y': 48.8853, 'wind_ave': 15, 'wind_gust': 18,
+# 'wind_dir': 261, 'wind_gust_dir': 18, 'air_temp': 42.29999923706055, 'rel_humid': 127,
+# 'dew_point': 31.100000381469727, 'air_pres': 1311.0, 'air_pres_trend': 3, 'horz_vis': 25.5,
+# 'water_level': 41.099998474121094, 'water_level_trend': 3, 'surf_cur_speed': 0.20000000298023224,
+# 'surf_cur_dir': 237, 'cur_speed_2': 0.10000000149011612, 'cur_dir_2': 110, 'cur_depth_2': 15, 'cur_speed_3': 0.30000001192092896,
+# 'cur_dir_3': 159, 'cur_depth_3': 30, 'wave_height': 1.100000023841858, 'wave_period': 7, 'wave_dir': 263, 'swell_height': 2.0,
+# 'swell_period': 63, 'swell_dir': 511, 'sea_state': 15, 'water_temp': 41.099998474121094, 'precip_type': 7,
+# 'ice': 3, 'ext_water_level': 63, 'spare2': 63, 'tagblock_group': {'sentence': 1, 'groupsize': 2, 'id': 3213},
+# 'tagblock_line_count': 3915, 'tagblock_station': 'D13MN-PS-BAHBS1', 'tagblock_timestamp': 1469665805}
+
+#{'id': 25, 'repeat_indicator': 0, 'mmsi': 366787180, 'tagblock_group': {'sentence': 1, 'groupsize': 2, 'id': 1349},
+# 'tagblock_line_count': 2672, 'tagblock_station': 'D07MN-CH-PRLBS1', 'tagblock_timestamp': 1469664477}
+
+
+#{'id': 26, 'repeat_indicator': 1, 'mmsi': 618431799, 'dest_mmsi': 855000294,
+# 'sync_state': 0, 'received_stations': 4533, 'tagblock_line_count': 154899,
+# 'tagblock_station': 'r17MKET2', 'tagblock_timestamp': 1469664218}
