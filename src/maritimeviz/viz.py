@@ -5,11 +5,12 @@ import json
 from sys import prefix
 
 import folium
-from folium import Map, Marker, Icon, Popup
-from branca.element import Element
 import leafmap.foliumap as leafmap
 import geopandas as gpd
+from folium import Marker, Icon, Popup
+from branca.element import Element
 from shapely.wkt import loads
+from folium.plugins import HeatMap
 
 from src.maritimeviz.utils.viz_utils import plot_with_info, get_info, create_speed_legend
 
@@ -260,5 +261,27 @@ class Map:
             dash_array='5, 10'
         ).add_to(m)
 
+        return m
+    
+    def plot_ship_heatmap(self, geojson_route, map_tile='HYBRID'):
+        """
+        Generates a heat map showing concentration of ships, based on a GeoJSON file.
+
+        Parameters:
+        - geojson_route (str): Path to the GeoJSON file containing ship route data.
+        - map_tile (str, optional): Base map layer to use (e.g., 'HYBRID', 'ROADMAP'). Defaults to 'HYBRID'.
+
+        Returns:
+        - folium.Map object displaying:
+        - Ships concentration by heatmap: heat
+        """
+        gdf = gpd.read_file(geojson_route)
+
+        m = leafmap.foliumap.Map(location=[gdf.latitude.mean(), gdf.longitude.mean()], zoom_start=2)
+        if map_tile:
+            m.add_basemap(map_tile)
+
+        heat_data = gdf[['latitude', 'longitude']].values.tolist()
+        HeatMap(heat_data).add_to(m)
         return m
 
