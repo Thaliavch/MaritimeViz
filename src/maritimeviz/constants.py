@@ -253,36 +253,52 @@ QUERY_CREATE_TABLE_21 = """
 
 # Base Stations Report
 QUERY_CREATE_TABLE_4 = """
-CREATE TABLE IF NOT EXISTS ais_msg_4 (
-    id INTEGER,                   -- 4
-    repeat_indicator INTEGER,     -- 0-3
-    mmsi INTEGER,
+            CREATE TABLE IF NOT EXISTS ais_msg_4 (
+                id INTEGER,                   -- 4
+                repeat_indicator INTEGER,     -- 0-3
+                mmsi INTEGER,
 
-    -- Date/time fields (commonly found in Msg 4):
-    year INTEGER,
-    month INTEGER,
-    day INTEGER,
-    hour INTEGER,
-    minute INTEGER,
-    second INTEGER,
+                -- Date/time fields (commonly found in Msg 4):
+                year INTEGER,
+                month INTEGER,
+                day INTEGER,
+                hour INTEGER,
+                minute INTEGER,
+                second INTEGER,
 
-    position_accuracy INTEGER,    -- 0 or 1
-    x DOUBLE,                     -- Longitude
-    y DOUBLE,                     -- Latitude
-    fix_type INTEGER,             -- e.g. 7 or 15
-    transmission_ctl INTEGER,     -- e.g. 'transmission_ctl': 0
-    spare INTEGER,
-    raim BOOLEAN,
-    sync_state INTEGER,           -- e.g. 0
-    slot_timeout INTEGER,         -- up to 7
-    slot_offset INTEGER,          -- For some messages
-    slot_number INTEGER,          -- For others
-    received_stations INTEGER,    -- If present
+                position_accuracy INTEGER,    -- 0 or 1
+                x DOUBLE,                     -- Longitude
+                y DOUBLE,                     -- Latitude
+                fix_type INTEGER,             -- e.g. 7 or 15
+                transmission_ctl INTEGER,     -- e.g. 'transmission_ctl': 0
+                spare INTEGER,
+                raim BOOLEAN,
+                sync_state INTEGER,           -- e.g. 0
+                slot_timeout INTEGER,         -- up to 7
+                slot_offset INTEGER,          -- For some messages
+                slot_number INTEGER,          -- For others
+                received_stations INTEGER,    -- If present
 
-    -- Fallback JSON for anything else:
+                -- Fallback JSON for anything else:
+                application_data JSON,
+
+                -- Tagblock / metadata:
+                tagblock_group JSON,
+                tagblock_line_count INTEGER,
+                tagblock_station TEXT,
+                tagblock_timestamp BIGINT
+            );
+            """
+
+# ******************************************************
+QUERY_CREATE_TABLE_7_13 = """
+CREATE TABLE IF NOT EXISTS ais_msg_7_13 (
+    id INTEGER,                -- 7 or 13
+    repeat_indicator INTEGER,
+    mmsi BIGINT,
+    ack_count INTEGER,         -- or skip if you prefer storing in JSON
+
     application_data JSON,
-
-    -- Tagblock / metadata:
     tagblock_group JSON,
     tagblock_line_count INTEGER,
     tagblock_station TEXT,
@@ -290,6 +306,74 @@ CREATE TABLE IF NOT EXISTS ais_msg_4 (
 );
 """
 
+QUERY_CREATE_TABLE_12_14 = """
+CREATE TABLE IF NOT EXISTS ais_msg_12_14 (
+    id INTEGER,         -- 12 or 14
+    repeat_indicator INTEGER,
+    mmsi BIGINT,
+
+    message_text TEXT,
+    addressed BOOLEAN,  -- True if ID=12, False if ID=14
+
+    application_data JSON,
+    tagblock_group JSON,
+    tagblock_line_count INTEGER,
+    tagblock_station TEXT,
+    tagblock_timestamp BIGINT
+);
+"""
+
+QUERY_CREATE_TABLE_9 = """
+CREATE TABLE IF NOT EXISTS ais_msg_9 (
+    id INTEGER,               -- 9
+    repeat_indicator INTEGER,
+    mmsi BIGINT,
+    altitude INTEGER,
+    sog FLOAT,
+    position_accuracy INTEGER,
+    x DOUBLE,
+    y DOUBLE,
+    cog FLOAT,
+    timestamp INTEGER,
+    raim BOOLEAN,
+    spare INTEGER,
+    application_data JSON,
+    tagblock_group JSON,
+    tagblock_line_count INTEGER,
+    tagblock_station TEXT,
+    tagblock_timestamp BIGINT
+);
+"""
+
+QUERY_CREATE_TABLE_10_11 = """
+CREATE TABLE IF NOT EXISTS ais_msg_10_11 (
+    id INTEGER,       -- 10 or 11
+    repeat_indicator INTEGER,
+    mmsi BIGINT,
+
+    application_data JSON,
+    tagblock_group JSON,
+    tagblock_line_count INTEGER,
+    tagblock_station TEXT,
+    tagblock_timestamp BIGINT
+);
+"""
+
+QUERY_CREATE_TABLE_15_16_17_20_22_23 = """
+CREATE TABLE IF NOT EXISTS ais_msg_15_16_17_20_22_23 (
+    id INTEGER,       -- 15,16,17,20,22,23
+    repeat_indicator INTEGER,
+    mmsi BIGINT,
+
+    application_data JSON,
+    tagblock_group JSON,
+    tagblock_line_count INTEGER,
+    tagblock_station TEXT,
+    tagblock_timestamp BIGINT
+);
+"""
+
+#********************************************************
 
 QUERY_CREATE_GLOBAL_DYNAMIC_VIEW = """
             CREATE OR REPLACE VIEW global_ais_dynamic AS
@@ -514,12 +598,20 @@ QUERY_CREATE_GLOBAL_VIEW = """
 DATABASE_TYPE_A_TABLE_CREATION_QUERIES = [QUERY_CREATE_TABLE_1_2_3, QUERY_CREATE_TABLE_5]
 DATABASE_TYPE_B_TABLE_CREATION_QUERIES = [QUERY_CREATE_TABLE_18_19, QUERY_CREATE_TABLE_24]
 DATABASE_ASM_CREATION_QUERIES = [QUERY_CREATE_TABLE_6_8, QUERY_CREATE_TABLE_25_26]
-DATABASE_STANDALONE_MULTIPURPOSE_CREATION_QUERY = [QUERY_CREATE_TABLE_27, QUERY_CREATE_TABLE_21, QUERY_CREATE_TABLE_4] # 27 for long range broadcasting, 21 for aid to navigation, 4 for Base Station Report
+DATABASE_STANDALONE_MULTIPURPOSE_CREATION_QUERY = [QUERY_CREATE_TABLE_27,\
+                                                  QUERY_CREATE_TABLE_21, \
+                                                   QUERY_CREATE_TABLE_4, \
+                                                   QUERY_CREATE_TABLE_9, \
+                                                   QUERY_CREATE_TABLE_10_11, \
+                                                   QUERY_CREATE_TABLE_15_16_17_20_22_23] # 27 for long range broadcasting, 21 for aid to navigation, 4 for Base Station Report
+DATABASE_SAFETY_ACK_TABLE_CREATION_QUERIES = [QUERY_CREATE_TABLE_7_13, QUERY_CREATE_TABLE_12_14]
 
-DATABASE_ALL_TABLE_CREATION_QUERIES = DATABASE_TYPE_A_TABLE_CREATION_QUERIES /\
-                                      + DATABASE_TYPE_B_TABLE_CREATION_QUERIES /\
-                                      + DATABASE_ASM_CREATION_QUERIES /\
-                                      + DATABASE_STANDALONE_MULTIPURPOSE_CREATION_QUERY
+DATABASE_ALL_TABLE_CREATION_QUERIES = DATABASE_TYPE_A_TABLE_CREATION_QUERIES \
+                                      + DATABASE_TYPE_B_TABLE_CREATION_QUERIES \
+                                      + DATABASE_ASM_CREATION_QUERIES \
+                                      + DATABASE_STANDALONE_MULTIPURPOSE_CREATION_QUERY \
+                                      + DATABASE_SAFETY_ACK_TABLE_CREATION_QUERIES
+
 
 
 DATABASE_ALL_VIEWS_CREATION_QUERIES = [QUERY_CREATE_GLOBAL_DYNAMIC_VIEW, QUERY_CREATE_GLOBAL_STATIC_VIEW, QUERY_CREATE_GLOBAL_VIEW]

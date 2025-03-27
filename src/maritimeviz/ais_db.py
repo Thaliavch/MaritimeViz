@@ -319,22 +319,54 @@ class AISDatabase:
 
     # Factory methods for message-type processing.
     def class_a(self):
+        """Class A position and static messages (Types 1, 2, 3 and 5)."""
         return ClassAMessages(self._conn)
 
     def class_b(self):
+        """Class B position and static messages (Types 18, 19 and 24)."""
         return ClassBMessages(self._conn)
 
     def long_range(self):
+        """Long range broadcast messages (Type 27)."""
         return LongRangeMessages(self._conn)
 
     def asm(self):
+        """Application-specific binary messages (Types 6, 8, 25, 26)."""
         return ApplicationSpecificMessages(self._conn)
 
     def aton(self):
+        """Aid to Navigation messages (Type 21)."""
         return AidToNavigationMessages(self._conn)
 
     def base_station(self):
+        """Base Station Report (Type 4)."""
         return BaseStationMessages(self._conn)
+
+    def safety_and_ack(self):
+        """Factory method for Safety and Acknowledgement Messages (Types 7, 13, 12, 14)"""
+        return SafetyAndAcknowledgementMessages(self._conn)
+
+    def sar_aircraft(self):
+        """Factory method for Search and Rescue Aircraft Position Messages (Type 9)"""
+        return SarAircraftMessages(self._conn)
+
+    def utc_date(self):
+        """Factory method for UTC/Date Inquiry and Response Messages (Types 10, 11)"""
+        return UtcDateMessages(self._conn)
+
+    def system_management(self):
+        """
+        Factory method for System Management Messages (Types 15, 16, 17, 20, 22, 23)
+        Includes:
+          - Interrogation
+          - Assignment Mode
+          - DGNSS
+          - Data Link Management
+          - Channel Management
+          - Group Assignment
+        """
+        return SystemManagementMessages(self._conn)
+
 
 class BaseMessageProcessor:
     """
@@ -1824,4 +1856,166 @@ class BaseStationMessages(BaseMessageProcessor):
         return gpd.GeoDataFrame()
 
 
+class SafetyAndAcknowledgementMessages(BaseMessageProcessor):
+    """
+    Handles:
+    - Message 7 & 13: Acknowledgements
+    - Message 12 & 14: Safety (addressed/broadcast)
 
+    Because they have different table schemas, we do branching in _insert_message().
+    """
+
+    def __init__(self, conn):
+        super().__init__(conn)
+        # Create both tables
+        self._conn.execute(QUERY_CREATE_TABLE_7_13)
+        self._conn.execute(QUERY_CREATE_TABLE_12_14)
+
+    def _filter_message(self, msg: dict) -> bool:
+        return msg.get("id") in {7, 13, 12, 14}
+
+    def _insert_message(self, msg: dict):
+        msg_id = msg.get("id")
+        if msg_id in {7, 13}:
+            self._insert_ack(msg)   # Insert to ais_msg_7_13
+        else:
+            self._insert_safety(msg)  # Insert to ais_msg_12_14
+
+    def _insert_ack(self, msg: dict):
+        """Insert for messages 7 & 13."""
+        core_cols = {
+            "id": msg.get("id"),
+            "repeat_indicator": msg.get("repeat_indicator"),
+            "mmsi": msg.get("mmsi"),
+            "ack_count": msg.get("ack_count"),  # if your decoder calculates it
+        }
+        used_keys = set(core_cols.keys())
+        leftover = {k: v for k, v in msg.items() if k not in used_keys}
+
+        query = """
+        INSERT INTO ais_msg_7_13 (
+            id, repeat_indicator, mmsi, ack_count,
+            application_data, tagblock_group, tagblock_line_count,
+            tagblock_station, tagblock_timestamp
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        params = (
+            core_cols["id"],
+            core_cols["repeat_indicator"],
+            core_cols["mmsi"],
+            core_cols["ack_count"],
+            json.dumps(leftover),
+            json.dumps(msg.get("tagblock_group", {})),
+            msg.get("tagblock_line_count"),
+            msg.get("tagblock_station"),
+            msg.get("tagblock_timestamp"),
+        )
+        self._conn.execute(query, params)
+
+    def _insert_safety(self, msg: dict):
+        """Insert for messages 12 & 14."""
+        core_cols = {
+            "id": msg.get("id"),
+            "repeat_indicator": msg.get("repeat_indicator"),
+            "mmsi": msg.get("mmsi"),
+            "message_text": msg.get("message_text"),
+            "addressed": (msg.get("id") == 12),
+        }
+        used_keys = set(core_cols.keys())
+        leftover = {k: v for k, v in msg.items() if k not in used_keys}
+
+        query = """
+        INSERT INTO ais_msg_12_14 (
+            id, repeat_indicator, mmsi, message_text, addressed,
+            application_data, tagblock_group, tagblock_line_count,
+            tagblock_station, tagblock_timestamp
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        params = (
+            core_cols["id"],
+            core_cols["repeat_indicator"],
+            core_cols["mmsi"],
+            core_cols["message_text"],
+            core_cols["addressed"],
+            json.dumps(leftover),
+            json.dumps(msg.get("tagblock_group", {})),
+            msg.get("tagblock_line_count"),
+            msg.get("tagblock_station"),
+            msg.get("tagblock_timestamp"),
+        )
+        self._conn.execute(query, params)
+
+    # TODO(THALIA) have a search method and two more per table like search_ack() and search_safety()
+
+    def search_ack(self, mmsi=None, conn=None, **kwargs):
+        """Search for Messages 7 & 13 in ais_msg_7_13"""
+        # Example minimal version:
+        if not conn:
+            conn = self._conn
+        query = "SELECT * FROM ais_msg_7_13 WHERE 1=1"
+        params = []
+        if mmsi:
+            query += " AND mmsi = ?"
+            params.append(mmsi)
+
+        df = cached_query(conn, query, params, True)
+        return df  # Typically no geometry
+
+    def search_safety(self, mmsi=None, conn=None, **kwargs):
+        """Search for Messages 12 & 14 in ais_msg_12_14"""
+        if not conn:
+            conn = self._conn
+        query = "SELECT * FROM ais_msg_12_14 WHERE 1=1"
+        params = []
+        if mmsi:
+            query += " AND mmsi = ?"
+            params.append(mmsi)
+
+        df = cached_query(conn, query, params, True)
+        return df
+
+class SarAircraftMessages(BaseMessageProcessor):
+    """
+    Message 9 only.
+    """
+
+    def __init__(self, conn):
+        super().__init__(conn)
+
+    def _filter_message(self, msg: dict) -> bool:
+        return msg.get("id") == 9
+
+    def _insert_message(self, msg: dict):
+        pass
+
+class UtcDateMessages(BaseMessageProcessor):
+    """
+    For messages 10 (UTC/Date inquiry) and 11 (UTC/Date response).
+    """
+
+    def __init__(self, conn):
+        super().__init__(conn)
+        self._conn.execute(QUERY_CREATE_TABLE_10_11)
+
+    def _filter_message(self, msg: dict) -> bool:
+        return msg.get("id") in {10, 11}
+
+    def _insert_message(self, msg: dict):
+        pass
+
+class SystemManagementMessages(BaseMessageProcessor):
+    """
+    For 15,16,17,20,22,23
+    """
+
+    def __init__(self, conn):
+        super().__init__(conn)
+        self._conn.execute(QUERY_CREATE_TABLE_15_16_17_20_22_23)
+
+    def _filter_message(self, msg: dict) -> bool:
+        return msg.get("id") in {15, 16, 17, 20, 22, 23}
+
+    def _insert_message(self, msg: dict):
+        pass
