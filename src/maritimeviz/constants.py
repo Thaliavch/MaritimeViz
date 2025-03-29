@@ -139,7 +139,7 @@ CREATE TABLE IF NOT EXISTS ais_msg_6_8 (
     spare INTEGER,
     spare2 INTEGER,
     dac INTEGER,
-    fi INTEGER,                -- 'fi' in raw data
+    fi INTEGER,
     eu_id TEXT,
     length DOUBLE,
     beam DOUBLE,
@@ -165,7 +165,7 @@ CREATE TABLE IF NOT EXISTS ais_msg_6_8 (
     tagblock_timestamp BIGINT
 );
 """
-
+# todo(thalia) ask kurt if better to have separate tables and what about x and y for 25/26
 QUERY_CREATE_TABLE_25_26 = """
             CREATE TABLE IF NOT EXISTS ais_msg_25_26 (
               id INTEGER,
@@ -191,7 +191,7 @@ QUERY_CREATE_TABLE_25_26 = """
 
             """
 
-# Long Range dynamic report for vessels of class A and class B 'SO' equipped vessels"
+# Long Range position report for vessels of class A and class B 'SO' equipped vessels"
 QUERY_CREATE_TABLE_27 = """
             CREATE TABLE IF NOT EXISTS ais_msg_27 (
                 id INTEGER,
@@ -206,7 +206,7 @@ QUERY_CREATE_TABLE_27 = """
                 cog INTEGER,
                 gnss BOOLEAN,
                 spare INTEGER,
-                vessel_type TEXT,
+                vessel_type TEXT, -- programmatically determined based on mmsi ('A' or 'B')
                 tagblock_group JSON,
                 tagblock_line_count INTEGER,
                 tagblock_station TEXT,
@@ -345,33 +345,111 @@ CREATE TABLE IF NOT EXISTS ais_msg_9 (
 );
 """
 
+# todo(thalia) ask kurt if it is better to break into two tables and use a view
 QUERY_CREATE_TABLE_10_11 = """
-CREATE TABLE IF NOT EXISTS ais_msg_10_11 (
-    id INTEGER,       -- 10 or 11
-    repeat_indicator INTEGER,
-    mmsi BIGINT,
+        CREATE TABLE IF NOT EXISTS ais_msg_10_11 (
+            -- Common fields:
+            id INTEGER,
+            repeat_indicator INTEGER,
+            mmsi BIGINT,
 
-    application_data JSON,
-    tagblock_group JSON,
-    tagblock_line_count INTEGER,
-    tagblock_station TEXT,
-    tagblock_timestamp BIGINT
-);
-"""
+            -- Fields for Message 10 (UTC/Date inquiry):
+            spare INTEGER,
+            dest_mmsi BIGINT,
+            spare2 INTEGER,
+
+            -- Fields for Message 11 (UTC/Date response):
+            year INTEGER,
+            month INTEGER,
+            day INTEGER,
+            hour INTEGER,
+            minute INTEGER,
+            second INTEGER,
+            position_accuracy INTEGER,
+            x DOUBLE,
+            y DOUBLE,
+            fix_type INTEGER,
+            transmission_ctl INTEGER,
+            raim BOOLEAN,
+            sync_state INTEGER,
+            slot_timeout INTEGER,
+            slot_offset INTEGER,
+
+            -- Tagblock metadata (common to both):
+            tagblock_group JSON,
+            tagblock_line_count INTEGER,
+            tagblock_station TEXT,
+            tagblock_timestamp BIGINT
+        );
+        """
 
 QUERY_CREATE_TABLE_15_16_17_20_22_23 = """
-CREATE TABLE IF NOT EXISTS ais_msg_15_16_17_20_22_23 (
-    id INTEGER,       -- 15,16,17,20,22,23
-    repeat_indicator INTEGER,
-    mmsi BIGINT,
+        CREATE TABLE IF NOT EXISTS ais_msg_15_16_17_20_22_23 (
+            id INTEGER,
+            repeat_indicator INTEGER,
+            mmsi BIGINT,
 
-    application_data JSON,
-    tagblock_group JSON,
-    tagblock_line_count INTEGER,
-    tagblock_station TEXT,
-    tagblock_timestamp BIGINT
-);
-"""
+            -- For message 15
+            mmsi_1 BIGINT,
+            msg_1_1 INTEGER,
+            slot_offset_1_1 INTEGER,
+            dest_msg_1_2 INTEGER,
+            slot_offset_1_2 INTEGER,
+            mmsi_2 BIGINT,
+            msg_2 INTEGER,
+            slot_offset_2 INTEGER,
+
+            -- For message 16
+            dest_mmsi_a BIGINT,
+            offset_a INTEGER,
+            inc_a INTEGER,
+            dest_mmsi_b BIGINT,
+            offset_b INTEGER,
+            inc_b INTEGER,
+
+            -- For message 17
+            x DOUBLE,
+            y DOUBLE,
+
+            -- For message 20 (contains an array of reservations)
+            reservations JSON,
+
+            -- For message 22
+            chan_a INTEGER,
+            chan_b INTEGER,
+            txrx_mode INTEGER,
+            power_low BOOLEAN,
+            x1 DOUBLE,
+            y1 DOUBLE,
+            x2 DOUBLE,
+            y2 DOUBLE,
+            chan_a_bandwidth INTEGER,
+            chan_b_bandwidth INTEGER,
+            zone_size INTEGER,
+
+            -- For message 23
+            x1_23 DOUBLE,
+            y1_23 DOUBLE,
+            x2_23 DOUBLE,
+            y2_23 DOUBLE,
+            station_type INTEGER,
+            type_and_cargo INTEGER,
+            interval_raw INTEGER,
+            quiet INTEGER,
+
+            -- Generic spare fields (some messages have extra spares)
+            spare INTEGER,
+            spare2 INTEGER,
+            spare3 INTEGER,
+            spare4 INTEGER,
+
+            -- Tagblock fields
+            tagblock_group JSON,
+            tagblock_line_count INTEGER,
+            tagblock_station TEXT,
+            tagblock_timestamp BIGINT
+        );
+        """
 
 #********************************************************
 
