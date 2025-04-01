@@ -202,9 +202,10 @@ class Map:
 
         return m
 
-    def ship_route_by_mmsi(self, geojson_route, mmsi=None, map_tile='HYBRID'):
+    def ships_route(self, geojson_route, mmsi=None, map_tile='HYBRID'):
         """
-        Generates a map showing the route of a ship identified by its MMSI, based on a GeoJSON file.
+        Generates a map showing the routes of ships identified by its MMSI, based on a GeoJSON file.
+        If no MMSI is provided, it will display all routes. If a MMSI is provided, only show that specific route.
 
         Parameters:
         - geojson_route (str): Path to the GeoJSON file containing ship route data.
@@ -218,51 +219,60 @@ class Map:
         - The selected base map.
         - str message if no ship is found with the given MMSI or if there are not enough data points to draw a route.
         """
+  
         gdf = gpd.read_file(geojson_route)
 
-        if mmsi not in gdf.mmsi.values:
-            return 'No ship found with that mmsi'
+        if mmsi is not None:
+            if mmsi not in gdf.mmsi.values:
+                return 'No ship found with that mmsi'
+            gdf = gdf[gdf.mmsi == mmsi]
 
-        ship = gdf[gdf.mmsi == mmsi]
-        if "timestamp" in ship.columns:
-            ship = ship.sort_values(by="timestamp")
+        if gdf.empty:
+            return 'No data available to plot'
+
+        if "timestamp" in gdf.columns:
+            gdf = gdf.sort_values(by=["mmsi", "timestamp"])
         else:
-            ship = ship.sort_index()
+            print("*WARNING*: No timestamp found. Sorting by index...")
+            gdf = gdf.sort_values(by=["mmsi", gdf.index])
 
-        if len(ship) < 2:
-            return 'Not enough data points for this ship'
-
-        first = ship.iloc[0]
-        last = ship.iloc[-1]
-
-        #m = folium.Map(location=[ship.latitude.mean(), ship.longitude.mean()], zoom_start=6)
-        m = leafmap.foliumap.Map(location=[ship.latitude.mean(), ship.longitude.mean()], zoom_start=6)
+        m = leafmap.foliumap.Map(location=[gdf.latitude.mean(), gdf.longitude.mean()], zoom_start=6)
         if map_tile is not None:
-        m.add_basemap(map_tile)
+            m.add_basemap(map_tile)
 
-        folium.Marker(
-            location=[first.latitude, first.longitude],
-            popup="First Position",
-            icon=folium.Icon(color="green", icon="play", prefix="fa"),
-        ).add_to(m)
+        for ship_id in gdf.mmsi.unique():
+            ship = gdf[gdf.mmsi == ship_id]
 
-        folium.Marker(
-            location=[last.latitude, last.longitude],
-            popup="Last Position",
-            icon=folium.Icon(color="red", icon="stop", prefix="fa"),
-        ).add_to(m)
+            if len(ship) < 2:
+                print(f"Skipping MMSI {ship_id}: Not enough data points.")
+                continue
 
-        route_coords = ship[['latitude', 'longitude']].values.tolist()
-        folium.PolyLine(
-            locations=route_coords,
-            color="yellow",
-            weight=3,
-            opacity=1,
-            dash_array='5, 10'
-        ).add_to(m)
+            first = ship.iloc[0]
+            last = ship.iloc[-1]
+
+            folium.Marker(
+                location=[first.latitude, first.longitude],
+                popup=f"MMSI {ship_id} - First Position",
+                icon=folium.Icon(color="green", icon="play", prefix="fa"),
+            ).add_to(m)
+
+            folium.Marker(
+                location=[last.latitude, last.longitude],
+                popup=f"MMSI {ship_id} - Last Position",
+                icon=folium.Icon(color="red", icon="stop", prefix="fa"),
+            ).add_to(m)
+
+            route_coords = ship[['latitude', 'longitude']].values.tolist()
+            folium.PolyLine(
+                locations=route_coords,
+                color="yellow",
+                weight=3,
+                opacity=1,
+                dash_array='5, 10'
+            ).add_to(m)
 
         return m
-    
+
     def plot_ship_heatmap(self, geojson_route, map_tile='HYBRID'):
         """
         Generates a heat map showing concentration of ships, based on a GeoJSON file.
