@@ -185,6 +185,7 @@ class AISDatabase:
                     polygon_bounds: Optional[str] = None):
         return self._get_global_df(data, mmsi, start_date, end_date, polygon_bounds)
 
+    # TODO(THALIA) Update to drop all rows for which x, y are null
     def get_geojson(self, data: str = "all",
                            mmsi: Optional[int] = None,
                            start_date: Optional[str] = None,
@@ -798,7 +799,6 @@ class ClassAMessages(BaseMessageProcessor):
         return gpd.GeoDataFrame()  # Return empty GeoDataFrame on failure
 
 
-    # TODO(Thalia): Change so it also takes a list of vessels
     def static_info(self, mmsi: int | list[int] = None, conn=None):
         """
         Retrieves vessel static information from `ais_msg_5`.
@@ -1132,7 +1132,8 @@ class OtherMessages(BaseMessageProcessor):
 class LongRangeMessages(BaseMessageProcessor):
     """
     Handles long-range AIS messages (Message Type 27).
-    Applies to both Class A and Class B SO vessels.
+    Applies to both Class A and Class B SO equipped vessels.
+    vessel_type attribute is programmatically determined based on mmsi.
     """
 
     def __init__(self, conn):
@@ -1976,19 +1977,71 @@ class SafetyAndAcknowledgementMessages(BaseMessageProcessor):
         df = cached_query(conn, query, params, True)
         return df
 
+import json
+
 class SarAircraftMessages(BaseMessageProcessor):
     """
-    Message 9 only.
+    Message 9 only (SAR Aircraft Position Reports).
     """
-
     def __init__(self, conn):
         super().__init__(conn)
 
     def _filter_message(self, msg: dict) -> bool:
+        # Only process if it's actually message type 9.
         return msg.get("id") == 9
 
     def _insert_message(self, msg: dict):
-        pass
+        """
+        Inserts a Message 9 (SAR aircraft position report) into the `ais_msg_9` table.
+        """
+        query = """
+            INSERT INTO ais_msg_9 (
+                id,
+                repeat_indicator,
+                mmsi,
+                altitude,
+                sog,
+                position_accuracy,
+                x,
+                y,
+                cog,
+                timestamp,
+                raim,
+                spare,
+                application_data,
+                tagblock_group,
+                tagblock_line_count,
+                tagblock_station,
+                tagblock_timestamp
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+
+        # Convert to JSON where needed (if your schema expects JSON text).
+        # Adjust field names depending on how they appear in `msg`.
+        data_tuple = (
+            msg.get("id"),
+            msg.get("repeat_indicator"),
+            msg.get("mmsi"),
+            msg.get("altitude"),
+            msg.get("sog"),
+            msg.get("position_accuracy"),
+            msg.get("x"),
+            msg.get("y"),
+            msg.get("cog"),
+            msg.get("timestamp"),
+            msg.get("raim"),
+            msg.get("spare"),
+            json.dumps(msg.get("application_data")),
+            json.dumps(msg.get("tagblock_group")),
+            msg.get("tagblock_line_count"),
+            msg.get("tagblock_station"),
+            msg.get("tagblock_timestamp"),
+        )
+
+        self.conn.execute(query, data_tuple)
+        self.conn.commit()
+
 
 class UtcDateMessages(BaseMessageProcessor):
     """
@@ -1997,13 +2050,73 @@ class UtcDateMessages(BaseMessageProcessor):
 
     def __init__(self, conn):
         super().__init__(conn)
-        self._conn.execute(QUERY_CREATE_TABLE_10_11)
 
     def _filter_message(self, msg: dict) -> bool:
         return msg.get("id") in {10, 11}
 
     def _insert_message(self, msg: dict):
-        pass
+        query = """
+            INSERT INTO ais_msg_10_11 (
+                id,
+                repeat_indicator,
+                mmsi,
+                spare,
+                dest_mmsi,
+                spare2,
+                year,
+                month,
+                day,
+                hour,
+                minute,
+                second,
+                position_accuracy,
+                x,
+                y,
+                fix_type,
+                transmission_ctl,
+                raim,
+                sync_state,
+                slot_timeout,
+                slot_offset,
+                tagblock_group,
+                tagblock_line_count,
+                tagblock_station,
+                tagblock_timestamp
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+
+        # Because 10 and 11 use different fields, we .get() each with a default of None.
+        data_tuple = (
+            msg.get("id"),
+            msg.get("repeat_indicator"),
+            msg.get("mmsi"),
+            msg.get("spare"),
+            msg.get("dest_mmsi"),
+            msg.get("spare2"),
+            msg.get("year"),
+            msg.get("month"),
+            msg.get("day"),
+            msg.get("hour"),
+            msg.get("minute"),
+            msg.get("second"),
+            msg.get("position_accuracy"),
+            msg.get("x"),
+            msg.get("y"),
+            msg.get("fix_type"),
+            msg.get("transmission_ctl"),
+            msg.get("raim"),
+            msg.get("sync_state"),
+            msg.get("slot_timeout"),
+            msg.get("slot_offset"),
+            json.dumps(msg.get("tagblock_group")),  # JSON
+            msg.get("tagblock_line_count"),
+            msg.get("tagblock_station"),
+            msg.get("tagblock_timestamp"),
+        )
+
+        self._conn.execute(query, data_tuple)
+        self._conn.commit()
 
 class SystemManagementMessages(BaseMessageProcessor):
     """
@@ -2012,10 +2125,143 @@ class SystemManagementMessages(BaseMessageProcessor):
 
     def __init__(self, conn):
         super().__init__(conn)
-        self._conn.execute(QUERY_CREATE_TABLE_15_16_17_20_22_23)
 
     def _filter_message(self, msg: dict) -> bool:
         return msg.get("id") in {15, 16, 17, 20, 22, 23}
 
     def _insert_message(self, msg: dict):
-        pass
+        """
+        Insert any of messages 15, 16, 17, 20, 22, or 23 into our combined table.
+        Unused fields for a given message type can be left as None.
+        """
+        query = """
+            INSERT INTO ais_msg_15_16_17_20_22_23 (
+                id,
+                repeat_indicator,
+                mmsi,
+
+                mmsi_1,
+                msg_1_1,
+                slot_offset_1_1,
+                dest_msg_1_2,
+                slot_offset_1_2,
+                mmsi_2,
+                msg_2,
+                slot_offset_2,
+
+                dest_mmsi_a,
+                offset_a,
+                inc_a,
+                dest_mmsi_b,
+                offset_b,
+                inc_b,
+
+                x,
+                y,
+
+                reservations,
+
+                chan_a,
+                chan_b,
+                txrx_mode,
+                power_low,
+                x1,
+                y1,
+                x2,
+                y2,
+                chan_a_bandwidth,
+                chan_b_bandwidth,
+                zone_size,
+
+                x1_23,
+                y1_23,
+                x2_23,
+                y2_23,
+                station_type,
+                type_and_cargo,
+                interval_raw,
+                quiet,
+
+                spare,
+                spare2,
+                spare3,
+                spare4,
+
+                tagblock_group,
+                tagblock_line_count,
+                tagblock_station,
+                tagblock_timestamp
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+
+        # Extract and default any fields not present
+        data_tuple = (
+            msg.get("id"),
+            msg.get("repeat_indicator"),
+            msg.get("mmsi"),
+
+            # Message 15 fields
+            msg.get("mmsi_1"),
+            msg.get("msg_1_1"),
+            msg.get("slot_offset_1_1"),
+            msg.get("dest_msg_1_2"),
+            msg.get("slot_offset_1_2"),
+            msg.get("mmsi_2"),
+            msg.get("msg_2"),
+            msg.get("slot_offset_2"),
+
+            # Message 16 fields
+            msg.get("dest_mmsi_a"),
+            msg.get("offset_a"),
+            msg.get("inc_a"),
+            msg.get("dest_mmsi_b"),
+            msg.get("offset_b"),
+            msg.get("inc_b"),
+
+            # Message 17 fields
+            msg.get("x"),
+            msg.get("y"),
+
+            # Message 20 fields (array of reservations)
+            json.dumps(msg.get("reservations")) if msg.get(
+                "reservations") else None,
+
+            # Message 22 fields
+            msg.get("chan_a"),
+            msg.get("chan_b"),
+            msg.get("txrx_mode"),
+            msg.get("power_low"),
+            msg.get("x1"),
+            msg.get("y1"),
+            msg.get("x2"),
+            msg.get("y2"),
+            msg.get("chan_a_bandwidth"),
+            msg.get("chan_b_bandwidth"),
+            msg.get("zone_size"),
+
+            # Message 23 fields
+            msg.get("x1_23"),
+            msg.get("y1_23"),
+            msg.get("x2_23"),
+            msg.get("y2_23"),
+            msg.get("station_type"),
+            msg.get("type_and_cargo"),
+            msg.get("interval_raw"),
+            msg.get("quiet"),
+
+            # spares
+            msg.get("spare"),
+            msg.get("spare2"),
+            msg.get("spare3"),
+            msg.get("spare4"),
+
+            # Tagblock
+            json.dumps(msg.get("tagblock_group")),
+            msg.get("tagblock_line_count"),
+            msg.get("tagblock_station"),
+            msg.get("tagblock_timestamp"),
+        )
+
+        self._conn.execute(query, data_tuple)
+        self._conn.commit()
