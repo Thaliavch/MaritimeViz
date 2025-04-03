@@ -3,6 +3,7 @@
 """Tests for the Map class in the visualization module."""
 import pytest
 import geopandas as gpd
+from shapely import wkt
 from shapely.geometry import Point, Polygon
 from src.maritimeviz.viz import Map
 
@@ -25,8 +26,10 @@ def wkt_polygon():
 
 def test_filter_ships_by_polygon(sample_gdf, wkt_polygon):
     map_obj = Map()
+    polygon = wkt.loads(wkt_polygon)
     filtered = map_obj.filter_ships_by_polygon(wkt_polygon, sample_gdf)
     assert not filtered.empty, "Expected some ships to be inside the polygon"
+    assert all(filtered.geometry.within(polygon)), "Some points are outside the polygon"
 
 def test_ship_map_by_polygon(sample_gdf, wkt_polygon):
     map_obj = Map()
@@ -53,3 +56,10 @@ def test_plot_ship_heatmap(sample_gdf, tmp_path):
     map_obj = Map()
     result = map_obj.plot_ship_heatmap(str(geojson_path))
     assert hasattr(result, "_parent"), "Expected a valid folium map object"
+
+def test_filter_ships_by_invalid_polygon(sample_gdf):
+    map_obj = Map()
+    invalid_wkt = "POLY(0 0, 1 1, 1 0)"  # WKT invalid
+    with pytest.raises(ValueError, match="Invalid WKT polygon format"):
+        map_obj.filter_ships_by_polygon(invalid_wkt, sample_gdf)
+

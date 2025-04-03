@@ -125,7 +125,11 @@ class Map:
         Returns:
             - Filtered GeoDataFrame with ships inside the polygon.
         """
-        polygon = loads(wkt_polygon)  # Convert WKT string to Shapely Polygon
+        try:
+            polygon = loads(wkt_polygon)  # Convert WKT string to Shapely Polygon
+        except Exception:
+            raise ValueError("Invalid WKT polygon format")
+        
         gdf["geometry"] = gpd.points_from_xy(gdf.longitude, gdf.latitude)  # Convert lat/lon to points
 
         return gdf[gdf.geometry.within(polygon)]  # Filter points within the polygon
