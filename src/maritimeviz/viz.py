@@ -5,14 +5,14 @@ import json
 from sys import prefix
 
 import folium
-import leafmap.foliumap as leafmap
+import leafmap.foliumap
 import geopandas as gpd
 from folium import Marker, Icon, Popup
 from branca.element import Element
 from shapely.wkt import loads
 from folium.plugins import HeatMap
 
-from src.maritimeviz.utils.viz_utils import plot_with_info, get_info, create_speed_legend, check_printable_icon
+from src.maritimeviz.utils.viz_utils import *
 
 class Map:
     """

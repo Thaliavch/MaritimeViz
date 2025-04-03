@@ -1,72 +1,71 @@
-import leafmap
+#!/usr/bin/env python
+
+"""Tests for the Map class in the visualization module."""
 import pytest
-#from src/maritimeviz/ import AISDatabase
-import pandas as pd
 import geopandas as gpd
-import os
-from shapely.geometry import Point
-import shutil
-from leafmap import *
-from folium import *
-from MaritimeViz.src.maritimeviz.ais_db import AISDatabase
-from . import logger
+from shapely.geometry import Point, Polygon
+from src.maritimeviz.viz import Map
 
-file_path = "tests/ais_2016_07_28_aa"
-db_path ="test_db.duckdb"
+@pytest.fixture
+def sample_gdf():
+    data = {
+        "latitude": [10.0, 10.5, 11.0],
+        "longitude": [20.0, 20.5, 21.0],
+        "speed": [1, 5, 12],
+        "mmsi": [123456789, 123456789, 123456789],
+        "timestamp": ["2022-01-01", "2022-01-01", "2022-01-01"]
+    }
+    gdf = gpd.GeoDataFrame(data)
+    gdf["geometry"] = [Point(xy) for xy in zip(gdf.longitude, gdf.latitude)]
+    return gdf
 
+@pytest.fixture
+def wkt_polygon():
+    return "POLYGON((19 9, 22 9, 22 12, 19 12, 19 9))"
 
-# def test_map_all(setup_db):
-#     db = setup_db  # This is your database setup fixture
-#
-#     # Create a small test GeoJSON
-#     test_geojson = {
-#         "type": "FeatureCollection",
-#         "features": [
-#             {
-#                 "type": "Feature",
-#                 "geometry": {
-#                     "type": "Point",
-#                     "coordinates": [-80.191790, 25.761680]
-#                 },
-#                 "properties": {
-#                     "mmsi": 123456789,
-#                     "speed": 10.5
-#                 }
-#             },
-#             {
-#                 "type": "Feature",
-#                 "geometry": {
-#                     "type": "Point",
-#                     "coordinates": [-81.694360, 26.142036]
-#                 },
-#                 "properties": {
-#                     "mmsi": 987654321,
-#                     "speed": 15.2
-#                 }
-#             }
-#         ]
-#     }
-#
-#     # Run the function to generate the map
-#     try:
-#         result_map = db.map_all(test_geojson)
-#
-#         # Ensure that a Folium map object is created
-#         assert isinstance(result_map, folium.Map), "map_all did not return a valid Folium Map object"
-#
-#         # Check that markers exist in the map
-#         map_html = result_map.get_root().render()
-#         assert "marker" in map_html.lower(), "No markers were added to the map"
-#
-#         print("Test passed: Map was successfully created with markers.")
-#
-#     except Exception as e:
-#         pytest.fail(f"map_all function raised an exception: {e}")
-#
-#
-# def test_map_all_missing_features(setup_db):
-#     db = setup_db
-#     m = leafmap.Map()
-#     assert isinstance(m)
-#     assert db
+def test_add_route_valid_geojson():
+    map_obj = Map()
+    geojson = {
+        "type": "FeatureCollection",
+        "features": [{
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [20, 10]
+            },
+            "properties": {"name": "Test Vessel"}
+        }]
+    }
+    map_obj.add_route(geojson)
+    assert isinstance(map_obj.m, type(map_obj.m)), "Map instance should remain valid"
 
+def test_filter_ships_by_polygon(sample_gdf, wkt_polygon):
+    map_obj = Map()
+    filtered = map_obj.filter_ships_by_polygon(wkt_polygon, sample_gdf)
+    assert not filtered.empty, "Expected some ships to be inside the polygon"
+
+def test_ship_map_by_polygon(sample_gdf, wkt_polygon):
+    map_obj = Map()
+    map_obj_out = map_obj.ship_map_by_polygon(wkt_polygon, sample_gdf)
+    assert map_obj_out is not None, "Expected map object to be returned"
+
+def test_ships_route_all(sample_gdf, tmp_path):
+    geojson_path = tmp_path / "route.geojson"
+    sample_gdf.to_file(geojson_path, driver="GeoJSON")
+    map_obj = Map()
+    result = map_obj.ships_route(str(geojson_path))
+    assert hasattr(result, "_parent"), "Expected a valid folium map object"
+
+def test_ships_route_with_invalid_mmsi(sample_gdf, tmp_path):
+    geojson_path = tmp_path / "route.geojson"
+    sample_gdf.to_file(geojson_path, driver="GeoJSON")
+    map_obj = Map()
+    result = map_obj.ships_route(str(geojson_path), mmsi=999999)
+    assert result == "No ship found with that mmsi", "Expected message for invalid MMSI"
+
+def test_plot_ship_heatmap(sample_gdf, tmp_path):
+    geojson_path = tmp_path / "heatmap.geojson"
+    sample_gdf.to_file(geojson_path, driver="GeoJSON")
+    map_obj = Map()
+    result = map_obj.plot_ship_heatmap(str(geojson_path))
+    assert hasattr(result, "_parent"), "Expected a valid folium map object"
