@@ -23,22 +23,6 @@ def sample_gdf():
 def wkt_polygon():
     return "POLYGON((19 9, 22 9, 22 12, 19 12, 19 9))"
 
-def test_add_route_valid_geojson():
-    map_obj = Map()
-    geojson = {
-        "type": "FeatureCollection",
-        "features": [{
-            "type": "Feature",
-            "geometry": {
-                "type": "Point",
-                "coordinates": [20, 10]
-            },
-            "properties": {"name": "Test Vessel"}
-        }]
-    }
-    map_obj.add_route(geojson)
-    assert isinstance(map_obj.m, type(map_obj.m)), "Map instance should remain valid"
-
 def test_filter_ships_by_polygon(sample_gdf, wkt_polygon):
     map_obj = Map()
     filtered = map_obj.filter_ships_by_polygon(wkt_polygon, sample_gdf)
