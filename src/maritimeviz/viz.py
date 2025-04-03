@@ -12,7 +12,7 @@ from branca.element import Element
 from shapely.wkt import loads
 from folium.plugins import HeatMap
 
-from src.maritimeviz.utils.viz_utils import plot_with_info, get_info, create_speed_legend
+from src.maritimeviz.utils.viz_utils import plot_with_info, get_info, create_speed_legend, check_printable_icon
 
 class Map:
     """
@@ -95,6 +95,9 @@ class Map:
                 self.m = leafmap.Map(location=[gdf.latitude.mean(), gdf.longitude.mean()], zoom_start=4)
 
                 for _, row in gdf.iterrows():
+
+                    icon = check_printable_icon(row) #Getting Icon
+
                     # Extract all available data dynamically
                     info_text = "<br>".join(
                         [f"{key}: {value}" for key, value in row.items() if value and key != "geometry"])
@@ -103,7 +106,7 @@ class Map:
                     # Ensure latitude and longitude are valid
                     if row.geometry and hasattr(row.geometry, "x") and hasattr(row.geometry, "y"):
                         folium.Marker(
-                            icon=folium.Icon(color="blue", icon="ship", prefix="fa"),
+                            icon=folium.Icon(color="blue", icon=icon, prefix="fa"),
                             location=[row.geometry.y, row.geometry.x],  # Latitude, Longitude
                             popup=folium.Popup(info_text, max_width=300),  # Display all available info
                             tooltip='Press for more info'
@@ -174,7 +177,10 @@ class Map:
         ).add_to(m)
 
         for _, row in filtered_gdf.iterrows():
+
             info_text = get_info(row)  # Keep the existing logic
+
+            icon = check_printable_icon(row) #Getting Icon
 
             # Assign color based on speed
             speed = row["speed"]
@@ -191,7 +197,7 @@ class Map:
 
             # Add marker
             Marker(
-                icon=Icon(color=color, icon="ship", prefix="fa"),
+                icon=Icon(color=color, icon=icon, prefix="fa"),
                 location=[row.latitude, row.longitude],
                 popup=Popup(info_text, max_width=300),
             ).add_to(m)

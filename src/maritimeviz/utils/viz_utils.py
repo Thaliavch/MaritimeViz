@@ -94,6 +94,35 @@ class VizUtils(object):
 
         display(m)
 
+    def check_printable_icon(self, row):
+
+        """
+        Checks for which Icon to use based on message type.
+
+        Parameters:
+        - row (tuple[int, str]): row with information from geojson.
+
+        Returns:
+        - str: icon name to be used
+        """
+
+        try:
+            id_ = row["id"]
+        except (KeyError, TypeError):
+            return "asterisk"
+
+        if id_ in {1, 2, 3, 18, 19, 27}:  # Vessels
+            return "ship"
+        elif id_ in {4, 11}:  # Land Station
+            return "station"
+        elif id_ == 9:  # Search and Rescue Aircraft
+            return "plane"
+        elif id_ == 21:  # Aids to Navigation
+            return "plus"
+        else:
+            return "asterisk"
+
+
 
 
     # def mapViz(self, route_geojson):
