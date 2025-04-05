@@ -331,9 +331,21 @@ class AISDatabase:
         """Long range broadcast messages (Type 27)."""
         return LongRangeMessages(self._conn)
 
-    def asm(self):
-        """Application-specific binary messages (Types 6, 8, 25, 26)."""
-        return ApplicationSpecificMessages(self._conn)
+    # todo(Thalia): come back to this
+    # def asm(self):
+    #     """Application-specific binary messages (Types 6, 8, 25, 26)."""
+    #     return ApplicationSpecificMessages(self._conn)
+    def addressed_binary(self):
+        """ Addressed Binary Message 6 (binary payload) """
+        return AddressedBinaryHandler(self._conn)
+
+    def broadcast_text(self):
+        """ Broadcast Binary Message 8 (text payload) """
+        return BroadcastTextHandler(self._conn)
+
+    def short_binary(self):
+        """ Single Slot Binary Message (25) & Multi Slot Binary Message (26) """
+        return ShortBinaryHandler(self._conn)
 
     def aton(self):
         """Aid to Navigation messages (Type 21)."""
@@ -1316,58 +1328,43 @@ class LongRangeMessages(BaseMessageProcessorPositionReport):
         logger.info(f"No static info provided by long range")
         return pd.DataFrame()  # Not applicable to Message 27
 
-class ApplicationSpecificMessages(BaseMessageProcessor):
-    """
-    Handles Application Specific Messages (ASMs), including:
-    - Message 6: Addressed Binary Message
-    - Message 8: Broadcast Binary Message
-    - Message 25: Single Slot Binary Message
-    - Message 26: Multi Slot Binary Message
-    """
+
+
+class AddressedBinaryHandler(BaseMessageProcessor):
+    """Handles Message 6: Addressed Binary Message"""
     def __init__(self, conn):
         super().__init__(conn)
 
     def _filter_message(self, msg: dict) -> bool:
-        return msg.get('id') in {6,8,25,26}
+        return msg.get("id") == 6
 
-    def _insert_message_6_8(self, msg: dict):
+    def _insert_message(self, msg: dict):
+        """
+        Insert a single message of type 6 into the ais_msg_6 table.
+        """
         core_cols = {
-            "id": msg.get("id"),
+            "id": msg.get("id"),  # 6
             "repeat_indicator": msg.get("repeat_indicator"),
             "mmsi": msg.get("mmsi"),
             "spare": msg.get("spare"),
             "spare2": msg.get("spare2"),
             "dac": msg.get("dac"),
             "fid": msg.get("fi") or msg.get("fid"),
-            "eu_id": msg.get("eu_id"),
-            "length": msg.get("length"),
-            "beam": msg.get("beam"),
-            "ship_type": msg.get("ship_type"),
-            "haz_cargo": msg.get("haz_cargo"),
-            "draught": msg.get("draught"),
-            "loaded": msg.get("loaded"),
-            "speed_qual": msg.get("speed_qual"),
-            "course_qual": msg.get("course_qual"),
-            "heading_qual": msg.get("heading_qual"),
             "x": msg.get("x"),
-            "y": msg.get("y")
+            "y": msg.get("y"),
         }
-
-        # Build leftover dict for any other fields
+        # Exclude the columns we just used from leftover
         used_keys = set(core_cols.keys()) | {"fi", "fid"}
-        leftover = {
-            k: v for k, v in msg.items() if k not in used_keys
-        }
+        leftover = {k: v for k, v in msg.items() if k not in used_keys}
 
         query = """
-            INSERT INTO ais_msg_6_8 (
-              id, repeat_indicator, mmsi, spare, spare2, dac, fid, eu_id,
-              length, beam, ship_type, haz_cargo, draught, loaded,
-              speed_qual, course_qual, heading_qual, x, y,
-              application_data,
-              tagblock_group, tagblock_line_count, tagblock_station, tagblock_timestamp
+            INSERT INTO ais_msg_6 (
+                id, repeat_indicator, mmsi, spare, spare2,
+                dac, fid, x, y,
+                application_data,
+                tagblock_group, tagblock_line_count, tagblock_station, tagblock_timestamp
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         params = (
             core_cols["id"],
@@ -1377,16 +1374,6 @@ class ApplicationSpecificMessages(BaseMessageProcessor):
             core_cols["spare2"],
             core_cols["dac"],
             core_cols["fid"],
-            core_cols["eu_id"],
-            core_cols["length"],
-            core_cols["beam"],
-            core_cols["ship_type"],
-            core_cols["haz_cargo"],
-            core_cols["draught"],
-            core_cols["loaded"],
-            core_cols["speed_qual"],
-            core_cols["course_qual"],
-            core_cols["heading_qual"],
             core_cols["x"],
             core_cols["y"],
             json.dumps(leftover),
@@ -1396,97 +1383,34 @@ class ApplicationSpecificMessages(BaseMessageProcessor):
             msg.get("tagblock_timestamp"),
         )
         self._conn.execute(query, params)
-
-    def _insert_message_25_26(self, msg: dict):
-        # Core columns
-        core_cols = {
-            "id": msg.get("id"),
-            "repeat_indicator": msg.get("repeat_indicator"),
-            "mmsi": msg.get("mmsi"),
-            "dest_mmsi": msg.get("dest_mmsi"),  # Might be None or missing
-            "sync_state": msg.get("sync_state"),
-            "x": msg.get("x"),
-            "y": msg.get("y"),
-        }
-
-        # Leftover dict for everything else
-        used_keys = set(core_cols.keys())
-        leftover = {
-            k: v for k, v in msg.items() if k not in used_keys
-        }
-
-        query = """
-        INSERT
-        INTO
-        ais_msg_25_26(
-            id, repeat_indicator, mmsi, dest_mmsi, sync_state,
-            x, y, application_data,
-            tagblock_group, tagblock_line_count, tagblock_station,
-            tagblock_timestamp
-        )
-        VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """
-        params = (
-            core_cols["id"],
-            core_cols["repeat_indicator"],
-            core_cols["mmsi"],
-            core_cols["dest_mmsi"],
-            core_cols["sync_state"],
-            core_cols["x"],
-            core_cols["y"],
-            json.dumps(leftover),
-            json.dumps(msg.get("tagblock_group", {})),
-            msg.get("tagblock_line_count"),
-            msg.get("tagblock_station"),
-            msg.get("tagblock_timestamp"),
-        )
-        self._conn.execute(query, params)
-
-    def _insert_message(self, msg: dict):
-        if msg.get("id") in {6, 8}:
-            self._insert_message_6_8(msg)
-        else:
-            self._insert_message_25_26(msg)
 
     def search(self,
                mmsi: Optional[Union[int, List[int]]] = None,
                conn: Optional[duckdb.DuckDBPyConnection] = None,
                start_date: Optional[str] = None,
                end_date: Optional[str] = None,
-               polygon_bounds: Optional[str] = None) -> gpd.GeoDataFrame:
+               polygon_bounds: Optional[str] = None,
+               dac: Optional[int] = None,
+               fid: Optional[int] = None
+               ) -> gpd.GeoDataFrame:
         """
-        Search AIS data (messages 6, 8, 25, 26) with optional filters.
+        Search AIS AtoN data (Message 21) with optional filters.
         """
         if not conn:
             conn = self._conn
 
         try:
-            # We'll do a UNION of ais_msg_6_8 and ais_msg_25_26 if you store them separately
-            query = """
-            SELECT id, repeat_indicator, mmsi, x, y,
-                   tagblock_timestamp,
-                   '6_8' AS table_name
-              FROM ais_msg_6_8
-            UNION ALL
-            SELECT id, repeat_indicator, mmsi, x, y,
-                   tagblock_timestamp,
-                   '25_26' AS table_name
-              FROM ais_msg_25_26
-            WHERE 1=1
-            """
+            query = "SELECT * FROM ais_msg_6 WHERE 1=1"
             params = []
 
-            # Can do separate queries and chain them with UNION,
-            # or just pick one table at a time. For now, let's keep it combined.
-
-            # Filter on MMSI
+            # MMSI filter
             if mmsi:
                 if isinstance(mmsi, int):
                     query += " AND mmsi = ?"
                     params.append(mmsi)
                 elif isinstance(mmsi, list) and all(
                     isinstance(i, int) for i in mmsi):
-                    placeholders = ', '.join(['?'] * len(mmsi))
+                    placeholders = ", ".join(["?"] * len(mmsi))
                     query += f" AND mmsi IN ({placeholders})"
                     params.extend(mmsi)
                 else:
@@ -1495,44 +1419,31 @@ class ApplicationSpecificMessages(BaseMessageProcessor):
 
             # Date range filter
             if start_date:
-                try:
-                    start_ts = date_to_tagblock_timestamp(
-                        *map(int, start_date.split("-")))
-                    query += " AND tagblock_timestamp >= ?"
-                    params.append(start_ts)
-                except Exception as e:
-                    raise ValueError(
-                        "Invalid start date format. Expected YYYY-MM-DD.") from e
+                start_ts = date_to_tagblock_timestamp(
+                    *map(int, start_date.split("-")))
+                query += " AND tagblock_timestamp >= ?"
+                params.append(start_ts)
             if end_date:
-                try:
-                    end_ts = date_to_tagblock_timestamp(
-                        *map(int, end_date.split("-")))
-                    query += " AND tagblock_timestamp <= ?"
-                    params.append(end_ts)
-                except Exception as e:
-                    raise ValueError(
-                        "Invalid end date format. Expected YYYY-MM-DD.") from e
+                end_ts = date_to_tagblock_timestamp(
+                    *map(int, end_date.split("-")))
+                query += " AND tagblock_timestamp <= ?"
+                params.append(end_ts)
 
-            # Polygon bounds filter
+            # Polygon filter
             if polygon_bounds:
-                # We'll do bounding for each SELECT. One approach:
-                # Use a CTE or do it in each union part. For simplicity, let's do it in each table's WHERE clause
-                # Instead of placing it after the union. This means rewriting the query carefully.
-                # Let's do a simplified approach: select from each table separately, union in Python, or do 2 separate queries.
-                # For demonstration, let's do 2 separate queries.
+                query += " AND ST_Within(ST_Point(x, y), ST_GeomFromText(?))"
+                params.append(polygon_bounds)
 
-                # Realistically, you'd do:
-                # SELECT ... FROM ais_msg_6_8 WHERE 1=1 [filters]
-                #   AND ST_Within(ST_Point(x,y), ST_GeomFromText(?))
-                # UNION ALL
-                # SELECT ... FROM ais_msg_25_26 WHERE 1=1 [filters]
-                #   AND ST_Within(ST_Point(x,y), ST_GeomFromText(?))
-                #
-                # Then combine them. For brevity in this example, let's skip polygon filter in the union approach.
+            # DAC & FID filters
+            if dac is not None:
+                query += " AND dac = ?"
+                params.append(dac)
 
-                pass
+            if fid is not None:
+                query += " AND fid = ?"
+                params.append(fid)
 
-            logger.info(f"Executing ASM query: {query} with params: {params}")
+            logger.info(f"Executing AtoN query: {query} with params: {params}")
             df = cached_query(conn, query, params, True)
             if df.empty:
                 return gpd.GeoDataFrame(columns=["geometry"])
@@ -1549,7 +1460,250 @@ class ApplicationSpecificMessages(BaseMessageProcessor):
 
         return gpd.GeoDataFrame()
 
-    # TODO(Thalia) create search for 6 8 and for 24 25 separately
+
+
+class BroadcastTextHandler(BaseMessageProcessor):
+    """Handles Message 8: Broadcast Binary Message (may carry human-readable payloads)"""
+    def __init__(self, conn):
+        super().__init__(conn)
+
+    def _filter_message(self, msg: dict) -> bool:
+        return msg.get("id") == 8
+
+    def _insert_message(self, msg: dict):
+        """
+        Insert a single message of type 8 into the ais_msg_8 table.
+        """
+        core_cols = {
+            "id": msg.get("id"),  # 8
+            "repeat_indicator": msg.get("repeat_indicator"),
+            "mmsi": msg.get("mmsi"),
+            "dac": msg.get("dac"),
+            "fid": msg.get("fi") or msg.get("fid"),
+            "x": msg.get("x"),
+            "y": msg.get("y"),
+        }
+        used_keys = set(core_cols.keys()) | {"fi", "fid"}
+        leftover = {k: v for k, v in msg.items() if k not in used_keys}
+
+        query = """
+            INSERT INTO ais_msg_8 (
+                id, repeat_indicator, mmsi, dac, fid, x, y,
+                application_data,
+                tagblock_group, tagblock_line_count, tagblock_station, tagblock_timestamp
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        params = (
+            core_cols["id"],
+            core_cols["repeat_indicator"],
+            core_cols["mmsi"],
+            core_cols["dac"],
+            core_cols["fid"],
+            core_cols["x"],
+            core_cols["y"],
+            json.dumps(leftover),
+            json.dumps(msg.get("tagblock_group", {})),
+            msg.get("tagblock_line_count"),
+            msg.get("tagblock_station"),
+            msg.get("tagblock_timestamp"),
+        )
+        self._conn.execute(query, params)
+
+    def search(self,
+               mmsi: Optional[Union[int, List[int]]] = None,
+               conn: Optional[duckdb.DuckDBPyConnection] = None,
+               start_date: Optional[str] = None,
+               end_date: Optional[str] = None,
+               polygon_bounds: Optional[str] = None,
+               dac: Optional[int] = None,
+               fid: Optional[int] = None
+               ) -> gpd.GeoDataFrame:
+        """
+        Search AIS AtoN data (Message 21) with optional filters.
+        """
+        if not conn:
+            conn = self._conn
+
+        try:
+            query = "SELECT * FROM ais_msg_8 WHERE 1=1"
+            params = []
+
+            # MMSI filter
+            if mmsi:
+                if isinstance(mmsi, int):
+                    query += " AND mmsi = ?"
+                    params.append(mmsi)
+                elif isinstance(mmsi, list) and all(
+                    isinstance(i, int) for i in mmsi):
+                    placeholders = ", ".join(["?"] * len(mmsi))
+                    query += f" AND mmsi IN ({placeholders})"
+                    params.extend(mmsi)
+                else:
+                    raise ValueError(
+                        "MMSI must be an integer or a list of integers.")
+
+            # Date range filter
+            if start_date:
+                start_ts = date_to_tagblock_timestamp(
+                    *map(int, start_date.split("-")))
+                query += " AND tagblock_timestamp >= ?"
+                params.append(start_ts)
+            if end_date:
+                end_ts = date_to_tagblock_timestamp(
+                    *map(int, end_date.split("-")))
+                query += " AND tagblock_timestamp <= ?"
+                params.append(end_ts)
+
+            # Polygon filter
+            if polygon_bounds:
+                query += " AND ST_Within(ST_Point(x, y), ST_GeomFromText(?))"
+                params.append(polygon_bounds)
+
+            # DAC & FID filters
+            if dac is not None:
+                query += " AND dac = ?"
+                params.append(dac)
+
+            if fid is not None:
+                query += " AND fid = ?"
+                params.append(fid)
+
+            logger.info(f"Executing AtoN query: {query} with params: {params}")
+            df = cached_query(conn, query, params, True)
+            if df.empty:
+                return gpd.GeoDataFrame(columns=["geometry"])
+
+            df["geometry"] = gpd.points_from_xy(df["x"], df["y"])
+            return gpd.GeoDataFrame(df, geometry="geometry", crs="EPSG:4326")
+
+        except duckdb.Error as db_err:
+            logger.error(f"DuckDB error: {db_err}")
+        except ValueError as ve:
+            logger.error(f"Value error: {ve}")
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}")
+
+        return gpd.GeoDataFrame()
+
+
+class ShortBinaryHandler(BaseMessageProcessor):
+    """Handles Message 25 and 26: Slot Binary Messages"""
+    def __init__(self, conn):
+        super().__init__(conn)
+
+    def _filter_message(self, msg: dict) -> bool:
+        return msg.get("id") in {25, 26}
+
+    def _insert_message(self, msg: dict):
+        core_cols = {
+            "id": msg.get("id"),
+            "repeat_indicator": msg.get("repeat_indicator"),
+            "mmsi": msg.get("mmsi"),
+            "dest_mmsi": msg.get("dest_mmsi"),
+            "sync_state": msg.get("sync_state"),
+            "x": msg.get("x"),
+            "y": msg.get("y"),
+        }
+        used_keys = set(core_cols.keys())
+        leftover = {k: v for k, v in msg.items() if k not in used_keys}
+
+        query = """
+        INSERT INTO ais_msg_25_26 (
+            id, repeat_indicator, mmsi, dest_mmsi, sync_state,
+            x, y, application_data,
+            tagblock_group, tagblock_line_count, tagblock_station,
+            tagblock_timestamp
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        params = tuple(core_cols.get(k) for k in core_cols) + (
+            json.dumps(leftover),
+            json.dumps(msg.get("tagblock_group", {})),
+            msg.get("tagblock_line_count"),
+            msg.get("tagblock_station"),
+            msg.get("tagblock_timestamp"),
+        )
+        self._conn.execute(query, params)
+
+    def search(self,
+               mmsi: Optional[Union[int, List[int]]] = None,
+               conn: Optional[duckdb.DuckDBPyConnection] = None,
+               start_date: Optional[str] = None,
+               end_date: Optional[str] = None,
+               polygon_bounds: Optional[str] = None) -> gpd.GeoDataFrame:
+        """
+        Search AIS AtoN data (Message 21) with optional filters.
+        """
+        if not conn:
+            conn = self._conn
+
+        try:
+            query = "SELECT * FROM ais_msg_25_26 WHERE 1=1"
+            params = []
+
+            # MMSI filter
+            if mmsi:
+                if isinstance(mmsi, int):
+                    query += " AND mmsi = ?"
+                    params.append(mmsi)
+                elif isinstance(mmsi, list) and all(
+                    isinstance(i, int) for i in mmsi):
+                    placeholders = ", ".join(["?"] * len(mmsi))
+                    query += f" AND mmsi IN ({placeholders})"
+                    params.extend(mmsi)
+                else:
+                    raise ValueError(
+                        "MMSI must be an integer or a list of integers.")
+
+            # Date range filter
+            if start_date:
+                start_ts = date_to_tagblock_timestamp(
+                    *map(int, start_date.split("-")))
+                query += " AND tagblock_timestamp >= ?"
+                params.append(start_ts)
+            if end_date:
+                end_ts = date_to_tagblock_timestamp(
+                    *map(int, end_date.split("-")))
+                query += " AND tagblock_timestamp <= ?"
+                params.append(end_ts)
+
+            # Polygon filter
+            if polygon_bounds:
+                query += " AND ST_Within(ST_Point(x, y), ST_GeomFromText(?))"
+                params.append(polygon_bounds)
+
+            logger.info(f"Executing AtoN query: {query} with params: {params}")
+            df = cached_query(conn, query, params, True)
+            if df.empty:
+                return gpd.GeoDataFrame(columns=["geometry"])
+
+            df["geometry"] = gpd.points_from_xy(df["x"], df["y"])
+            return gpd.GeoDataFrame(df, geometry="geometry", crs="EPSG:4326")
+
+        except duckdb.Error as db_err:
+            logger.error(f"DuckDB error: {db_err}")
+        except ValueError as ve:
+            logger.error(f"Value error: {ve}")
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}")
+
+        return gpd.GeoDataFrame()
+
+# todo(Thalia): see if I want to implement a wrapper class as well for asm
+# class ApplicationSpecificMessages:
+#     def __init__(self, conn):
+#         self._conn = conn
+#         self.addressed_binary = Message6Processor(conn)
+#         self.broadcast_text = Message8Processor(conn)
+#         self.short_binary = Message25And26Processor(conn)
+#
+#     def process(self, msg: dict):
+#         self.addressed_binary.process()
+#         self.broadcast_text.process()
+#         self.short_binary.process()
+
+
+
 
 
 class AidToNavigationMessages(BaseMessageProcessor):

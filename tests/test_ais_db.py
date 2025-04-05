@@ -6,6 +6,7 @@ import pandas as pd
 import geopandas as gpd
 import shutil
 from typing import Optional
+import json
 
 from src.maritimeviz.ais_db import AISDatabase
 from src.maritimeviz.constants import *
@@ -434,60 +435,300 @@ class TestLongRangeMessages:
         assert not result_date_range.empty, "Expected non-empty DataFrame for the given date range."
 
 
-class TestApplicationSpecificMessages:
-    def test_insert_application_specific_messages(self, setup_new_db):
+# Test for Addressed Binary Messages (Type 6)
+class TestAddressedBinaryHandler:
+    def test_insert_msg(self, setup_new_db):
         """
-        Test inserting messages 6, 8, 25, 26 into ais_msg_6_8 / ais_msg_25_26.
+        Test inserting an Addressed Binary Message into ais_msg_6,
+        then verify that the row is present.
         """
         db = setup_new_db
-        processor = db.asm()  # application-specific messages
+        processor = db.addressed_binary()
 
-        sample_msg_6 = {
+        sample_msg = {
             "id": 6,
             "repeat_indicator": 0,
-            "mmsi": 111111111,
+            "mmsi": 123456789,
             "spare": 0,
-            "spare2": 0,
+            "spare2": 1,
             "dac": 1,
-            "fi": 27,
-            "x": -60.5,
-            "y": 25.25,
-            "some_extra_field": "HelloWorld",  # leftover data
-            "tagblock_group": {"sentence": 1, "groupsize": 2},
-            "tagblock_line_count": 300,
-            "tagblock_station": "SAT-TEST",
-            "tagblock_timestamp": 1600000000
+            "fi": 2,  # using 'fi' in place of fid
+            "x": -70.1234,
+            "y": 40.9876,
+            "tagblock_group": {"sentence": 1, "groupsize": 2, "id": 9999},
+            "tagblock_line_count": 444,
+            "tagblock_station": "SAT-ATL",
+            "tagblock_timestamp": 1699999999,
+            "payload": "binary_payload_example"  # additional data stored as JSON
         }
-        sample_msg_25 = {
-            "id": 25,
+
+        # Insert the sample message
+        processor._insert_message(sample_msg)
+
+        # Verify insertion by directly querying the table
+        df = db.connection().execute("SELECT * FROM ais_msg_6").fetchdf()
+        print(df)
+        assert len(df) == 1, f"Expected 1 row in ais_msg_6, got {len(df)}."
+        assert df.loc[0, "id"] == 6, "Message ID should be 6."
+
+    # todo(Thalia) Current file does not have any message of type 6, find a new one
+    # def test_process_works(self, setup_new_db):
+    #     """
+    #     Test that processing a file inserts messages into ais_msg_6.
+    #     """
+    #     db = setup_new_db
+    #     processor = db.addressed_binary()
+    #
+    #     processor.process(AIS_FILE_PATH)
+    #
+    #     conn = db.connection()
+    #     count = conn.execute("SELECT COUNT(*) FROM ais_msg_6").fetchone()[0]
+    #     print("Rows in ais_msg_6:", count)
+    #     assert count > 0, "Expected ais_msg_6 table to have data after processing."
+    #
+    # def test_search_works(self, setup_existing_db):
+    #     """
+    #     Test search functionality for Addressed Binary messages.
+    #     """
+    #     db = setup_existing_db
+    #     processor = db.addressed_binary()
+    #
+    #     # 1. Search with no filters.
+    #     result_all = processor.search()
+    #     print("Addressed Binary (No filters):", result_all)
+    #     assert isinstance(result_all, pd.DataFrame), "Expected a DataFrame with no filters."
+    #
+    #     # 2. Search by a valid MMSI.
+    #     result_mmsi = processor.search(mmsi=123456789)
+    #     print("Addressed Binary (MMSI 123456789):", result_mmsi)
+    #     assert isinstance(result_mmsi, pd.DataFrame), "Expected a DataFrame for valid MMSI."
+    #
+    #     # 3. Searching for a non-existent MMSI should return an empty DataFrame.
+    #     result_invalid = processor.search(mmsi=9999999, start_date="2016-07-27", end_date="2016-07-29")
+    #     print("Addressed Binary (Invalid MMSI):", result_invalid)
+    #     assert isinstance(result_invalid, pd.DataFrame), "Expected a DataFrame for an invalid MMSI."
+    #     assert result_invalid.empty, "Expected an empty DataFrame for an invalid MMSI."
+    #
+    #     # 4. Search by date range.
+    #     result_date_range = processor.search(start_date="2023-10-01", end_date="2023-12-31")
+    #     print("Addressed Binary (Date Range):", result_date_range)
+    #     assert isinstance(result_date_range, pd.DataFrame), "Expected a DataFrame for the date range."
+
+
+# Test for Broadcast Text Messages (Type 8)
+class TestBroadcastTextHandler:
+    def test_insert_msg(self, setup_new_db):
+        """
+        Test inserting a Broadcast Text Message (type 8) using a real message extracted from a file.
+        This verifies that the core columns are inserted and that leftover/application-specific data
+        is stored correctly in the application_data column.
+        """
+        db = setup_new_db
+        processor = db.broadcast_text()
+
+        # Real extracted message from a file:
+        sample_msg = {
+            "id": 8,
             "repeat_indicator": 0,
-            "mmsi": 222222222,
-            "dest_mmsi": 333333333,
-            "sync_state": 2,
-            "x": 10.123,
-            "y": 45.987,
-            "extra_key": "ABC-XYZ",
-            "tagblock_group": {"sentence": 2, "groupsize": 2},
-            "tagblock_line_count": 301,
-            "tagblock_station": "COAST-SB",
-            "tagblock_timestamp": 1600000050
+            "mmsi": 993161005,
+            "spare": 0,
+            "dac": 1,
+            "fi": 11,  # will be used to determine 'fid'
+            "x": -125.62686666666667,
+            "y": 48.8853,
+            "wind_ave": 15,
+            "wind_gust": 18,
+            "wind_dir": 261,
+            "wind_gust_dir": 18,
+            "air_temp": 42.29999923706055,
+            "rel_humid": 127,
+            "dew_point": 31.100000381469727,
+            "air_pres": 1311.0,
+            "air_pres_trend": 3,
+            "horz_vis": 25.5,
+            "water_level": 41.099998474121094,
+            "water_level_trend": 3,
+            "surf_cur_speed": 0.20000000298023224,
+            "surf_cur_dir": 237,
+            "cur_speed_2": 0.10000000149011612,
+            "cur_dir_2": 110,
+            "cur_depth_2": 15,
+            "cur_speed_3": 0.30000001192092896,
+            "cur_dir_3": 159,
+            "cur_depth_3": 30,
+            "wave_height": 1.100000023841858,
+            "wave_period": 7,
+            "wave_dir": 263,
+            "swell_height": 2.0,
+            "swell_period": 63,
+            "swell_dir": 511,
+            "sea_state": 15,
+            "water_temp": 41.099998474121094,
+            "precip_type": 7,
+            "ice": 3,
+            "ext_water_level": 63,
+            "spare2": 63,
+            "tagblock_group": {"sentence": 1, "groupsize": 2, "id": 3213},
+            "tagblock_line_count": 3915,
+            "tagblock_station": "D13MN-PS-BAHBS1",
+            "tagblock_timestamp": 1469665805
         }
 
-        # Insert each
-        processor._insert_message(sample_msg_6)
-        processor._insert_message(sample_msg_25)
+        # Insert the sample message
+        processor._insert_message(sample_msg)
 
-        # Query ais_msg_6_8
-        df_6_8 = db.connection().execute("SELECT * FROM ais_msg_6_8").fetchdf()
-        print("ais_msg_6_8:", df_6_8)
-        assert len(df_6_8) == 1, "Expected 1 row for message 6/8 table."
-        assert df_6_8.loc[0, "id"] == 6, "Expected ID=6 in ais_msg_6_8."
+        # Verify insertion by querying the table for type 8 messages
+        df = db.connection().execute("SELECT * FROM ais_msg_8").fetchdf()
+        print(df)
+        assert len(df) == 1, f"Expected 1 row in ais_msg_8, got {len(df)}."
+        # Check core columns
+        assert df.loc[0, "id"] == 8, "Message ID should be 8."
+        assert df.loc[0, "repeat_indicator"] == 0, "repeat_indicator should be 0."
+        assert df.loc[0, "mmsi"] == 993161005, "mmsi should be 993161005."
+        # 'fid' is determined from 'fi'
+        assert df.loc[0, "fid"] == 11, "fid should be 11."
+        # Verify coordinates
+        assert abs(df.loc[0, "x"] - (-125.62686666666667)) < 1e-8, "x coordinate is incorrect."
+        assert abs(df.loc[0, "y"] - 48.8853) < 1e-8, "y coordinate is incorrect."
 
-        # Query ais_msg_25_26
-        df_25_26 = db.connection().execute("SELECT * FROM ais_msg_25_26").fetchdf()
-        print("ais_msg_25_26:", df_25_26)
-        assert len(df_25_26) == 1, "Expected 1 row for message 25/26 table."
-        assert df_25_26.loc[0, "id"] == 25, "Expected ID=25 in ais_msg_25_26."
+        # Check that application_data contains the leftover fields (e.g., wind_ave, wind_gust, etc.)
+        app_data = json.loads(df.loc[0, "application_data"])
+        assert "wind_ave" in app_data, "Expected 'wind_ave' in application_data."
+        assert app_data["wind_ave"] == 15, "wind_ave should be 15."
+        assert "air_temp" in app_data, "Expected 'air_temp' in application_data."
+        assert abs(app_data["air_temp"] - 42.29999923706055) < 1e-8, "air_temp is incorrect."
+        # Optionally, check for other keys as needed:
+        for key in ["wind_gust", "wind_dir", "water_level", "wave_height"]:
+            assert key in app_data, f"Expected '{key}' in application_data."
+
+    def test_process_works(self, setup_new_db):
+        """
+        Test that processing a file inserts messages into ais_msg_8.
+        """
+        db = setup_new_db
+        processor = db.broadcast_text()
+
+        processor.process(AIS_FILE_PATH)
+        conn = db.connection()
+
+        count = conn.execute("SELECT COUNT(*) FROM ais_msg_8").fetchone()[0]
+        print("Rows in ais_msg_8:", count)
+        assert count > 0, "Expected ais_msg_8 table to have data after processing."
+
+    def test_search_works(self, setup_existing_db):
+        """
+        Test search functionality for Broadcast Text messages.
+        mmsi: 366853070
+        """
+        db = setup_existing_db
+        processor = db.broadcast_text()
+
+        # 1. Search with no filters.
+        result_all = processor.search()
+        print("Broadcast Text (No filters):", result_all)
+        assert isinstance(result_all, pd.DataFrame), "Expected a DataFrame with no filters."
+        assert not result_all.empty, "Expected non-empty result."
+
+        # 2. Search by valid MMSI.
+        result_mmsi = processor.search(mmsi=366853070)
+        print("Broadcast Text (MMSI 366853070):", result_mmsi)
+        assert isinstance(result_mmsi, pd.DataFrame), "Expected a DataFrame for valid MMSI."
+        assert not result_mmsi.empty, "Expecting messages with mmsi: 366853070"
+
+        # 3. Search by non-existent MMSI should return an empty DataFrame.
+        result_invalid = processor.search(mmsi=111111111, start_date="2016-07-27", end_date="2016-07-29")
+        print("Broadcast Text (Invalid MMSI):", result_invalid)
+        assert isinstance(result_invalid, pd.DataFrame), "Expected a DataFrame for an invalid MMSI."
+        assert result_invalid.empty, "Expected an empty DataFrame for an invalid MMSI."
+
+        # 4. Search by date range.
+        result_date_range = processor.search(start_date="2016-07-27", end_date="2016-07-29")
+        print("Broadcast Text (Date Range):", result_date_range)
+        assert isinstance(result_date_range, pd.DataFrame), "Expected a DataFrame for the date range."
+        assert not result_date_range.empty, "Expecting data for given date ..."
+
+
+# Test for Short Binary Messages (Types 25/26)
+class TestShortBinaryHandler:
+    def test_insert_msg(self, setup_new_db):
+        """
+        Test inserting a Short Binary Message into ais_msg_25_26,
+        then verify that the row is present.
+        """
+        db = setup_new_db
+        processor = db.short_binary()
+
+        sample_msg = {
+            "id": 25,  # or 26
+            "repeat_indicator": 2,
+            "mmsi": 444444444,
+            "dest_mmsi": 333333333,
+            "sync_state": 1,
+            "x": -60.9876,
+            "y": 45.6789,
+            "tagblock_group": {"sentence": 3, "groupsize": 1, "id": 7777},
+            "tagblock_line_count": 222,
+            "tagblock_station": "SAT-LAX",
+            "tagblock_timestamp": 1697777777,
+            "binary_data": "101010"  # additional binary payload data
+        }
+
+        # Insert sample message
+        processor._insert_message(sample_msg)
+
+        # Verify insertion by directly querying the table
+        df = db.connection().execute("SELECT * FROM ais_msg_25_26").fetchdf()
+        print(df)
+        assert len(df) == 1, f"Expected 1 row in ais_msg_25_26, got {len(df)}."
+        assert df.loc[0, "id"] == 25, "Message ID should be 25."
+
+    def test_process_works(self, setup_new_db):
+        """
+        Test that processing a file inserts messages into ais_msg_25_26.
+        """
+        db = setup_new_db
+        processor = db.short_binary()
+        processor.process(AIS_FILE_PATH)
+        conn = db.connection()
+
+        count = conn.execute("SELECT COUNT(*) FROM ais_msg_25_26").fetchone()[0]
+        print("Rows in ais_msg_25_26:", count)
+        assert count > 0, "Expected ais_msg_25_26 table to have data after processing."
+
+    def test_search_works(self, setup_existing_db):
+        """
+        Test search functionality for Short Binary messages.
+        Note: The search() method here uses a query on 'ais_msg_21' which may be a discrepancy.
+        Adjust expectations if the implementation is corrected.
+        mmsi: 367080550
+        """
+        db = setup_existing_db
+        processor = db.short_binary()
+
+        # 1. Search with no filters.
+        result_all = processor.search()
+        print("Short Binary (No filters):", result_all)
+        assert isinstance(result_all, pd.DataFrame), "Expected a DataFrame with no filters."
+        assert not result_all.empty, "Expecting non empty dataframe"
+
+        # 2. Search by valid MMSI.
+        result_mmsi = processor.search(mmsi=367080550)
+        print("Short Binary (MMSI 367080550):", result_mmsi)
+        assert isinstance(result_mmsi, pd.DataFrame), "Expected a DataFrame for valid MMSI."
+        assert not result_mmsi.empty, "Expected one row for mmsi 367080550"
+
+        # 3. Search by non-existent MMSI should return an empty DataFrame.
+        result_invalid = processor.search(mmsi=9999999, start_date="2016-07-27", end_date="2016-07-29")
+        print("Short Binary (Invalid MMSI):", result_invalid)
+        assert isinstance(result_invalid, pd.DataFrame), "Expected a DataFrame for an invalid MMSI."
+        assert result_invalid.empty, "Expected an empty DataFrame for an invalid MMSI."
+
+        # 4. Search by date range.
+        result_date_range = processor.search(start_date="2016-07-27", end_date="2016-07-29")
+        print("Short Binary (Date Range):", result_date_range)
+        assert isinstance(result_date_range, pd.DataFrame), "Expected a DataFrame for the date range."
+        assert not result_date_range.empty, "Expected data for given dates"
+
 
 class TestAidToNavigationMessages:
     def test_insert_aton_message(self, setup_new_db):
@@ -868,3 +1109,57 @@ class TestSystemManagementMessages:
 {'id': 24, 'repeat_indicator': 3, 'mmsi': 366970430, 'part_num': 1, 'type_and_cargo': 60, 'vendor_id': 'COMNAV@', 'callsign': 'WY6769@', 'dim_a': 3, 'dim_b': 16, 'dim_c': 3, 'dim_d': 3, 'spare': 0, 'tagblock_group': {'sentence': 1, 'groupsize': 2, 'id': 6539}, 'tagblock_line_count': 7284, 'tagblock_station': 'D13MN-CR-KELBS1', 'tagblock_timestamp': 1469663999}
 {'id': 18, 'repeat_indicator': 0, 'mmsi': 338097623, 'spare': 0, 'sog': 0.10000000149011612, 'position_accuracy': 1, 'x': -70.19623333333334, 'y': 43.726173333333335, 'cog': 237.3000030517578, 'true_heading': 511, 'timestamp': 59, 'spare2': 0, 'unit_flag': 1, 'display_flag': 0, 'dsc_flag': 1, 'band_flag': 0, 'm22_flag': 1, 'mode_flag': 0, 'raim': False, 'commstate_flag': 1, 'commstate_cs_fill': 393222, 'tagblock_group': {'sentence': 1, 'groupsize': 2, 'id': 1700}, 'tagblock_line_count': 2431, 'tagblock_station': 'D01MN-NE-BRIBS1', 'tagblock_timestamp': 1469664000}
 """
+# class TestApplicationSpecificMessages:
+#     def test_insert_application_specific_messages(self, setup_new_db):
+#         """
+#         Test inserting messages 6, 8, 25, 26 into ais_msg_6_8 / ais_msg_25_26.
+#         """
+#         db = setup_new_db
+#         processor = db.asm()  # application-specific messages
+#
+#         sample_msg_6 = {
+#             "id": 6,
+#             "repeat_indicator": 0,
+#             "mmsi": 111111111,
+#             "spare": 0,
+#             "spare2": 0,
+#             "dac": 1,
+#             "fi": 27,
+#             "x": -60.5,
+#             "y": 25.25,
+#             "some_extra_field": "HelloWorld",  # leftover data
+#             "tagblock_group": {"sentence": 1, "groupsize": 2},
+#             "tagblock_line_count": 300,
+#             "tagblock_station": "SAT-TEST",
+#             "tagblock_timestamp": 1600000000
+#         }
+#         sample_msg_25 = {
+#             "id": 25,
+#             "repeat_indicator": 0,
+#             "mmsi": 222222222,
+#             "dest_mmsi": 333333333,
+#             "sync_state": 2,
+#             "x": 10.123,
+#             "y": 45.987,
+#             "extra_key": "ABC-XYZ",
+#             "tagblock_group": {"sentence": 2, "groupsize": 2},
+#             "tagblock_line_count": 301,
+#             "tagblock_station": "COAST-SB",
+#             "tagblock_timestamp": 1600000050
+#         }
+#
+#         # Insert each
+#         processor._insert_message(sample_msg_6)
+#         processor._insert_message(sample_msg_25)
+#
+#         # Query ais_msg_6_8
+#         df_6_8 = db.connection().execute("SELECT * FROM ais_msg_6_8").fetchdf()
+#         print("ais_msg_6_8:", df_6_8)
+#         assert len(df_6_8) == 1, "Expected 1 row for message 6/8 table."
+#         assert df_6_8.loc[0, "id"] == 6, "Expected ID=6 in ais_msg_6_8."
+#
+#         # Query ais_msg_25_26
+#         df_25_26 = db.connection().execute("SELECT * FROM ais_msg_25_26").fetchdf()
+#         print("ais_msg_25_26:", df_25_26)
+#         assert len(df_25_26) == 1, "Expected 1 row for message 25/26 table."
+#         assert df_25_26.loc[0, "id"] == 25, "Expected ID=25 in ais_msg_25_26."

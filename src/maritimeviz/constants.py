@@ -129,42 +129,51 @@ QUERY_CREATE_TABLE_24 = """
             );
             """
 
-QUERY_CREATE_TABLE_6_8 = """
-CREATE TABLE IF NOT EXISTS ais_msg_6_8 (
-    id INTEGER,                 -- 6 or 8
-    repeat_indicator INTEGER,   -- 0-3
-    mmsi INTEGER,
+QUERY_CREATE_TABLE_6 = """
+        CREATE TABLE IF NOT EXISTS ais_msg_6 (
+            id INTEGER,                  -- Always 6
+            repeat_indicator INTEGER,    -- 0-3
+            mmsi INTEGER,
 
-    -- Common fields
-    spare INTEGER,
-    spare2 INTEGER,
-    dac INTEGER,
-    fi INTEGER,
-    eu_id TEXT,
-    length DOUBLE,
-    beam DOUBLE,
-    ship_type INTEGER,
-    haz_cargo INTEGER,
-    draught DOUBLE,
-    loaded INTEGER,             -- e.g. 0 or 1
-    speed_qual INTEGER,
-    course_qual INTEGER,
-    heading_qual INTEGER,
+            spare INTEGER,
+            spare2 INTEGER,
+            dac INTEGER,
+            fid INTEGER,                 -- fi or fid (6-bit function ID)
+            x DOUBLE,                    -- longitude (if present)
+            y DOUBLE,                    -- latitude (if present)
 
-    -- Position (if present):
-    x DOUBLE,
-    y DOUBLE,
+            application_data JSON,       -- leftover data or entire binary payload
 
-    -- JSON fallback for anything else:
-    application_data JSON,
+            -- Tagblock metadata:
+            tagblock_group JSON,
+            tagblock_line_count INTEGER,
+            tagblock_station TEXT,
+            tagblock_timestamp BIGINT
+        );
 
-    -- Tagblock metadata:
-    tagblock_group JSON,
-    tagblock_line_count INTEGER,
-    tagblock_station TEXT,
-    tagblock_timestamp BIGINT
-);
-"""
+        """
+
+QUERY_CREATE_TABLE_8 = """
+            CREATE TABLE IF NOT EXISTS ais_msg_8 (
+                id INTEGER,                  -- Always 8
+                repeat_indicator INTEGER,    -- 0-3
+                mmsi INTEGER,
+
+                dac INTEGER,
+                fid INTEGER,                 -- fi or fid (6-bit function ID)
+                x DOUBLE,                    -- longitude (if present)
+                y DOUBLE,                    -- latitude (if present)
+
+                application_data JSON,       -- leftover data or entire binary payload
+
+                -- Tagblock metadata:
+                tagblock_group JSON,
+                tagblock_line_count INTEGER,
+                tagblock_station TEXT,
+                tagblock_timestamp BIGINT
+            );
+            """
+
 # todo(thalia) ask kurt if better to have separate tables and what about x and y for 25/26
 QUERY_CREATE_TABLE_25_26 = """
             CREATE TABLE IF NOT EXISTS ais_msg_25_26 (
@@ -675,7 +684,7 @@ QUERY_CREATE_GLOBAL_VIEW = """
 # List of all table creation queries
 DATABASE_TYPE_A_TABLE_CREATION_QUERIES = [QUERY_CREATE_TABLE_1_2_3, QUERY_CREATE_TABLE_5]
 DATABASE_TYPE_B_TABLE_CREATION_QUERIES = [QUERY_CREATE_TABLE_18_19, QUERY_CREATE_TABLE_24]
-DATABASE_ASM_CREATION_QUERIES = [QUERY_CREATE_TABLE_6_8, QUERY_CREATE_TABLE_25_26]
+DATABASE_ASM_CREATION_QUERIES = [QUERY_CREATE_TABLE_6,QUERY_CREATE_TABLE_8, QUERY_CREATE_TABLE_25_26]
 DATABASE_STANDALONE_MULTIPURPOSE_CREATION_QUERY = [QUERY_CREATE_TABLE_27,\
                                                   QUERY_CREATE_TABLE_21, \
                                                    QUERY_CREATE_TABLE_4, \
