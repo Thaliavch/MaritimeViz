@@ -417,16 +417,6 @@ class BaseMessageProcessor:
             logger.error(f"Error updating views: {e}")
 
     @abstractmethod
-    def search(self, **kwargs) -> pd.DataFrame:
-        """Query vessel dynamic data applying given arguments"""
-        raise NotImplementedError("Subclasses must implement search.")
-
-    @abstractmethod
-    def static_info(self, **kwargs) -> pd.DataFrame:
-        """Query vessel static data applying given arguments"""
-        raise NotImplementedError("Subclasses must implement static_info.")
-
-    @abstractmethod
     def set_filter(self, filter_obj: Optional[dict]) -> None:
         """ Set filter object for querying data from database """
         raise NotImplementedError("Subclasses must implement set_filter.")
@@ -558,8 +548,23 @@ class BaseMessageProcessor:
 
         return gdf["geometry"].apply(lambda geom: geom.wkt).tolist()
 
+class BaseMessageProcessorPositionReport(BaseMessageProcessor):
 
-class ClassAMessages(BaseMessageProcessor):
+    def __init__(self, conn: duckdb.DuckDBPyConnection):
+        super().__init__(conn)
+
+    @abstractmethod
+    def search(self, **kwargs) -> pd.DataFrame:
+        """Query vessel dynamic data applying given arguments"""
+        raise NotImplementedError("Subclasses must implement search.")
+
+    @abstractmethod
+    def static_info(self, **kwargs) -> pd.DataFrame:
+        """Query vessel static data applying given arguments"""
+        raise NotImplementedError("Subclasses must implement static_info.")
+
+
+class ClassAMessages(BaseMessageProcessorPositionReport):
     """
     Processes Class A messages (Types 1, 2, 3 and static Type 5).
     """
@@ -864,7 +869,7 @@ class ClassAMessages(BaseMessageProcessor):
             return {"mmsi": mmsi, "error": str(e)}
 
 
-class ClassBMessages(BaseMessageProcessor):
+class ClassBMessages(BaseMessageProcessorPositionReport):
     """
     Processes Class B messages (Types 18, 19 and static Type 24).
     """
@@ -1120,7 +1125,7 @@ class ClassBMessages(BaseMessageProcessor):
 
 class OtherMessages(BaseMessageProcessor):
     """
-    Processes all remaining AIS messages not classified as Class A or B.
+    Processes all remaining AIS messages
     """
     def __init__(self, conn: duckdb.DuckDBPyConnection):
         super().__init__(conn)
@@ -1129,7 +1134,7 @@ class OtherMessages(BaseMessageProcessor):
 
 
 
-class LongRangeMessages(BaseMessageProcessor):
+class LongRangeMessages(BaseMessageProcessorPositionReport):
     """
     Handles long-range AIS messages (Message Type 27).
     Applies to both Class A and Class B SO equipped vessels.
