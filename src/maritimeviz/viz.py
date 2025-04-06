@@ -305,3 +305,63 @@ class Map:
         HeatMap(heat_data).add_to(m)
         return m
 
+    # A plot specific for messages from type 4
+    def plot_base_stations(self, geojson_route, tagblock_station=None, map_tile="HYBRID"):
+        """
+        Plots AIS base station messages on a Leafmap map.
+
+        Parameters:
+        - geojson_route (str): Path to the GeoJSON file.
+        - tagblock_station (str, optional): Station ID to filter by. If None, shows all stations.
+        - map_tile (str): Basemap style (e.g., 'ROADMAP', 'HYBRID').
+
+        Returns:
+        - leafmap.foliumap.Map: The generated map with base station markers.
+        """
+        gdf = gpd.read_file(geojson_route)
+
+        if "tagblock_station" not in gdf.columns:
+            print("No 'tagblock_station' field found in data.")
+            return None
+
+        # Filter by station if specified
+        if tagblock_station:
+            gdf = gdf[gdf.tagblock_station == tagblock_station]
+            if gdf.empty:
+                print(f"No data found for station: {tagblock_station}")
+                return None
+            print(f"Displaying only data for station: {tagblock_station}")
+        else:
+            print("Displaying all stations.")
+
+        # Extract coordinates
+        gdf["longitude"] = gdf.geometry.x
+        gdf["latitude"] = gdf.geometry.y
+
+        m = leafmap.foliumap.Map(
+            location=[gdf.latitude.mean(), gdf.longitude.mean()],
+            zoom_start=6
+        )
+
+        if map_tile:
+            m.add_basemap(map_tile)
+
+        for _, row in gdf.iterrows():
+            icon = folium.Icon(color="red", icon=check_printable_icon(row), prefix="fa")
+
+            popup_html = f"""
+            <b>Station ID:</b> {row.get('tagblock_station', 'N/A')}<br>
+            <b>MMSI:</b> {row.get('mmsi')}<br>
+            <b>Message Type (ID):</b> {row.get('id')}<br>
+            <b>Date/Time:</b> {row.get('datetime')}<br>
+            <b>Received Stations:</b> {row.get('received_stations')}
+            """
+
+            folium.Marker(
+                location=[row.latitude, row.longitude],
+                popup=folium.Popup(popup_html, max_width=300),
+                icon=icon,
+                tooltip="Base Station"
+            ).add_to(m)
+
+        return m

@@ -112,7 +112,7 @@ def check_printable_icon(row):
     if id_ in {1, 2, 3, 18, 19, 27}:  # Vessels
         return "ship"
     elif id_ in {4, 11}:  # Land Station
-        return "station"
+        return "broadcast-tower"
     elif id_ == 9:  # Search and Rescue Aircraft
         return "plane"
     elif id_ == 21:  # Aids to Navigation
