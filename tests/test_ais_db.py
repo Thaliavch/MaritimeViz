@@ -1459,6 +1459,61 @@ class TestSystemManagementMessages:
         ids = sorted(df["id"].unique().tolist())
         assert ids == [15, 16, 17, 20, 22, 23], f"Expected IDs [15,16,17,20,22,23], got {ids}"
 
+    def test_process_works(self, setup_new_db):
+        """
+        If SystemManagementMessages has a file-based process() method to parse
+        raw AIS data for messages {15,16,17,20,22,23}, test it here.
+        Otherwise, this is just a placeholder.
+        """
+        db = setup_new_db
+        processor = db.system_management()
+        processor.process(AIS_FILE_PATH)
+
+        count = db.connection().execute("SELECT COUNT(*) FROM ais_msg_15_16_17_20_22_23").fetchone()[0]
+        print("Rows in ais_msg_15_16_17_20_22_23 after process:", count)
+        assert count > 0, "Expected some data after processing system mgmt file."
+
+    def test_search_works(self, setup_existing_db):
+        """
+        Test the search method in SystemManagementMessages with basic filters:
+        - msg_id
+        - mmsi: 3669980
+        - start/end date
+        """
+        db = setup_existing_db
+        processor = db.system_management()
+
+        # 1. No filters => expect all rows in that table
+        result_all = processor.search()
+        print("System mgmt (no filters):", result_all)
+        assert isinstance(result_all,
+                          pd.DataFrame), "Expected DataFrame from search() with no filters"
+        assert not result_all.empty, "Expected at least one row for system mgmt messages."
+
+        # 2. Filter by a single message type (e.g. 20)
+        result_20 = processor.search(msg_id=20)
+        print("System mgmt (message 20):", result_20)
+        assert isinstance(result_20,
+                          pd.DataFrame), "Expected DataFrame for message ID=17"
+        assert not result_20.empty, "Expected to find at least one message 17 row."
+
+        # 3. Filter by MMSI
+        test_mmsi = 3669980
+        result_mmsi = processor.search(mmsi=test_mmsi)
+        print(f"System mgmt (MMSI={test_mmsi}):", result_mmsi)
+        assert isinstance(result_mmsi,
+                          pd.DataFrame), "Expected DataFrame for a valid MMSI"
+
+        # 4. Date range filter
+        start_date = "2016-07-26"
+        end_date = "2016-07-28"
+        result_date = processor.search(start_date=start_date,
+                                       end_date=end_date)
+        print(f"System mgmt (Date range {start_date} to {end_date}):",
+              result_date)
+        assert isinstance(result_date,
+                          pd.DataFrame), "Expected DataFrame for date range filter"
+        assert not result_date.empty, "Expecting data for given dates."
 
 # Some messages for type B
 """
