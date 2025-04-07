@@ -1697,22 +1697,7 @@ class ShortBinaryHandler(BaseMessageProcessor):
 
         return gpd.GeoDataFrame()
 
-# todo(Thalia): see if I want to implement a wrapper class as well for asm
-# class ApplicationSpecificMessages:
-#     def __init__(self, conn):
-#         self._conn = conn
-#         self.addressed_binary = Message6Processor(conn)
-#         self.broadcast_text = Message8Processor(conn)
-#         self.short_binary = Message25And26Processor(conn)
-#
-#     def process(self, msg: dict):
-#         self.addressed_binary.process()
-#         self.broadcast_text.process()
-#         self.short_binary.process()
-
-
-
-
+# todo(Thalia): maybe implement wrapper asm 
 
 class AidToNavigationMessages(BaseMessageProcessor):
     """
