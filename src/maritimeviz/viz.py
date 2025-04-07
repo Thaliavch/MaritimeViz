@@ -47,7 +47,7 @@ class Map:
 
         self.m.add_geojson(json.dumps(route_geojson), name=layer_name)
 
-    def map_all(self, route_geojson, layer_name="Route"):
+    def map_all(self, geojson_data, layer_name="Route"):
         """
             Generates an interactive map displaying vessel locations and routes based on GeoJSON data.
 
@@ -74,11 +74,7 @@ class Map:
                 map_object  # Display the map in a Jupyter Notebook or web interface.
             """
 
-        if not route_geojson:
-            print("Empty or invalid GeoJSON. Nothing to plot.")
-            return
-
-        gdf = gpd.read_file(route_geojson)
+        gdf = verify_geojson(geojson_data)
 
         if gdf.empty:
             print("No valid ship route data found.")
@@ -134,7 +130,7 @@ class Map:
 
         return gdf[gdf.geometry.within(polygon)]  # Filter points within the polygon
 
-    def ship_map_by_polygon(self, wkt_polygon, gdf, map_tile='HYBRID'):
+    def ship_map_by_polygon(self, wkt_polygon, geojson_data, map_tile='HYBRID'):
         """
         Creates an interactive map displaying ships located **inside the given WKT polygon**, 
         with markers colored based on their speed.
@@ -151,6 +147,9 @@ class Map:
         - A legend explaining speed color codes.
         - Returns None if no ships are found within the polygon.
         """
+
+        # Verify and load GeoJSON data
+        gdf = verify_geojson(geojson_data)
 
         # Filter ships inside the polygon
         filtered_gdf = self.filter_ships_by_polygon(wkt_polygon, gdf)
@@ -212,13 +211,13 @@ class Map:
 
         return m
 
-    def ships_route(self, geojson_route, mmsi=None, map_tile='HYBRID'):
+    def ships_route(self, geojson_data, mmsi=None, map_tile='HYBRID'):
         """
         Generates a map showing the routes of ships identified by its MMSI, based on a GeoJSON file.
         If no MMSI is provided, it will display all routes. If a MMSI is provided, only show that specific route.
 
         Parameters:
-        - geojson_route (str): Path to the GeoJSON file containing ship route data.
+        - geojson_data (str): Path to the GeoJSON file containing ship route data.
         - mmsi (int or str, optional): MMSI (Maritime Mobile Service Identity) of the ship to visualize.
         - map_tile (str, optional): Base map layer to use (e.g., 'HYBRID', 'ROADMAP'). Defaults to 'HYBRID'.
 
@@ -230,7 +229,8 @@ class Map:
         - str message if no ship is found with the given MMSI or if there are not enough data points to draw a route.
         """
   
-        gdf = gpd.read_file(geojson_route)
+        # Verify and load GeoJSON data
+        gdf = verify_geojson(geojson_data)
 
         if mmsi is not None:
             if mmsi not in gdf.mmsi.values:
@@ -283,19 +283,21 @@ class Map:
 
         return m
 
-    def plot_ship_heatmap(self, geojson_route, map_tile='HYBRID'):
+    def plot_ship_heatmap(self, geojson_data, map_tile='HYBRID'):
         """
         Generates a heat map showing concentration of ships, based on a GeoJSON file.
 
         Parameters:
-        - geojson_route (str): Path to the GeoJSON file containing ship route data.
+        - geojson_data (str): Path to the GeoJSON file containing ship route data.
         - map_tile (str, optional): Base map layer to use (e.g., 'HYBRID', 'ROADMAP'). Defaults to 'HYBRID'.
 
         Returns:
         - folium.Map object displaying:
         - Ships concentration by heatmap: heat
         """
-        gdf = gpd.read_file(geojson_route)
+
+        # Verify and load GeoJSON data
+        gdf = verify_geojson(geojson_data)
 
         m = leafmap.foliumap.Map(location=[gdf.latitude.mean(), gdf.longitude.mean()], zoom_start=2)
         if map_tile:
@@ -306,19 +308,22 @@ class Map:
         return m
 
     # A plot specific for messages from type 4
-    def plot_base_stations(self, geojson_route, tagblock_station=None, map_tile="HYBRID"):
+    def plot_base_stations(self, geojson_data, tagblock_station=None, map_tile="HYBRID"):
         """
         Plots AIS base station messages on a Leafmap map.
 
         Parameters:
-        - geojson_route (str): Path to the GeoJSON file.
+        - geojson_data (str): Path to the GeoJSON file.
         - tagblock_station (str, optional): Station ID to filter by. If None, shows all stations.
         - map_tile (str): Basemap style (e.g., 'ROADMAP', 'HYBRID').
 
         Returns:
         - leafmap.foliumap.Map: The generated map with base station markers.
         """
-        gdf = gpd.read_file(geojson_route)
+
+        # Verify and load GeoJSON data
+        gdf = verify_geojson(geojson_data)
+
 
         if "tagblock_station" not in gdf.columns:
             print("No 'tagblock_station' field found in data.")

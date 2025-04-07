@@ -2,6 +2,7 @@ import leafmap
 import geopandas as gpd
 import folium
 from IPython.display import display
+from geopandas import GeoDataFrame
 
 
 def create_speed_legend():
@@ -119,32 +120,30 @@ def check_printable_icon(row):
         return "plus"
     else:
         return "asterisk"
+    
+def verify_geojson(geojson_data):
+    """
+    Verify if the provided GeoJSON is valid and convert it into a GeoDataFrame.
+    If the GeoJSON is not valid, raises a ValueError.
+
+    Parameters:
+    - geojson_data (str, dict, or GeoDataFrame): path to GeoJSON file, GeoJSON object, or a GeoDataFrame
+
+    Returns:
+    - GeoDataFrame: a GeoDataFrame containing the provided GeoJSON data
+    """
+    try:
+        if isinstance(geojson_data, GeoDataFrame):
+            return geojson_data
+
+        if isinstance(geojson_data, dict) and "features" in geojson_data:
+            return gpd.GeoDataFrame.from_features(geojson_data["features"])
+
+        # Else, assume it's a file path or file-like object
+        return gpd.read_file(geojson_data)
+
+    except Exception as e:
+        raise ValueError(f"Failed to load GeoJSON: {e}")
 
 
 
-
-# def mapViz(self, route_geojson):
-#     if not route_geojson:
-#         print("Empty or invalid GeoJSON. Nothing to plot.")
-#         return
-#
-#     gdf = gpd.read_file(route_geojson)
-#
-#     if gdf.empty:
-#         print("No valid ship route data found.")
-#     else:
-#         # Extract latitude and longitude if not already present
-#         if "latitude" not in gdf.columns or "longitude" not in gdf.columns:
-#             gdf["longitude"] = gdf["geometry"].apply(lambda geom: geom.x if geom else None)
-#             gdf["latitude"] = gdf["geometry"].apply(lambda geom: geom.y if geom else None)
-#
-#         # Ensure there are valid coordinates
-#         if gdf["latitude"].isnull().all() or gdf["longitude"].isnull().all():
-#             print("No valid coordinates found in the data.")
-#         else:
-#             self.m = leafmap.Map(location=[gdf.latitude.mean(), gdf.longitude.mean()], zoom_start=4)
-#
-#
-#     return self.m
-#
-#
