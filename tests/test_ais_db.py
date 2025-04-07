@@ -1229,8 +1229,6 @@ class TestUtcDateMessages:
             "spare": 0,
             "dest_mmsi": 636013817,
             "spare2": 0,
-            # Note that Messages 10 don't have date/time fields:
-            # year, month, day, etc. (they'll insert as NULL)
             "tagblock_group": {"sentence": 1, "groupsize": 2, "id": 9522},
             "tagblock_line_count": 10342,
             "tagblock_station": "D08MN-HG-CANBS1",
@@ -1267,15 +1265,63 @@ class TestUtcDateMessages:
         processor._insert_message(sample_msg_10)
         processor._insert_message(sample_msg_11)
 
-        # Now verify we have two rows in ais_msg_10_11
+        # Verify we have two rows in ais_msg_10_11
         df = db.connection().execute("SELECT * FROM ais_msg_10_11").fetchdf()
-        print(df)  # For debugging
+        print(df)  # Debugging
 
         assert len(df) == 2, f"Expected 2 rows, got {len(df)}."
 
-        # Optionally check that one row has id=10, the other has id=11, etc.
         ids = set(df["id"])
         assert ids == {10, 11}, f"Expected message IDs 10 and 11, got {ids}"
+
+    # todo(thalia) current file does not have utc msgs
+    # def test_process_works(self, setup_new_db):
+    #     """
+    #     If UtcDateMessages has a file-based process(file_path) method,
+    #     we can test it here. Otherwise, it's just a placeholder.
+    #     """
+    #     db = setup_new_db
+    #     conn = db.connection()
+    #     processor = db.utc_date()
+    #     processor.process(AIS_FILE_PATH)
+    #
+    #     count = conn.execute("SELECT COUNT(*) FROM ais_msg_9").fetchone()[0]
+    #     print("Rows in ais_msg_10_11 after process:",count)
+    #     assert  count > 0, "Expected ais_msg_10_11 to have data after processing."
+    #
+    #
+    # def test_search_works(self, setup_existing_db):
+    #     """
+    #     Test the search method of UtcDateMessages. We assume .search(...) is
+    #     implemented with optional parameters like msg_id, mmsi, dest_mmsi, etc.
+    #     """
+    #     db = setup_existing_db
+    #     processor = db.utc_date()
+    #
+    #     # 1. Search with no filters - expect all message 10 & 11 records
+    #     all_df = processor.search()
+    #     print("UTC/Date (No filters):", all_df)
+    #     assert isinstance(all_df, pd.DataFrame), "Expected a DataFrame when no filters are given."
+    #     assert not all_df.empty, "Expected non-empty DataFrame with no filters (assuming fixture has data)."
+    #
+    #     # 2. Search specifically for message 10
+    #     msg10_df = processor.search(msg_id=10)
+    #     print("UTC/Date (Msg 10):", msg10_df)
+    #     assert isinstance(msg10_df, pd.DataFrame), "Expected a DataFrame for msg_id=10."
+    #     # If your fixture includes a message 10, you can expect not empty:
+    #     # assert not msg10_df.empty, "Expected non-empty result for message 10."
+    #
+    #     # 3. Search specifically for message 11
+    #     msg11_df = processor.search(msg_id=11)
+    #     print("UTC/Date (Msg 11):", msg11_df)
+    #     assert isinstance(msg11_df, pd.DataFrame), "Expected a DataFrame for msg_id=11."
+    #
+    #     # 4. Search by invalid dest_mmsi to ensure we get no results
+    #     invalid_dest_df = processor.search(dest_mmsi=999999999)
+    #     print("UTC/Date (Invalid dest_mmsi):", invalid_dest_df)
+    #     assert isinstance(invalid_dest_df, pd.DataFrame), "Expected a DataFrame for invalid dest_mmsi."
+    #     assert invalid_dest_df.empty, "Expected empty result for invalid dest_mmsi."
+
 
 class TestSystemManagementMessages:
     def test_insert_system_management_messages(self, setup_new_db):

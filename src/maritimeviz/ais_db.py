@@ -2499,6 +2499,106 @@ class UtcDateMessages(BaseMessageProcessor):
         self._conn.execute(query, data_tuple)
         self._conn.commit()
 
+    def search(self,
+               msg_id: Optional[int] = None,  # 10 or 11
+               mmsi: Optional[Union[int, List[int]]] = None,
+               dest_mmsi: Optional[Union[int, List[int]]] = None,  # for msg 10
+               start_date: Optional[str] = None,
+               end_date: Optional[str] = None,
+               polygon_bounds: Optional[str] = None,
+               conn: Optional[duckdb.DuckDBPyConnection] = None
+               ) -> gpd.GeoDataFrame:
+        """
+        Search UTC/Date messages (Message 10 or 11).
+
+        Parameters:
+          - msg_id: If set, filter by message type (10 or 11).
+          - mmsi:  Filter by MMSI (single int or list of ints).
+          - dest_mmsi: Filter by destination MMSI (applies to message 10).
+          - start_date, end_date: date range in YYYY-MM-DD format (filters tagblock_timestamp).
+          - polygon_bounds: WKT polygon for location-based filtering if x,y are present.
+          - conn: optional DuckDB connection override
+
+        Returns:
+          A GeoDataFrame with columns x,y -> geometry
+        """
+        if not conn:
+            conn = self._conn
+
+        try:
+            query = "SELECT * FROM ais_msg_10_11 WHERE 1=1"
+            params = []
+
+            # Filter by message type 10 or 11, if desired
+            if msg_id is not None:
+                query += " AND id = ?"
+                params.append(msg_id)  # must be 10 or 11
+
+            # MMSI filter
+            if mmsi is not None:
+                if isinstance(mmsi, int):
+                    query += " AND mmsi = ?"
+                    params.append(mmsi)
+                elif (isinstance(mmsi, list) and all(
+                    isinstance(x, int) for x in mmsi)):
+                    placeholders = ", ".join(["?"] * len(mmsi))
+                    query += f" AND mmsi IN ({placeholders})"
+                    params.extend(mmsi)
+                else:
+                    raise ValueError("mmsi must be an int or list of ints.")
+
+            # dest_mmsi filter (usually for message 10)
+            if dest_mmsi is not None:
+                if isinstance(dest_mmsi, int):
+                    query += " AND dest_mmsi = ?"
+                    params.append(dest_mmsi)
+                elif (isinstance(dest_mmsi, list) and all(
+                    isinstance(x, int) for x in dest_mmsi)):
+                    placeholders = ", ".join(["?"] * len(dest_mmsi))
+                    query += f" AND dest_mmsi IN ({placeholders})"
+                    params.extend(dest_mmsi)
+                else:
+                    raise ValueError(
+                        "dest_mmsi must be an int or list of ints.")
+
+            # Date range filters
+            if start_date:
+                start_ts = date_to_tagblock_timestamp(
+                    *map(int, start_date.split("-")))
+                query += " AND tagblock_timestamp >= ?"
+                params.append(start_ts)
+
+            if end_date:
+                end_ts = date_to_tagblock_timestamp(
+                    *map(int, end_date.split("-")))
+                query += " AND tagblock_timestamp <= ?"
+                params.append(end_ts)
+
+            # Polygon filter if you store x,y
+            if polygon_bounds:
+                query += " AND ST_Within(ST_Point(x, y), ST_GeomFromText(?))"
+                params.append(polygon_bounds)
+
+            logger.info(
+                f"Executing UTC/Date (10/11) query: {query} with params: {params}")
+            df = cached_query(conn, query, params, True)
+            if df.empty:
+                return gpd.GeoDataFrame(columns=["geometry"])
+
+            # Build geometry from x,y
+            df["geometry"] = gpd.points_from_xy(df["x"], df["y"])
+            return gpd.GeoDataFrame(df, geometry="geometry", crs="EPSG:4326")
+
+        except duckdb.Error as db_err:
+            logger.error(f"DuckDB error: {db_err}")
+        except ValueError as ve:
+            logger.error(f"Value error: {ve}")
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}")
+
+        return gpd.GeoDataFrame()
+
+
 class SystemManagementMessages(BaseMessageProcessor):
     """
     For 15,16,17,20,22,23
