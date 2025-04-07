@@ -774,6 +774,61 @@ class TestAidToNavigationMessages:
         assert df.loc[0, "mmsi"] == 993123456, "AtoN MMSI mismatch."
         assert df.loc[0, "name"] == "TEST BUOY"
 
+    def test_process_works(self, setup_new_db):
+        """
+        Test that processing a file inserts messages into ais_msg_21.
+        """
+        db = setup_new_db
+        processor = db.aton()
+        processor.process(AIS_FILE_PATH)
+        conn = db.connection()
+
+        count = conn.execute("SELECT count(*) FROM ais_msg_21").fetchone()[0]
+        print("Rows in ais_msg_21:", count)
+        assert count > 0, "Expected ais_msg_21 table to have data after processing."
+
+    # todo(thalia): add to search based of aton identifier
+    def test_search_works(self, setup_existing_db):
+        """
+        Test search functionality for AtoN messages.
+        Using mmsi: 993672272 from the inserted test message.
+        """
+        db = setup_existing_db
+        processor = db.aton()
+
+        # 1. Search with no filters.
+        result_all = processor.search()
+        print("AtoN (No filters):", result_all)
+        assert isinstance(result_all,
+                          pd.DataFrame), "Expected a DataFrame with no filters."
+        assert not result_all.empty, "Expected non-empty DataFrame when no filters are applied."
+
+        # 2. Search by valid MMSI.
+        result_mmsi = processor.search(mmsi=993672272)
+        print("AtoN (MMSI 993672272):", result_mmsi)
+        assert isinstance(result_mmsi,
+                          pd.DataFrame), "Expected a DataFrame for valid MMSI."
+        assert not result_mmsi.empty, "Expected at least one row for mmsi 993123456."
+
+        # 3. Search by non-existent MMSI should return an empty DataFrame.
+        result_invalid = processor.search(mmsi=9999999,
+                                          start_date="2016-07-27",
+                                          end_date="2016-07-29")
+        print("AtoN (Invalid MMSI):", result_invalid)
+        assert isinstance(result_invalid,
+                          pd.DataFrame), "Expected a DataFrame for an invalid MMSI."
+        assert result_invalid.empty, "Expected an empty DataFrame for an invalid MMSI."
+
+        # 4. Search by date range.
+        result_date_range = processor.search(start_date="2016-07-27",
+                                             end_date="2016-07-29")
+        print("AtoN (Date Range):", result_date_range)
+        assert isinstance(result_date_range,
+                          pd.DataFrame), "Expected a DataFrame for the date range."
+        assert not result_date_range.empty, "Expected data for the given dates."
+
+
+
 class TestBaseStationMessages:
     def test_insert_base_station_message(self, setup_new_db):
         """
@@ -821,15 +876,117 @@ class TestBaseStationMessages:
             "MMSI mismatch, check your test value."
         assert df.loc[0, "year"] == 2023, "Year mismatch."
 
-class TestSafetyAndAcknowledgementMessages:
-    def test_insert_safety_and_ack_messages(self, setup_new_db):
+    def test_process_works(self, setup_new_db):
         """
-        Test inserting message 7/13 (ack) and 12/14 (safety) into ais_msg_7_13 / ais_msg_12_14.
+        Test that processing a file inserts messages into ais_msg_4.
         """
         db = setup_new_db
-        processor = db.safety_and_ack()
+        processor = db.base_station()
+        processor.process(AIS_FILE_PATH)
+        conn = db.connection()
 
-        # Sample ack (7)
+        count = conn.execute("SELECT COUNT(*) FROM ais_msg_4").fetchone()[0]
+        print("Rows in ais_msg_4:", count)
+        assert count > 0, "Expected ais_msg_4 table to have data after processing."
+
+    def test_search_works(self, setup_existing_db):
+        """
+        Test search functionality for Base Station messages.
+        For example, using MMSI 3660619 (as in the insert test).
+        """
+        db = setup_existing_db
+        processor = db.base_station()
+
+        # 1. Search with no filters.
+        result_all = processor.search()
+        print("Base Station (No filters):", result_all)
+        assert isinstance(result_all,
+                          pd.DataFrame), "Expected a DataFrame with no filters."
+        assert not result_all.empty, "Expected non-empty DataFrame when no filters are applied."
+
+        # 2. Search by valid MMSI.
+        result_mmsi = processor.search(mmsi=3660619)
+        print("Base Station (MMSI 3660619):", result_mmsi)
+        assert isinstance(result_mmsi,
+                          pd.DataFrame), "Expected a DataFrame for valid MMSI."
+        assert not result_mmsi.empty, "Expected at least one row for MMSI 3669707."
+
+        # 3. Search by invalid MMSI.
+        result_invalid = processor.search(mmsi=9999999,
+                                          start_date="2016-07-27",
+                                          end_date="2016-07-29")
+        print("Base Station (Invalid MMSI):", result_invalid)
+        assert isinstance(result_invalid,
+                          pd.DataFrame), "Expected a DataFrame for an invalid MMSI."
+        assert result_invalid.empty, "Expected an empty DataFrame for an invalid MMSI."
+
+        # 4. Search by date range.
+        result_date_range = processor.search(start_date="2016-07-27",
+                                             end_date="2016-07-29")
+        print("Base Station (Date Range):", result_date_range)
+        assert isinstance(result_date_range,
+                          pd.DataFrame), "Expected a DataFrame for the date range."
+        assert not result_date_range.empty, "Expected data for the given date range."
+
+# class TestSafetyAndAcknowledgementMessages:
+#     def test_insert_safety_and_ack_messages(self, setup_new_db):
+#         """
+#         Test inserting message 7/13 (ack) and 12/14 (safety) into ais_msg_7_13 / ais_msg_12_14.
+#         """
+#         db = setup_new_db
+#         processor = db.safety_and_ack()
+#
+#         # Sample ack (7)
+#         sample_ack_7 = {
+#             "id": 7,
+#             "repeat_indicator": 0,
+#             "mmsi": 777777777,
+#             "ack_count": 2,
+#             "ack_slot": 500,
+#             "tagblock_group": {"sentence": 1, "id": 777},
+#             "tagblock_line_count": 700,
+#             "tagblock_station": "ACK-STATION",
+#             "tagblock_timestamp": 1600030000
+#         }
+#
+#         # Sample safety (14)
+#         sample_safety_14 = {
+#             "id": 14,
+#             "repeat_indicator": 0,
+#             "mmsi": 888888888,
+#             "message_text": "SECURITY ALERT",
+#             "tagblock_group": {"sentence": 1, "id": 888},
+#             "tagblock_line_count": 800,
+#             "tagblock_station": "SAFETY-STATION",
+#             "tagblock_timestamp": 1600030050
+#         }
+#
+#         processor._insert_message(sample_ack_7)
+#         processor._insert_message(sample_safety_14)
+#
+#         # Check ais_msg_7_13
+#         df_7_13 = db.connection().execute("SELECT * FROM ais_msg_7_13").fetchdf()
+#         print("ais_msg_7_13:", df_7_13)
+#         assert len(df_7_13) == 1, "Expected 1 row in ais_msg_7_13."
+#         assert df_7_13.loc[0, "id"] == 7, "Expected id=7 in ais_msg_7_13."
+#
+#         # Check ais_msg_12_14
+#         df_12_14 = db.connection().execute("SELECT * FROM ais_msg_12_14").fetchdf()
+#         print("ais_msg_12_14:", df_12_14)
+#         assert len(df_12_14) == 1, "Expected 1 row in ais_msg_12_14."
+#         assert df_12_14.loc[0, "id"] == 14, "Expected id=14 in ais_msg_12_14."
+#         assert df_12_14.loc[0, "message_text"] == "SECURITY ALERT"
+
+class TestAcknowledgementMessages:
+    def test_insert_message(self, setup_new_db):
+        """
+        Test inserting an Acknowledgement Message (Types 7 or 13) into ais_msg_7_13,
+        then verify the row is present.
+        """
+        db = setup_new_db
+        # Instantiate the new acknowledgement processor.
+        processor = db.ack()
+
         sample_ack_7 = {
             "id": 7,
             "repeat_indicator": 0,
@@ -841,8 +998,64 @@ class TestSafetyAndAcknowledgementMessages:
             "tagblock_station": "ACK-STATION",
             "tagblock_timestamp": 1600030000
         }
+        processor._insert_message(sample_ack_7)
 
-        # Sample safety (14)
+        df = db.connection().execute("SELECT * FROM ais_msg_7_13").fetchdf()
+        print("Inserted Acknowledgement Message:", df)
+        assert len(df) == 1, f"Expected 1 row in ais_msg_7_13, got {len(df)}."
+        assert df.loc[0, "id"] == 7, "Expected message ID 7 in ais_msg_7_13."
+
+    # todo(thalia) the file does not have msg 7 and 13
+    # def test_process_works(self, setup_new_db):
+    #     """
+    #     Test that processing a file inserts acknowledgement messages into ais_msg_7_13.
+    #     """
+    #     db = setup_new_db
+    #     processor = db.ack()
+    #     processor.process(AIS_FILE_PATH)
+    #     conn = db.connection()
+    #     count = conn.execute("SELECT COUNT(*) FROM ais_msg_7_13").fetchone()[0]
+    #     print("Rows in ais_msg_7_13 after processing:", count)
+    #     assert count > 0, "Expected ais_msg_7_13 table to have data after processing."
+    #
+    # def test_search_works(self, setup_existing_db):
+    #     """
+    #     Test search functionality for Acknowledgement messages.
+    #     """
+    #     db = setup_existing_db
+    #     processor = db.ack()
+    #
+    #     # 1. Search with no filters.
+    #     result_all = processor.search()
+    #     print("Acknowledgement search (no filters):", result_all)
+    #     assert isinstance(result_all,
+    #                       pd.DataFrame), "Expected a DataFrame with no filters."
+    #     # 2. Search by valid MMSI.
+    #     result_mmsi = processor.search(mmsi=777777777)
+    #     print("Acknowledgement search (MMSI 777777777):", result_mmsi)
+    #     assert isinstance(result_mmsi,
+    #                       pd.DataFrame), "Expected a DataFrame for valid MMSI."
+    #     assert not result_mmsi.empty, "Expected non-empty result for MMSI 777777777."
+    #     # 3. Search by an invalid MMSI.
+    #     result_invalid = processor.search(mmsi=9999999,
+    #                                       start_date="2016-07-27",
+    #                                       end_date="2016-07-29")
+    #     print("Acknowledgement search (invalid MMSI):", result_invalid)
+    #     assert isinstance(result_invalid,
+    #                       pd.DataFrame), "Expected a DataFrame for invalid MMSI."
+    #     assert result_invalid.empty, "Expected empty result for invalid MMSI."
+
+
+class TestSafetyMessages:
+    def test_insert_message(self, setup_new_db):
+        """
+        Test inserting a Safety Message (Types 12 or 14) into ais_msg_12_14,
+        then verify the row is present.
+        """
+        db = setup_new_db
+        # Instantiate the new safety processor.
+        processor = db.safety()
+
         sample_safety_14 = {
             "id": 14,
             "repeat_indicator": 0,
@@ -853,22 +1066,56 @@ class TestSafetyAndAcknowledgementMessages:
             "tagblock_station": "SAFETY-STATION",
             "tagblock_timestamp": 1600030050
         }
-
-        processor._insert_message(sample_ack_7)
         processor._insert_message(sample_safety_14)
 
-        # Check ais_msg_7_13
-        df_7_13 = db.connection().execute("SELECT * FROM ais_msg_7_13").fetchdf()
-        print("ais_msg_7_13:", df_7_13)
-        assert len(df_7_13) == 1, "Expected 1 row in ais_msg_7_13."
-        assert df_7_13.loc[0, "id"] == 7, "Expected id=7 in ais_msg_7_13."
+        df = db.connection().execute("SELECT * FROM ais_msg_12_14").fetchdf()
+        print("Inserted Safety Message:", df)
+        assert len(df) == 1, f"Expected 1 row in ais_msg_12_14, got {len(df)}."
+        assert df.loc[
+                   0, "id"] == 14, "Expected message ID 14 in ais_msg_12_14."
+        assert df.loc[
+                   0, "message_text"] == "SECURITY ALERT", "Message text mismatch."
 
-        # Check ais_msg_12_14
-        df_12_14 = db.connection().execute("SELECT * FROM ais_msg_12_14").fetchdf()
-        print("ais_msg_12_14:", df_12_14)
-        assert len(df_12_14) == 1, "Expected 1 row in ais_msg_12_14."
-        assert df_12_14.loc[0, "id"] == 14, "Expected id=14 in ais_msg_12_14."
-        assert df_12_14.loc[0, "message_text"] == "SECURITY ALERT"
+    # todo(thalia): file does not have msg 12 and 14
+    # def test_process_works(self, setup_new_db):
+    #     """
+    #     Test that processing a file inserts safety messages into ais_msg_12_14.
+    #     """
+    #     db = setup_new_db
+    #     processor = db.safety()
+    #     processor.process(AIS_FILE_PATH)
+    #     conn = db.connection()
+    #     count = conn.execute("SELECT COUNT(*) FROM ais_msg_12_14").fetchone()[
+    #         0]
+    #     print("Rows in ais_msg_12_14 after processing:", count)
+    #     assert count > 0, "Expected ais_msg_12_14 table to have data after processing."
+    #
+    # def test_search_works(self, setup_existing_db):
+    #     """
+    #     Test search functionality for Safety messages.
+    #     """
+    #     db = setup_existing_db
+    #     processor = db.safety()
+    #
+    #     # 1. Search with no filters.
+    #     result_all = processor.search()
+    #     print("Safety search (no filters):", result_all)
+    #     assert isinstance(result_all,
+    #                       pd.DataFrame), "Expected a DataFrame with no filters."
+    #     # 2. Search by valid MMSI.
+    #     result_mmsi = processor.search(mmsi=888888888)
+    #     print("Safety search (MMSI 888888888):", result_mmsi)
+    #     assert isinstance(result_mmsi,
+    #                       pd.DataFrame), "Expected a DataFrame for valid MMSI."
+    #     assert not result_mmsi.empty, "Expected non-empty result for MMSI 888888888."
+    #     # 3. Search by an invalid MMSI.
+    #     result_invalid = processor.search(mmsi=9999999,
+    #                                       start_date="2016-07-27",
+    #                                       end_date="2016-07-29")
+    #     print("Safety search (invalid MMSI):", result_invalid)
+    #     assert isinstance(result_invalid,
+    #                       pd.DataFrame), "Expected a DataFrame for invalid MMSI."
+    #     assert result_invalid.empty, "Expected empty result for invalid MMSI."
 
 class TestSarAircraftMessages:
     def test_insert_sar_aircraft_message(self, setup_new_db):
@@ -906,6 +1153,65 @@ class TestSarAircraftMessages:
         assert len(df) == 1, f"Expected 1 row, got {len(df)}."
         assert df.loc[0, "mmsi"] == 999999999
         assert df.loc[0, "altitude"] == 2500
+
+    #todo(thalia) current file does not have msg 9
+    # def test_process_works(self, setup_new_db):
+    #     """
+    #     If SarAircraftMessages has a file-based process() method to parse raw AIS data
+    #     for message type 9, we can test it here. Otherwise, this is a placeholder.
+    #     """
+    #     db = setup_new_db
+    #     processor = db.sar_aircraft()
+    #
+    #     processor.process(AIS_FILE_PATH)
+    #     conn = db.connection()
+    #     count = conn.execute("SELECT COUNT(*) FROM ais_msg_9").fetchone()[
+    #         0]
+    #     mmsi = conn.execute("SELECT * FROM ais_msg_9").fetchdf()["mmsi"]
+    #     print(mmsi)
+    #     print("Rows in ais_msg_9 after processing:", count)
+    #     assert count > 0, "Expected ais_msg_9 table to have data after processing."
+    #
+    #
+    # def test_search_works(self, setup_existing_db):
+    #     """
+    #     Test the search method of SarAircraftMessages. We assume .search() is implemented
+    #     with optional filters like mmsi, start_date, end_date, polygon_bounds, etc.
+    #     """
+    #     db = setup_existing_db
+    #     processor = db.sar_aircraft()
+    #
+    #     # 1. Test search with no filters (should return all message 9 data).
+    #     result_all = processor.search()
+    #     print("SAR Aircraft (No filters):", result_all)
+    #     assert isinstance(result_all, pd.DataFrame), (
+    #         "Expected a DataFrame when no filters are provided for SAR Aircraft."
+    #     )
+    #
+    #     assert not result_all.empty, "Expected non-empty DataFrame with no filters for SAR."
+    #
+    #     # 2. Search by valid MMSI
+    #     test_mmsi = 999999999
+    #     result_mmsi = processor.search(mmsi=test_mmsi)
+    #     print("SAR (MMSI filter):", result_mmsi)
+    #     assert isinstance(result_mmsi, pd.DataFrame), "Expected a DataFrame for a valid MMSI."
+    #     assert not result_mmsi.empty, f"Expected non-empty result for MMSI {test_mmsi}."
+    #
+    #     # 3. Search by invalid MMSI -> expect empty
+    #     result_invalid_mmsi = processor.search(mmsi=123123123)
+    #     print("SAR (Invalid MMSI):", result_invalid_mmsi)
+    #     assert isinstance(result_invalid_mmsi, pd.DataFrame), "Expected a DataFrame even for invalid MMSI."
+    #     assert result_invalid_mmsi.empty, "Expected empty DataFrame for an invalid MMSI."
+    #
+    #     #todo(thalia) cleaning: have a start date and end date constant for all test cases
+    #     # 4. Search by date range (assuming you have data in that range)
+    #     start_date = "2016-07-27"
+    #     end_date="2016-07-29"
+    #     result_date_range = processor.search(start_date=start_date, end_date=end_date)
+    #     print("SAR (Date Range):", result_date_range)
+    #     assert isinstance(result_date_range, pd.DataFrame), "Expected a DataFrame for date range filters."
+    #
+
 
 class TestUtcDateMessages:
     def test_insert_utc_date_messages(self, setup_new_db):

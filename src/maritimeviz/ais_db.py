@@ -355,9 +355,17 @@ class AISDatabase:
         """Base Station Report (Type 4)."""
         return BaseStationMessages(self._conn)
 
-    def safety_and_ack(self):
-        """Factory method for Safety and Acknowledgement Messages (Types 7, 13, 12, 14)"""
-        return SafetyAndAcknowledgementMessages(self._conn)
+    # def safety_and_ack(self):
+    #     """Factory method for Safety and Acknowledgement Messages (Types 7, 13, 12, 14)"""
+    #     return SafetyAndAcknowledgementMessages(self._conn)
+
+    def safety(self):
+        """Factory method for Safety Messages (Types 7, 13)"""
+        return SafetyMessages(self._conn)
+
+    def ack(self):
+        """Factory method for Acknowledgement Messages (Types 12, 14)"""
+        return AcknowledgementMessages(self._conn)
 
     def sar_aircraft(self):
         """Factory method for Search and Rescue Aircraft Position Messages (Type 9)"""
@@ -1747,27 +1755,27 @@ class AidToNavigationMessages(BaseMessageProcessor):
             "assigned_mode": msg.get("assigned_mode")
         }
 
-        # Build leftover dict for anything else
-        used_keys = set(core_cols.keys()) | {"id", "dim_a", "dim_b", "dim_c",
-                                             "dim_d"}  # etc. if your parser uses synonyms
-        leftover = {
-            k: v for k, v in msg.items() if k not in used_keys
-        }
+        # Build leftover dict
+        used_keys = set(core_cols.keys()) | {"tagblock_group",
+                                             "tagblock_line_count",
+                                             "tagblock_station",
+                                             "tagblock_timestamp"}
+        leftover = {k: v for k, v in msg.items() if k not in used_keys}
 
         query = """
-        INSERT
-        INTO
-        ais_msg_21(
-            id, repeat_indicator, mmsi, spare, aton_type, name,
-            position_accuracy,
-            x, y, dim_a, dim_b, dim_c, dim_d, fix_type, timestamp, off_pos,
-            aton_status, raim, virtual_aton, assigned_mode,
-            application_data,
-            tagblock_group, tagblock_line_count, tagblock_station,
-            tagblock_timestamp
-        )
-        VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-        """
+            INSERT
+            INTO
+            ais_msg_21(
+                id, repeat_indicator, mmsi, spare, aton_type, name,
+                position_accuracy,
+                x, y, dim_a, dim_b, dim_c, dim_d, fix_type, timestamp, off_pos,
+                aton_status, raim, virtual_aton, assigned_mode,
+                application_data,
+                tagblock_group, tagblock_line_count, tagblock_station,
+                tagblock_timestamp
+            )
+            VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            """
         params = (
             core_cols["id"],
             core_cols["repeat_indicator"],
@@ -1789,7 +1797,7 @@ class AidToNavigationMessages(BaseMessageProcessor):
             core_cols["raim"],
             core_cols["virtual_aton"],
             core_cols["assigned_mode"],
-            json.dumps(leftover),  # leftover goes into JSON
+            json.dumps(leftover),
             json.dumps(msg.get("tagblock_group", {})),
             msg.get("tagblock_line_count"),
             msg.get("tagblock_station"),
@@ -2016,39 +2024,146 @@ class BaseStationMessages(BaseMessageProcessor):
         return gpd.GeoDataFrame()
 
 
-class SafetyAndAcknowledgementMessages(BaseMessageProcessor):
-    """
-    Handles:
-    - Message 7 & 13: Acknowledgements
-    - Message 12 & 14: Safety (addressed/broadcast)
+# class SafetyAndAcknowledgementMessages(BaseMessageProcessor):
+#     """
+#     Handles:
+#     - Message 7 & 13: Acknowledgements
+#     - Message 12 & 14: Safety (addressed/broadcast)
+#
+#     Because they have different table schemas, we do branching in _insert_message().
+#     """
+#
+#     def __init__(self, conn):
+#         super().__init__(conn)
+#         # Create both tables
+#         self._conn.execute(QUERY_CREATE_TABLE_7_13)
+#         self._conn.execute(QUERY_CREATE_TABLE_12_14)
+#
+#     def _filter_message(self, msg: dict) -> bool:
+#         return msg.get("id") in {7, 13, 12, 14}
+#
+#     def _insert_message(self, msg: dict):
+#         msg_id = msg.get("id")
+#         if msg_id in {7, 13}:
+#             self._insert_ack(msg)   # Insert to ais_msg_7_13
+#         else:
+#             self._insert_safety(msg)  # Insert to ais_msg_12_14
+#
+#     def _insert_ack(self, msg: dict):
+#         """Insert for messages 7 & 13."""
+#         core_cols = {
+#             "id": msg.get("id"),
+#             "repeat_indicator": msg.get("repeat_indicator"),
+#             "mmsi": msg.get("mmsi"),
+#             "ack_count": msg.get("ack_count"),  # if your decoder calculates it
+#         }
+#         used_keys = set(core_cols.keys())
+#         leftover = {k: v for k, v in msg.items() if k not in used_keys}
+#
+#         query = """
+#         INSERT INTO ais_msg_7_13 (
+#             id, repeat_indicator, mmsi, ack_count,
+#             application_data, tagblock_group, tagblock_line_count,
+#             tagblock_station, tagblock_timestamp
+#         )
+#         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+#         """
+#         params = (
+#             core_cols["id"],
+#             core_cols["repeat_indicator"],
+#             core_cols["mmsi"],
+#             core_cols["ack_count"],
+#             json.dumps(leftover),
+#             json.dumps(msg.get("tagblock_group", {})),
+#             msg.get("tagblock_line_count"),
+#             msg.get("tagblock_station"),
+#             msg.get("tagblock_timestamp"),
+#         )
+#         self._conn.execute(query, params)
+#
+#     def _insert_safety(self, msg: dict):
+#         """Insert for messages 12 & 14."""
+#         core_cols = {
+#             "id": msg.get("id"),
+#             "repeat_indicator": msg.get("repeat_indicator"),
+#             "mmsi": msg.get("mmsi"),
+#             "message_text": msg.get("message_text"),
+#             "addressed": (msg.get("id") == 12),
+#         }
+#         used_keys = set(core_cols.keys())
+#         leftover = {k: v for k, v in msg.items() if k not in used_keys}
+#
+#         query = """
+#         INSERT INTO ais_msg_12_14 (
+#             id, repeat_indicator, mmsi, message_text, addressed,
+#             application_data, tagblock_group, tagblock_line_count,
+#             tagblock_station, tagblock_timestamp
+#         )
+#         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+#         """
+#         params = (
+#             core_cols["id"],
+#             core_cols["repeat_indicator"],
+#             core_cols["mmsi"],
+#             core_cols["message_text"],
+#             core_cols["addressed"],
+#             json.dumps(leftover),
+#             json.dumps(msg.get("tagblock_group", {})),
+#             msg.get("tagblock_line_count"),
+#             msg.get("tagblock_station"),
+#             msg.get("tagblock_timestamp"),
+#         )
+#         self._conn.execute(query, params)
+#
+#     # TODO(THALIA) have a search method and two more per table like search_ack() and search_safety()
+#
+#     def search_ack(self, mmsi=None, conn=None, **kwargs):
+#         """Search for Messages 7 & 13 in ais_msg_7_13"""
+#         # Example minimal version:
+#         if not conn:
+#             conn = self._conn
+#         query = "SELECT * FROM ais_msg_7_13 WHERE 1=1"
+#         params = []
+#         if mmsi:
+#             query += " AND mmsi = ?"
+#             params.append(mmsi)
+#
+#         df = cached_query(conn, query, params, True)
+#         return df  # Typically no geometry
+#
+#     def search_safety(self, mmsi=None, conn=None, **kwargs):
+#         """Search for Messages 12 & 14 in ais_msg_12_14"""
+#         if not conn:
+#             conn = self._conn
+#         query = "SELECT * FROM ais_msg_12_14 WHERE 1=1"
+#         params = []
+#         if mmsi:
+#             query += " AND mmsi = ?"
+#             params.append(mmsi)
+#
+#         df = cached_query(conn, query, params, True)
+#         return df
 
-    Because they have different table schemas, we do branching in _insert_message().
-    """
 
+class AcknowledgementMessages(BaseMessageProcessor):
+    """
+    Processes Acknowledgement Messages (Types 7 and 13).
+    Inserts messages into the ais_msg_7_13 table.
+    """
     def __init__(self, conn):
         super().__init__(conn)
-        # Create both tables
-        self._conn.execute(QUERY_CREATE_TABLE_7_13)
-        self._conn.execute(QUERY_CREATE_TABLE_12_14)
 
     def _filter_message(self, msg: dict) -> bool:
-        return msg.get("id") in {7, 13, 12, 14}
+        return msg.get("id") in {7, 13}
 
     def _insert_message(self, msg: dict):
-        msg_id = msg.get("id")
-        if msg_id in {7, 13}:
-            self._insert_ack(msg)   # Insert to ais_msg_7_13
-        else:
-            self._insert_safety(msg)  # Insert to ais_msg_12_14
-
-    def _insert_ack(self, msg: dict):
-        """Insert for messages 7 & 13."""
         core_cols = {
             "id": msg.get("id"),
             "repeat_indicator": msg.get("repeat_indicator"),
             "mmsi": msg.get("mmsi"),
-            "ack_count": msg.get("ack_count"),  # if your decoder calculates it
+            "ack_count": msg.get("ack_count")
         }
+        # Build leftover dictionary from any keys not in core_cols.
         used_keys = set(core_cols.keys())
         leftover = {k: v for k, v in msg.items() if k not in used_keys}
 
@@ -2069,18 +2184,42 @@ class SafetyAndAcknowledgementMessages(BaseMessageProcessor):
             json.dumps(msg.get("tagblock_group", {})),
             msg.get("tagblock_line_count"),
             msg.get("tagblock_station"),
-            msg.get("tagblock_timestamp"),
+            msg.get("tagblock_timestamp")
         )
         self._conn.execute(query, params)
 
-    def _insert_safety(self, msg: dict):
-        """Insert for messages 12 & 14."""
+    def search(self, mmsi=None, conn=None, **kwargs):
+        """Search for Acknowledgement messages (Types 7 & 13) in ais_msg_7_13."""
+        if not conn:
+            conn = self._conn
+        query = "SELECT * FROM ais_msg_7_13 WHERE 1=1"
+        params = []
+        if mmsi:
+            query += " AND mmsi = ?"
+            params.append(mmsi)
+        df = cached_query(conn, query, params, True)
+        return df
+
+
+class SafetyMessages(BaseMessageProcessor):
+    """
+    Processes Safety Messages (Types 12 and 14).
+    Inserts messages into the ais_msg_12_14 table.
+    """
+    def __init__(self, conn):
+        super().__init__(conn)
+
+    def _filter_message(self, msg: dict) -> bool:
+        return msg.get("id") in {12, 14}
+
+    def _insert_message(self, msg: dict):
         core_cols = {
             "id": msg.get("id"),
             "repeat_indicator": msg.get("repeat_indicator"),
             "mmsi": msg.get("mmsi"),
             "message_text": msg.get("message_text"),
-            "addressed": (msg.get("id") == 12),
+            # For message 12, "addressed" is True; for 14 it is False.
+            "addressed": (msg.get("id") == 12)
         }
         used_keys = set(core_cols.keys())
         leftover = {k: v for k, v in msg.items() if k not in used_keys}
@@ -2103,28 +2242,12 @@ class SafetyAndAcknowledgementMessages(BaseMessageProcessor):
             json.dumps(msg.get("tagblock_group", {})),
             msg.get("tagblock_line_count"),
             msg.get("tagblock_station"),
-            msg.get("tagblock_timestamp"),
+            msg.get("tagblock_timestamp")
         )
         self._conn.execute(query, params)
 
-    # TODO(THALIA) have a search method and two more per table like search_ack() and search_safety()
-
-    def search_ack(self, mmsi=None, conn=None, **kwargs):
-        """Search for Messages 7 & 13 in ais_msg_7_13"""
-        # Example minimal version:
-        if not conn:
-            conn = self._conn
-        query = "SELECT * FROM ais_msg_7_13 WHERE 1=1"
-        params = []
-        if mmsi:
-            query += " AND mmsi = ?"
-            params.append(mmsi)
-
-        df = cached_query(conn, query, params, True)
-        return df  # Typically no geometry
-
-    def search_safety(self, mmsi=None, conn=None, **kwargs):
-        """Search for Messages 12 & 14 in ais_msg_12_14"""
+    def search(self, mmsi=None, conn=None, **kwargs):
+        """Search for Safety messages (Types 12 & 14) in ais_msg_12_14."""
         if not conn:
             conn = self._conn
         query = "SELECT * FROM ais_msg_12_14 WHERE 1=1"
@@ -2132,11 +2255,9 @@ class SafetyAndAcknowledgementMessages(BaseMessageProcessor):
         if mmsi:
             query += " AND mmsi = ?"
             params.append(mmsi)
-
         df = cached_query(conn, query, params, True)
         return df
 
-import json
 
 class SarAircraftMessages(BaseMessageProcessor):
     """
@@ -2198,8 +2319,109 @@ class SarAircraftMessages(BaseMessageProcessor):
             msg.get("tagblock_timestamp"),
         )
 
-        self.conn.execute(query, data_tuple)
-        self.conn.commit()
+        self._conn.execute(query, data_tuple)
+        self._conn.commit()
+
+    def search(self,
+               mmsi: Optional[Union[int, List[int]]] = None,
+               conn: Optional[duckdb.DuckDBPyConnection] = None,
+               start_date: Optional[str] = None,
+               end_date: Optional[str] = None,
+               polygon_bounds: Optional[str] = None,
+               min_altitude: Optional[int] = None,
+               max_altitude: Optional[int] = None,
+               min_sog: Optional[float] = None,
+               max_sog: Optional[float] = None) -> gpd.GeoDataFrame:
+        """
+        Search SAR Aircraft data (Message 9) with optional filters.
+
+        Parameters:
+            mmsi (int | list[int], optional): Filter by one or multiple MMSIs.
+            conn (duckdb.DuckDBPyConnection, optional): DB connection (defaults to self._conn).
+            start_date (str, optional): Start date in 'YYYY-MM-DD' format.
+            end_date (str, optional): End date in 'YYYY-MM-DD' format.
+            polygon_bounds (str, optional): WKT polygon to filter by location.
+            min_altitude (int, optional): Minimum altitude to filter.
+            max_altitude (int, optional): Maximum altitude to filter.
+            min_sog (float, optional): Minimum speed over ground (knots).
+            max_sog (float, optional): Maximum speed over ground (knots).
+
+        Returns:
+            gpd.GeoDataFrame: Results with geometry built from x,y.
+        """
+        if not conn:
+            conn = self._conn
+
+        try:
+            query = "SELECT * FROM ais_msg_9 WHERE 1=1"
+            params = []
+
+            # MMSI filter
+            if mmsi is not None:
+                if isinstance(mmsi, int):
+                    query += " AND mmsi = ?"
+                    params.append(mmsi)
+                elif isinstance(mmsi, list) and all(
+                    isinstance(x, int) for x in mmsi):
+                    placeholders = ", ".join(["?"] * len(mmsi))
+                    query += f" AND mmsi IN ({placeholders})"
+                    params.extend(mmsi)
+                else:
+                    raise ValueError("mmsi must be an int or list of ints.")
+
+            # Date range filter
+            if start_date:
+                start_ts = date_to_tagblock_timestamp(
+                    *map(int, start_date.split("-")))
+                query += " AND tagblock_timestamp >= ?"
+                params.append(start_ts)
+
+            if end_date:
+                end_ts = date_to_tagblock_timestamp(
+                    *map(int, end_date.split("-")))
+                query += " AND tagblock_timestamp <= ?"
+                params.append(end_ts)
+
+            # Polygon bounds filter
+            if polygon_bounds:
+                # param for WKT string
+                query += " AND ST_Within(ST_Point(x, y), ST_GeomFromText(?))"
+                params.append(polygon_bounds)
+
+            # Altitude filters
+            if min_altitude is not None:
+                query += " AND altitude >= ?"
+                params.append(min_altitude)
+            if max_altitude is not None:
+                query += " AND altitude <= ?"
+                params.append(max_altitude)
+
+            # SOG filters
+            if min_sog is not None:
+                query += " AND sog >= ?"
+                params.append(min_sog)
+            if max_sog is not None:
+                query += " AND sog <= ?"
+                params.append(max_sog)
+
+            logger.info(
+                f"Executing SAR Aircraft (Message 9) query: {query} with params {params}")
+            df = cached_query(conn, query, params, return_df=True)
+            if df.empty:
+                return gpd.GeoDataFrame(columns=["geometry"])
+
+            # Convert x,y to geometry
+            df["geometry"] = gpd.points_from_xy(df["x"], df["y"])
+            return gpd.GeoDataFrame(df, geometry="geometry", crs="EPSG:4326")
+
+        except duckdb.Error as db_err:
+            logger.error(f"DuckDB error: {db_err}")
+        except ValueError as ve:
+            logger.error(f"Value error: {ve}")
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}")
+
+        return gpd.GeoDataFrame()
 
 
 class UtcDateMessages(BaseMessageProcessor):

@@ -305,7 +305,7 @@ CREATE TABLE IF NOT EXISTS ais_msg_7_13 (
     id INTEGER,                -- 7 or 13
     repeat_indicator INTEGER,
     mmsi BIGINT,
-    ack_count INTEGER,         -- or skip if you prefer storing in JSON
+    ack_count INTEGER,         -- could store in JSON
 
     application_data JSON,
     tagblock_group JSON,
