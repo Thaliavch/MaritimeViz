@@ -2746,3 +2746,91 @@ class SystemManagementMessages(BaseMessageProcessor):
 
         self._conn.execute(query, data_tuple)
         self._conn.commit()
+
+    def search(
+        self,
+        msg_id: Optional[Union[int, List[int]]] = None,
+        mmsi: Optional[Union[int, List[int]]] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        conn: Optional[duckdb.DuckDBPyConnection] = None
+    ) -> gpd.GeoDataFrame:
+        """
+        Return a minimal query on system management messages (15,16,17,20,22,23)
+        with optional filtering by:
+          - msg_id: single int or list of {15,16,17,20,22,23}
+          - mmsi: single int or list
+          - start_date, end_date: date range (based on tagblock_timestamp)
+
+        We omit lat/lon filtering for now (some messages don't have them anyway).
+        """
+        if not conn:
+            conn = self._conn
+
+        try:
+            query = "SELECT * FROM ais_msg_15_16_17_20_22_23 WHERE 1=1"
+            params = []
+
+            # todo(thalia) add a logging info message if an invalid id is given
+            valid_ids = {15, 16, 17, 20, 22, 23}
+            # Filter by message ID(s)
+            if msg_id is not None:
+                if isinstance(msg_id, int):
+                    msg_id = [msg_id]
+                requested_ids = set(msg_id).intersection(valid_ids)
+                if requested_ids:
+                    placeholders = ", ".join(["?"] * len(requested_ids))
+                    query += f" AND id IN ({placeholders})"
+                    params.extend(requested_ids)
+                else:
+                    # If user requested IDs not in {15,16,17,20,22,23}, return empty
+                    return gpd.GeoDataFrame(columns=["geometry"])
+
+            # Filter by MMSI (either single int or list of ints)
+            if mmsi is not None:
+                if isinstance(mmsi, int):
+                    query += " AND mmsi = ?"
+                    params.append(mmsi)
+                elif (isinstance(mmsi, list)
+                      and all(isinstance(i, int) for i in mmsi)):
+                    placeholders = ", ".join(["?"] * len(mmsi))
+                    query += f" AND mmsi IN ({placeholders})"
+                    params.extend(mmsi)
+                else:
+                    raise ValueError("MMSI must be an int or list of ints.")
+
+            # Date range (using tagblock_timestamp)
+            if start_date:
+                start_ts = date_to_tagblock_timestamp(
+                    *map(int, start_date.split("-"))
+                )
+                query += " AND tagblock_timestamp >= ?"
+                params.append(start_ts)
+
+            if end_date:
+                end_ts = date_to_tagblock_timestamp(
+                    *map(int, end_date.split("-"))
+                )
+                query += " AND tagblock_timestamp <= ?"
+                params.append(end_ts)
+
+            logger.info(
+                f"System Management query: {query} with params={params}")
+            df = cached_query(conn, query, params, True)
+            if df.empty:
+                # Return an empty GeoDataFrame with a geometry column
+                return gpd.GeoDataFrame(columns=["geometry"])
+
+            # We won't do lat/lon geometry building here
+            # We can just return a normal DataFrame as a GeoDataFrame with no geometry
+            return gpd.GeoDataFrame(df, geometry=None)
+
+        except duckdb.Error as db_err:
+            logger.error(f"DuckDB error: {db_err}")
+        except ValueError as ve:
+            logger.error(f"Value error: {ve}")
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}")
+
+        # On any failure, return empty
+        return gpd.GeoDataFrame()
