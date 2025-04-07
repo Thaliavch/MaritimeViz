@@ -1441,17 +1441,21 @@ class TestSystemManagementMessages:
             "tagblock_timestamp": 1469665360
         }
 
+        # Now verify we have 6 rows in ais_msg_15_16_17_20_22_23
+        database = db.connection().execute("PRAGMA table_info('ais_msg_15_16_17_20_22_23')").fetchdf()
+        print("table info: ", database)
+
         # Insert them all
         for msg in [sample_msg_15, sample_msg_16, sample_msg_17, sample_msg_20, sample_msg_22, sample_msg_23]:
             processor._insert_message(msg)
 
-        # Now verify we have 6 rows in ais_msg_15_16_17_20_22_23
+        # debugging
         df = db.connection().execute("SELECT * FROM ais_msg_15_16_17_20_22_23").fetchdf()
         print(df)  # For debugging
 
         assert len(df) == 6, f"Expected 6 rows, got {len(df)}."
 
-        # Optionally check that we have each message type present.
+        # Check that we have each message type present.
         ids = sorted(df["id"].unique().tolist())
         assert ids == [15, 16, 17, 20, 22, 23], f"Expected IDs [15,16,17,20,22,23], got {ids}"
 
