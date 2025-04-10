@@ -67,31 +67,44 @@ def get_info(row):
 
     return name, info_text
 
-def plot_with_info(route_geojson, m):
-    """
-        Plots markers with informational popups on a Folium map for each valid geometry point in a GeoDataFrame.
+def geojson_to_wkt(geojson_polygon):
 
-        Parameters:
-        - route_geojson (GeoDataFrame): A GeoPandas GeoDataFrame containing point geometries and associated data.
-        - m (folium.Map): A Folium Map object where markers will be added.
+    coords = geojson_polygon["geometry"]["coordinates"][0]
+    coord_strings = [f"{lon} {lat}" for lon, lat in coords]
+    coord_block = ",\n".join(coord_strings)
+    wkt = f"POLYGON((\n{coord_block}\n))"
+    return wkt
 
-        This method iterates through each row in the GeoDataFrame, retrieves a name and info text using
-        self.get_info(row), and places a marker on the map at the geometry's coordinates. Each marker includes
-        a popup with the info text and a tooltip.
-        """
 
-    for _, row in route_geojson.iterrows():
-        name, info_text = self.get_info(row)
+def plot_with_info(gdf, m, speed_flag=False, color="blue"):
 
-        if row.geometry and hasattr(row.geometry, "x") and hasattr(row.geometry, "y"):
-            folium.Marker(
-                icon=folium.Icon(color="blue", icon="ship", prefix="fa"),
-                location=[row.geometry.y, row.geometry.x],
-                popup=folium.Popup(info_text, max_width=300),
-                tooltip='Press for more info'
-            ).add_to(m)
+  for _, row in gdf.iterrows():
+      name, info_text = get_info(row)
+      color = color
 
-    display(m)
+      if speed_flag:
+          speed = row["speed"]
+          if speed <= 2:
+              color = "green"
+          elif speed <= 10:
+              color = "blue"
+          elif speed <= 25:
+              color = "orange"
+          elif speed <= 30:
+              color = "red"
+          else:
+              color = "purple"
+
+      if row.geometry and hasattr(row.geometry, "x") and hasattr(row.geometry, "y"):
+          folium.Marker(
+              icon=folium.Icon(color=color, icon="ship", prefix="fa"),
+              location=[row.geometry.y, row.geometry.x],  # Latitude, Longitude
+              popup=folium.Popup(info_text, max_width=300),  # Display all available info
+              tooltip='Press for more info'  # Use available identifier
+          ).add_to(m)
+
+      display(m)
+      return m
 
 def check_printable_icon(row):
 
@@ -120,7 +133,7 @@ def check_printable_icon(row):
         return "plus"
     else:
         return "asterisk"
-    
+
 def verify_geojson(geojson_data):
     """
     Verify if the provided GeoJSON is valid and convert it into a GeoDataFrame.

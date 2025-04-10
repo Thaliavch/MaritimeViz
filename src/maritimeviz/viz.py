@@ -14,7 +14,6 @@ from folium.plugins import HeatMap
 
 from src.maritimeviz.utils.viz_utils import *
 
-from MaritimeViz.src.maritimeviz.utils.viz_utils import verify_geojson
 
 
 class Map:
@@ -394,4 +393,5 @@ class Map:
         m.add_title("Map by MMSI", font_size="20px", align="center")
         m.add_basemap(map_tile)
 
-        plot_with_info(ship, m)
+        n = plot_with_info(ship, m)
+        return n
