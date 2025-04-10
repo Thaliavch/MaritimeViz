@@ -14,6 +14,9 @@ from folium.plugins import HeatMap
 
 from src.maritimeviz.utils.viz_utils import *
 
+from MaritimeViz.src.maritimeviz.utils.viz_utils import verify_geojson
+
+
 class Map:
     """
     A simple Map class to visualize AIS data using leafmap.
@@ -125,14 +128,14 @@ class Map:
             polygon = loads(wkt_polygon)  # Convert WKT string to Shapely Polygon
         except Exception:
             raise ValueError("Invalid WKT polygon format")
-        
+
         gdf["geometry"] = gpd.points_from_xy(gdf.longitude, gdf.latitude)  # Convert lat/lon to points
 
         return gdf[gdf.geometry.within(polygon)]  # Filter points within the polygon
 
     def ship_map_by_polygon(self, wkt_polygon, geojson_data, map_tile='HYBRID'):
         """
-        Creates an interactive map displaying ships located **inside the given WKT polygon**, 
+        Creates an interactive map displaying ships located **inside the given WKT polygon**,
         with markers colored based on their speed.
 
         Parameters:
@@ -228,7 +231,7 @@ class Map:
         - The selected base map.
         - str message if no ship is found with the given MMSI or if there are not enough data points to draw a route.
         """
-  
+
         # Verify and load GeoJSON data
         gdf = verify_geojson(geojson_data)
 
@@ -370,3 +373,25 @@ class Map:
             ).add_to(m)
 
         return m
+
+
+    def ship_by_mmsi(self, geojson_data, mmsi = None, map_tile="HYBRID"):
+        if mmsi is None:
+            return 'No mmsi provided'
+
+        if geojson_data is None:
+            return 'No geojson provided'
+
+        gdf = verify_geojson(geojson_data)
+
+        if mmsi in gdf.mmsi.values:
+            ship = gdf[gdf.mmsi == mmsi]
+
+        else:
+            return 'No ship found with that mssi'
+
+        m = leafmap.foliumap.Map(location=[ship.latitude.mean(), ship.longitude.mean()], zoom_start=4)
+        m.add_title("Map by MMSI", font_size="20px", align="center")
+        m.add_basemap(map_tile)
+
+        plot_with_info(ship, m)

@@ -63,3 +63,7 @@ def test_filter_ships_by_invalid_polygon(sample_gdf):
     with pytest.raises(ValueError, match="Invalid WKT polygon format"):
         map_obj.filter_ships_by_polygon(invalid_wkt, sample_gdf)
 
+def test_ship_by_mmsi(sample_gdf, mmsi = 123456789):
+    map_obj = Map()
+    result = map_obj.ship_by_mmsi(mmsi)
+    assert hasattr(result, "_parent"), "Expected a valid folium map object"
