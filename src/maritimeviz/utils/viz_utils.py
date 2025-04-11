@@ -1,7 +1,10 @@
 import leafmap
 import geopandas as gpd
 import folium
+from shapely.wkt import loads
 from IPython.display import display
+from ipyleaflet import Map, DrawControl, Marker, AwesomeIcon, Polygon, LayerGroup
+from ipywidgets import HTML
 from geopandas import GeoDataFrame
 
 
@@ -74,6 +77,91 @@ def geojson_to_wkt(geojson_polygon):
     coord_block = ",\n".join(coord_strings)
     wkt = f"POLYGON((\n{coord_block}\n))"
     return wkt
+
+def update_map_with_all_ships_for_drawing(map_obj, geojson_file, features, old_marker_layer, old_polygon_layer):
+    """
+    For every drawn polygon stored in 'features', create a polygon overlay and
+    ship markers for ships within that polygon. Any previous layers are remove the map.
+    Returns the new marker and polygon layers.
+    """
+    # Remove old layers if they exist.
+    if old_marker_layer is not None and old_marker_layer in map_obj.layers:
+        map_obj.remove(old_marker_layer)
+    if old_polygon_layer is not None and old_polygon_layer in map_obj.layers:
+        map_obj.remove(old_polygon_layer)
+
+    # Create new layer groups for markers and polygon overlays.
+    new_marker_layer = LayerGroup()
+    new_polygon_layer = LayerGroup()
+
+    # Load AIS ship data once.
+    gdf = verify_geojson(geojson_file)
+
+    # Process each drawn polygon feature.
+    for feature in features:
+        wkt_shape = geojson_to_wkt(feature)
+
+        # Create a polygon overlay.
+        poly_geom = loads(wkt_shape)
+        coords = list(poly_geom.exterior.coords)
+        # ipyleaflet expects (latitude, longitude) pairs.
+        locations = [(lat, lon) for lon, lat in coords]
+        poly_overlay = Polygon(
+            locations=locations,
+            color="yellow",
+            fill_color="yellow",
+            fill_opacity=0.2,
+            weight=3
+        )
+        new_polygon_layer.add(poly_overlay)
+
+        # Filter AIS ship data to include only ships within this polygon.
+        filtered_gdf = filter_ships_by_polygon(wkt_shape, gdf)
+        for _, row in filtered_gdf.iterrows():
+            # Use a constant marker color for all ships.
+            marker_color = "blue"
+            icon = AwesomeIcon(name="ship", marker_color=marker_color, icon_color="white")
+            marker = Marker(
+                location=(row.latitude, row.longitude),
+                draggable=False,
+                icon=icon
+            )
+            # Attach a popup with ship details (black text).
+            _, info_text = get_info(row)
+            marker.popup = HTML(value=f"<div style='color:black;'>{info_text}</div>")
+            new_marker_layer.add(marker)
+
+    # Add the new layers to the map.
+    map_obj.add(new_polygon_layer)
+    map_obj.add(new_marker_layer)
+
+    return new_marker_layer, new_polygon_layer
+
+def handle_draw(state, map_obj, target, action, geo_json):
+    """
+    Callback function triggered on drawing events.
+    'state' is a dictionary passed in (via partial) to hold drawing state.
+    """
+    geom_type = geo_json.get("geometry", {}).get("type", "").lower()
+    if geom_type != "polygon":
+        print("Circles are not supported in this version")
+        return
+
+    # Append the new polygon feature to the state.
+    state["features"].append(geo_json)
+
+    # Update the map with all ship markers based on the current features.
+    new_marker_layer, new_polygon_layer = update_map_with_all_ships_for_drawing(
+        map_obj,
+        "ais_data.geojson",  # Path to your AIS GeoJSON data file
+        state["features"],
+        state["ship_marker_layer"],
+        state["ship_polygon_layer"]
+    )
+
+    # Update the state with the new layer groups.
+    state["ship_marker_layer"] = new_marker_layer
+    state["ship_polygon_layer"] = new_polygon_layer
 
 
 def plot_with_info(gdf, m, speed_flag=False, color="blue"):
