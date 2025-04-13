@@ -92,7 +92,7 @@ def plot_with_info(gdf, m, speed_flag=False, color="blue"):
 
       if row.geometry and hasattr(row.geometry, "x") and hasattr(row.geometry, "y"):
           folium.Marker(
-              icon=folium.Icon(color=color, icon=check_printable_icon("ship"), prefix="fa"),
+              icon=folium.Icon(color=color, icon=check_printable_icon(row), prefix="fa"),
               location=[row.geometry.y, row.geometry.x],  # Latitude, Longitude
               popup=folium.Popup(info_text, max_width=300),  # Display all available info
               tooltip='Press for more info'  # Use available identifier
