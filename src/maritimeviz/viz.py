@@ -7,10 +7,16 @@ from sys import prefix
 import folium
 import leafmap.foliumap
 import geopandas as gpd
+import leafmap
 from folium import Marker, Icon, Popup
 from branca.element import Element
 from shapely.wkt import loads
 from folium.plugins import HeatMap
+from IPython.display import display
+from functools import partial
+from ipyleaflet import Map, DrawControl
+
+
 
 from src.maritimeviz.utils.viz_utils import *
 
@@ -25,7 +31,7 @@ class Map:
         """
         Create a leafmap Map instance.
         """
-        self.m = leafmap.Map(center=center, zoom=zoom)
+        self.m = leafmap.foliumap.Map(center=center, zoom=zoom)
 
     def add_route(self, route_geojson, layer_name="Route"):
         """
@@ -49,7 +55,7 @@ class Map:
 
         self.m.add_geojson(json.dumps(route_geojson), name=layer_name)
 
-    def map_all(self, geojson_data, layer_name="Route"):
+    def map_all(self, geojson_data, layer_name="Route", map_tile="HYBRID"):
         """
             Generates an interactive map displaying vessel locations and routes based on GeoJSON data.
 
@@ -90,7 +96,10 @@ class Map:
             if gdf["latitude"].isnull().all() or gdf["longitude"].isnull().all():
                 print("No valid coordinates found in the data.")
             else:
-                self.m = leafmap.Map(location=[gdf.latitude.mean(), gdf.longitude.mean()], zoom_start=4)
+                m = leafmap.Map(location=[gdf.latitude.mean(), gdf.longitude.mean()], zoom_start=4)
+                m.add_title("All Vessel Routes", font_size="20px", align="center")
+                m.add_basemap(map_tile)
+
 
                 for _, row in gdf.iterrows():
 
@@ -165,9 +174,8 @@ class Map:
             location=[filtered_gdf.latitude.mean(), filtered_gdf.longitude.mean()],
             zoom_start=4
         )
-
-        if map_tile is not None:
-            m.add_basemap(map_tile)
+        m.add_title("Ships inside the polygon", font_size="20px", align="center")
+        m.add_basemap(map_tile)
 
         # Highlight the WKT polygon region
         polygon_geom = loads(wkt_polygon)
@@ -249,8 +257,8 @@ class Map:
             gdf = gdf.sort_values(by=["mmsi", gdf.index])
 
         m = leafmap.foliumap.Map(location=[gdf.latitude.mean(), gdf.longitude.mean()], zoom_start=6)
-        if map_tile is not None:
-            m.add_basemap(map_tile)
+        m.add_title("Ship Routes", font_size="20px", align="center")
+        m.add_basemap(map_tile)
 
         for ship_id in gdf.mmsi.unique():
             ship = gdf[gdf.mmsi == ship_id]
@@ -302,8 +310,8 @@ class Map:
         gdf = verify_geojson(geojson_data)
 
         m = leafmap.foliumap.Map(location=[gdf.latitude.mean(), gdf.longitude.mean()], zoom_start=2)
-        if map_tile:
-            m.add_basemap(map_tile)
+        m.add_title("Ships Concentration", font_size="20px", align="center")
+        m.add_basemap(map_tile)
 
         heat_data = gdf[['latitude', 'longitude']].values.tolist()
         HeatMap(heat_data).add_to(m)
@@ -349,9 +357,8 @@ class Map:
             location=[gdf.latitude.mean(), gdf.longitude.mean()],
             zoom_start=6
         )
-
-        if map_tile:
-            m.add_basemap(map_tile)
+        m.add_title("Base Stations", font_size="20px", align="center")
+        m.add_basemap(map_tile)
 
         for _, row in gdf.iterrows():
             icon = folium.Icon(color="red", icon=check_printable_icon(row), prefix="fa")
@@ -396,52 +403,47 @@ class Map:
         n = plot_with_info(ship, m)
         return n
 
-    def ships_by_drawn_shape():
+    def ships_by_drawn_shape(self, geojson_data):
         """
-        Main function to set up the ipyleaflet map and drawing control.
-        All state is kept local. When a new polygon is drawn, the map updates to render
-        markers for ships in all drawn polygons. If a drawn shape is not a polygon
-        (for example, a circle), a message is output and nothing further is done.
-        """
-        # Local state dictionary.
+        Set up an interactive map with drawing controls that update ship markers
+        based on drawn polygons. Intended for use in Colab.
 
-        # Create the interactive ipyleaflet map.
+        Parameters:
+          geojson_file: str
+              File path to your AIS GeoJSON data file.
+        """
         m = leafmap.Map(zoom=3, ipyleaflet=True)
         m.add_basemap("Hybrid")
         draw_control = m.draw_control
 
-        # Drawing callback using a closure so we have access to state and the map.
-        def handle_draw(target, action, geo_json):
-            state = {
-                "features": [],
-                "ship_marker_layer": None,
-                "ship_polygon_layer": None
-            }
-            # Check the drawn feature's geometry type.
-            # If it is not a polygon, output a message and do nothing.
-            geom_type = geo_json.get("geometry", {}).get("type", "").lower()
-            if geom_type != "polygon":
-                print("Circles are not supported in this version")
-                return
+        # Create a mutable state dictionary for drawing features and layers.
+        state = {
+            "features": [],
+            "ship_marker_layer": None,
+            "ship_polygon_layer": None
+        }
 
-            # Append the new polygon feature to the state.
-            state["features"].append(geo_json)
+        # Use partial to bind state, map_obj, and geojson_file to the handle_draw callback.
+        callback = partial(handle_draw, state, m, geojson_data)
+        draw_control.on_draw(callback)
 
-            # Update the map with all ship markers based on the current features.
-            new_marker_layer, new_polygon_layer = update_map_with_all_ships_for_drawing(
-                m,
-                "ais_data.geojson",  # Path to your AIS GeoJSON data file
-                state["features"],
-                state["ship_marker_layer"],
-                state["ship_polygon_layer"]
-            )
+        return m
 
-            # Update the state with the new layer groups.
-            state["ship_marker_layer"] = new_marker_layer
-            state["ship_polygon_layer"] = new_polygon_layer
 
-        # Bind the drawing callback to the draw control.
-        draw_control.on_draw(handle_draw)
 
-        # Display the map in Colab.
-        display(m)
+    def ship_with_speed(self, geojson_data, map_tile="HYBRID"):
+        if geojson_data is None:
+            return 'No geojson provided'
+
+        gdf = verify_geojson(geojson_data)
+
+        m = leafmap.foliumap.Map(location=[gdf.latitude.mean(), gdf.longitude.mean()], zoom_start=4)
+        m.add_title("Map by Speed", font_size="20px", align="center")
+        m.add_basemap(map_tile)
+
+        legend_html = create_speed_legend()
+        m.get_root().html.add_child(Element(legend_html))
+
+        n = plot_with_info(gdf, m, speed_flag=True)
+        return n
+

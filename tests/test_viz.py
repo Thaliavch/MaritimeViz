@@ -67,3 +67,13 @@ def test_ship_by_mmsi(sample_gdf):
     map_obj = Map()
     result = map_obj.ship_by_mmsi( mmsi = 123456789, geojson_data=sample_gdf)
     assert hasattr(result, "_parent"), "Expected a valid folium map object"
+
+# def test_ships_by_drawn_shape(sample_gdf):
+#     map_obj = Map()
+#     result = map_obj.ships_by_drawn_shape(sample_gdf)
+#     assert hasattr(result, "_parent"), "Expected a valid folium map object"
+
+def test_ship_with_speed(sample_gdf):
+    map_obj = Map()
+    result = map_obj.ship_with_speed(sample_gdf)
+    assert hasattr(result, "_parent"), "Expected a valid folium map object"
