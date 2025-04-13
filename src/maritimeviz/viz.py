@@ -437,12 +437,38 @@ class Map:
 
     def ships_by_drawn_shape(self, geojson_data):
         """
-        Set up an interactive map with drawing controls that update ship markers
-        based on drawn polygons. Intended for use in Colab.
+        Set up an interactive map with drawing controls to update ship markers based on user-drawn polygons.
+        This function is designed for use in environments such as Google Colab where interactive maps
+        facilitate dynamic data exploration. When users draw a polygon on the map, a callback function is
+        triggered to update the displayed ship markers based on the provided AIS GeoJSON data.
 
         Parameters:
-          geojson_file: str
-              File path to your AIS GeoJSON data file.
+            geojson_data (str or dict):
+                The AIS data in GeoJSON format. This can either be the file path to a GeoJSON file or a
+                dictionary containing GeoJSON data. The data should include details necessary for mapping,
+                such as coordinates and ship identifiers.
+
+        Returns:
+            leafmap.Map:
+                An interactive map object that includes drawing controls and a hybrid basemap. The map is
+                configured to allow users to draw polygons, which in turn update the ship markers on the map
+                based on the provided AIS data.
+
+        Internal Details:
+            - A leafmap Map object is instantiated with a default zoom level of 3 and the ipyleaflet interface enabled.
+            - A hybrid basemap is added to the map for a comprehensive satellite and road overlay.
+            - The function initializes a mutable state dictionary with keys:
+                • "features": an empty list that will hold drawn GeoJSON features,
+                • "ship_marker_layer": a placeholder for the layer containing ship markers,
+                • "ship_polygon_layer": a placeholder for the layer representing drawn polygons.
+            - The drawing control's callback is set up using `functools.partial` to bind the state, the map object,
+              and the provided geojson_data to a handler function (`handle_draw`). This allows dynamic updates
+              of ship markers whenever a new polygon is drawn.
+
+        Example:
+            geojson_data = "path/to/ais_data.geojson"  # or geojson_data can be a dict with your AIS data
+            interactive_map = instance.ships_by_drawn_shape(geojson_data)
+            interactive_map  # Display the map in a compatible environment like Colab
         """
         m = leafmap.Map(zoom=3, ipyleaflet=True)
         m.add_basemap("Hybrid")
@@ -455,13 +481,11 @@ class Map:
             "ship_polygon_layer": None
         }
 
-        # Use partial to bind state, map_obj, and geojson_file to the handle_draw callback.
+        # Use partial to bind state, map_obj, and geojson_data to the handle_draw callback.
         callback = partial(handle_draw, state, m, geojson_data)
         draw_control.on_draw(callback)
 
         return m
-
-
 
     def ship_with_speed(self, geojson_data, map_tile="HYBRID"):
         if geojson_data is None:
