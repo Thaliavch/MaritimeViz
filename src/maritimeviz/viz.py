@@ -488,12 +488,41 @@ class Map:
         return m
 
     def ship_with_speed(self, geojson_data, map_tile="HYBRID"):
+        """
+        Create a map visualization displaying ship data with speed information.
+
+        This function processes AIS ship data provided in GeoJSON format, verifies its correctness, and computes
+        the mean latitude and longitude to establish the center of the map. It then configures a folium map with a
+        title "Map by Speed" and a customizable basemap. Additionally, it generates a custom speed legend using the
+        create_speed_legend() function and incorporates it into the map's HTML. Finally, the function plots the ship
+        data on the map, highlighting speed details by enabling the speed_flag.
+
+        Parameters:
+            geojson_data (dict or str):
+                A valid GeoJSON dataset containing ship information, including coordinates (latitude and longitude).
+                This input can be a dictionary with the data or a file path to a GeoJSON file.
+            map_tile (str, optional):
+                A string specifying the basemap style to use (e.g., "HYBRID", "SATELLITE", etc.). The default is "HYBRID".
+
+        Returns:
+            folium.Map or str:
+                A folium map object with the ship data plotted and annotated with speed details. If the geojson_data
+                is None, the function returns the string 'No geojson provided'.
+
+        Example:
+             geojson_data = { ... }  # Provide valid AIS GeoJSON data with latitude and longitude information
+             map_object = instance.ship_with_speed(geojson_data, map_tile="HYBRID")
+             map_object  # Display the interactive map with ship speed details
+        """
         if geojson_data is None:
             return 'No geojson provided'
 
         gdf = verify_geojson(geojson_data)
 
-        m = leafmap.foliumap.Map(location=[gdf.latitude.mean(), gdf.longitude.mean()], zoom_start=4)
+        m = leafmap.foliumap.Map(
+            location=[gdf.latitude.mean(), gdf.longitude.mean()],
+            zoom_start=4
+        )
         m.add_title("Map by Speed", font_size="20px", align="center")
         m.add_basemap(map_tile)
 
@@ -502,7 +531,6 @@ class Map:
 
         n = plot_with_info(gdf, m, speed_flag=True)
         return n
-
 
     def ship_map_on_click(self, geojson_data, radius_km=300):
         if geojson_data is None:
