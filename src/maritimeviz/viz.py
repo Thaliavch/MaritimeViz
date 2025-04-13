@@ -381,8 +381,37 @@ class Map:
 
         return m
 
+    def ship_by_mmsi(self, geojson_data, mmsi=None, map_tile="HYBRID"):
+        """
+        Generate a map displaying the location and details of a ship identified by its MMSI.
 
-    def ship_by_mmsi(self, geojson_data, mmsi = None, map_tile="HYBRID"):
+        This function processes a GeoJSON dataset containing ship information, verifies its validity, and extracts
+        the specific ship record corresponding to the provided Maritime Mobile Service Identity (MMSI) number.
+        It then creates a map centered on the average latitude and longitude of the ship's data points, adds a title,
+        applies a specified basemap tile, and plots additional information related to the ship.
+
+        Args:
+            geojson_data (dict or str): A valid GeoJSON dataset containing ship tracking information. This data must include
+                fields such as "mmsi", "latitude", and "longitude" which are used to filter and position the ship on the map.
+            mmsi (int, optional): The Maritime Mobile Service Identity number that uniquely identifies the ship to be plotted.
+                If omitted (None), the function returns an error message. Defaults to None.
+            map_tile (str, optional): The basemap style to be used for the map. Common options include "HYBRID", "SATELLITE", etc.
+                Defaults to "HYBRID".
+
+        Returns:
+            folium.Map or str: Returns a folium map object with the ship's data plotted and visualized if the MMSI is found in
+            the provided GeoJSON data. If any required input is missing or the ship is not found, one of the following error
+            messages is returned:
+
+                - 'No mmsi provided' : When the mmsi argument is None.
+                - 'No geojson provided' : When the geojson_data argument is None.
+                - 'No ship found with that mssi' : When the MMSI is not present in the GeoJSON dataset.
+
+        Example:
+             geojson_data = { ... }  # A valid GeoJSON dict containing ship data
+             map_object = instance.ship_by_mmsi(geojson_data, mmsi=123456789, map_tile="SATELLITE")
+             # The returned map_object can then be visualized or saved to an HTML file.
+        """
         if mmsi is None:
             return 'No mmsi provided'
 
@@ -393,11 +422,13 @@ class Map:
 
         if mmsi in gdf.mmsi.values:
             ship = gdf[gdf.mmsi == mmsi]
-
         else:
             return 'No ship found with that mssi'
 
-        m = leafmap.foliumap.Map(location=[ship.latitude.mean(), ship.longitude.mean()], zoom_start=4)
+        m = leafmap.foliumap.Map(
+            location=[ship.latitude.mean(), ship.longitude.mean()],
+            zoom_start=4
+        )
         m.add_title("Map by MMSI", font_size="20px", align="center")
         m.add_basemap(map_tile)
 
