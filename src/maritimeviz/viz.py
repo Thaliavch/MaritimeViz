@@ -533,8 +533,49 @@ class Map:
         return n
 
     def ship_map_on_click(self, geojson_data, radius_km=300):
+        """
+        Create an interactive map with a clickable interface to display ship data within a specified radius.
+
+        This function sets up an interactive map using the leafmap library. The map is initialized at a global view
+        (centered at [0, 0] with a zoom level of 3) and enhanced with two basemap layers: a satellite imagery layer and
+        a transparent label layer to simulate a hybrid view. When a user interacts with the map (for example, by clicking
+        on it), a custom click handler is triggered. This handler uses the provided GeoJSON ship data to display or update
+        ship information within the specified radius (in kilometers) around the clicked location.
+
+        Parameters:
+            geojson_data (dict or str):
+                A valid GeoJSON dataset or file path containing ship location data. This data is verified using the
+                verify_geojson() function and is utilized to filter and display ships based on their geographical positions.
+            radius_km (int or float, optional):
+                The radius (in kilometers) around a clicked point within which ship data should be filtered and shown.
+                The default value is 300 km.
+
+        Returns:
+            leafmap.Map or str:
+                An interactive map object with the configured layers and click interaction enabled. If the geojson_data
+                is None, the function returns the string 'No geojson provided'.
+
+        Internal Workflow:
+            - Checks if geojson_data is provided; if not, returns an error message.
+            - Verifies the GeoJSON data using verify_geojson().
+            - Initializes an empty list to store coordinates from the user's click interactions.
+            - Creates a global map object centered at [0, 0] with scroll wheel zoom enabled.
+            - Converts basemap tiles for satellite imagery (using Esri WorldImagery) and for transparent labels
+              (using CartoDB PositronOnlyLabels) to simulate a hybrid basemap view.
+            - Adds both the satellite and label layers to the map.
+            - Sets up an interactive event listener using the create_click_handler() callback, binding the radius,
+              map object, clicked coordinates list, and the verified GeoJSON data. This handler processes click events
+              on the map to update the ship data shown based on the user's input.
+            - Displays the map immediately in the current environment.
+
+        Example:
+             geojson_data = { ... }  # Provide valid GeoJSON data containing ship location information.
+             interactive_map = instance.ship_map_on_click(geojson_data, radius_km=300)
+             interactive_map  # This will display the interactive clickable map in a compatible environment.
+        """
         if geojson_data is None:
             return 'No geojson provided'
+
         gdf = verify_geojson(geojson_data)
 
         clicked_coords = []
@@ -554,3 +595,4 @@ class Map:
         m.on_interaction(create_click_handler(radius_km, m, clicked_coords, gdf))
         display(m)
         return m
+
