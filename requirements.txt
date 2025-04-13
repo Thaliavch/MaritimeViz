@@ -27,4 +27,4 @@ six==1.17.0
 typing_extensions==4.12.2
 tzdata==2025.1
 openpyxl==3.1.5
-
+geopy==2.4.1

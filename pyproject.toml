@@ -9,10 +9,10 @@ description = "A Python package designed to analyze and visualize Automatic Iden
 readme = "README.rst"
 requires-python = ">=3.11"
 authors = [
-  {name = "Thalia Valle, Marcelo Amorin, Enrique Baggio, Paulo Drefhal", email = "thaliasaxo@gmail.com"}
+  {name = "Thalia Valle, Marcelo Amorin, Henrique Baggio", email = "thaliasaxo@gmail.com"}
 ]
 maintainers = [
-  {name = "Thalia Valle, Marcelo Amorin, Enrique Baggio, Paulo Drefhal", email = "thaliasaxo@gmail.com"}
+  {name = "Thalia Valle, Marcelo Amorin, Henrique Baggio", email = "thaliasaxo@gmail.com"}
 ]
 classifiers = [
 
