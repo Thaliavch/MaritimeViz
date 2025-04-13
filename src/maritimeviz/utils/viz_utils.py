@@ -3,9 +3,13 @@ import geopandas as gpd
 import folium
 from shapely.wkt import loads
 from IPython.display import display
-from ipyleaflet import Map, DrawControl, Marker, AwesomeIcon, Polygon, LayerGroup
+from ipyleaflet import Map, DrawControl, Marker, AwesomeIcon, Polygon, LayerGroup, Circle
+
+
 from ipywidgets import HTML
 from geopandas import GeoDataFrame
+from geopy.distance import geodesic
+
 
 
 def create_speed_legend():
@@ -262,3 +266,73 @@ def filter_ships_by_polygon(wkt_polygon, gdf):
     # Convert latitude and longitude columns to geometry points.
     gdf["geometry"] = gpd.points_from_xy(gdf.longitude, gdf.latitude)
     return gdf[gdf.geometry.within(polygon)]
+
+
+def create_click_handler(radius_km, map_object, clicked_coords, gdf):
+    current_ship_group = []
+    current_circle = []
+
+    def handle_click(**kwargs):
+        if kwargs.get('type') == 'click':
+            latlng = kwargs.get('coordinates')
+            clicked_coords.append(latlng)
+            print(f"Clicked at: {latlng}")
+
+            # Clear previous ships and circle
+            if current_ship_group:
+                try:
+                    map_object.remove_layer(current_ship_group[0])
+                except Exception as e:
+                    print(f"Couldn't remove ship group: {e}")
+                current_ship_group.clear()
+
+            if current_circle:
+                try:
+                    map_object.remove_layer(current_circle[0])
+                except Exception as e:
+                    print(f"Couldn't remove circle: {e}")
+                current_circle.clear()
+
+            # Add new circle
+            circle = Circle(
+                location=latlng,
+                radius=radius_km * 1000,
+                color="blue",
+                fill_color="blue",
+                fill_opacity=0.5
+            )
+            map_object.add_layer(circle)
+            current_circle.append(circle)
+
+            # Find ships inside the new circle
+            ships_in_circle = []
+            for _, row in gdf.iterrows():
+                coordinates = row.geometry.coords[0]
+                ship_location = (coordinates[1], coordinates[0])  # (lat, lon)
+                if -90 <= coordinates[1] <= 90 and -180 <= coordinates[0] <= 180:
+                    if geodesic(latlng, ship_location).km <= radius_km:
+                        ships_in_circle.append(row)
+
+            print(f"Ships found: {len(ships_in_circle)}")
+
+            # Build ship markers and popups
+            markers = []
+            for ship in ships_in_circle:
+                name, info_text = get_info(ship)
+
+                lat, lon = ship.geometry.y, ship.geometry.x
+                marker = Marker(location=(lat, lon), draggable=False)
+                # marker = Marker(location=(lat, lon), draggable=False)
+
+                # Style text to be black
+                popup_content = HTML(value=f"<div style='color:black;'>{info_text}</div>")
+                marker.popup = popup_content
+
+                markers.append(marker)
+
+            # Add all markers at once using a LayerGroup
+            group = LayerGroup(layers=markers)
+            map_object.add_layer(group)
+            current_ship_group.append(group)
+
+    return handle_click

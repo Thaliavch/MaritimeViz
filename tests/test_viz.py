@@ -77,3 +77,8 @@ def test_ship_with_speed(sample_gdf):
     map_obj = Map()
     result = map_obj.ship_with_speed(sample_gdf)
     assert hasattr(result, "_parent"), "Expected a valid folium map object"
+
+def test_ship_map_on_click(sample_gdf):
+    map_obj = Map()
+    result = map_obj.ship_map_on_click(sample_gdf)
+    assert result is not None, "Expected map object to be returned"

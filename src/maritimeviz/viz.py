@@ -14,7 +14,8 @@ from shapely.wkt import loads
 from folium.plugins import HeatMap
 from IPython.display import display
 from functools import partial
-from ipyleaflet import Map, DrawControl
+from ipyleaflet import Map, basemaps, basemap_to_tiles
+
 
 
 
@@ -447,3 +448,26 @@ class Map:
         n = plot_with_info(gdf, m, speed_flag=True)
         return n
 
+
+    def ship_map_on_click(self, geojson_data, radius_km=300):
+        if geojson_data is None:
+            return 'No geojson provided'
+        gdf = verify_geojson(geojson_data)
+
+        clicked_coords = []
+
+        m = leafmap.Map(center=[0, 0], zoom=3, scroll_wheel_zoom=True)
+
+        satellite = basemap_to_tiles(basemaps.Esri.WorldImagery)
+
+        # Transparent labels (simulate hybrid)
+        labels = basemap_to_tiles(basemaps.CartoDB.PositronOnlyLabels)
+
+        m.add_layer(satellite)
+        m.add_layer(labels)
+
+        # Optional: customize basemap tiles if desired
+
+        m.on_interaction(create_click_handler(radius_km, m, clicked_coords, gdf))
+        display(m)
+        return m
