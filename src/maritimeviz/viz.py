@@ -210,7 +210,7 @@ class Map:
                 color = "purple"
 
             # Add marker
-            Marker(
+            folium.Marker(
                 icon=Icon(color=color, icon=icon, prefix="fa"),
                 location=[row.latitude, row.longitude],
                 popup=Popup(info_text, max_width=300),
