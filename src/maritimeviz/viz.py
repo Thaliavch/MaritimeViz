@@ -16,11 +16,7 @@ from IPython.display import display
 from functools import partial
 from ipyleaflet import Map, basemaps, basemap_to_tiles
 
-
-
-
 from src.maritimeviz.utils.viz_utils import *
-
 
 
 class Map:
@@ -124,15 +120,35 @@ class Map:
 
     def filter_ships_by_polygon(self, wkt_polygon, gdf):
         """
-        Filters ships that fall inside the given WKT polygon.
+        Filter ship positions that fall within a specified polygon.
+
+        This function takes a GeoDataFrame of ship positions (with latitude and longitude)
+        and returns only those ships located inside the area defined by a WKT (Well-Known Text) polygon.
 
         Parameters:
-            - wkt_polygon (str): WKT string of the polygon area.
-            - gdf (GeoDataFrame): GeoDataFrame containing ships with 'latitude' and 'longitude'.
+            wkt_polygon (str):
+                A string in WKT format representing the polygon to filter by.
+
+            gdf (GeoDataFrame):
+                A GeoPandas GeoDataFrame containing ship data with at least 'latitude' and 'longitude' columns.
 
         Returns:
-            - Filtered GeoDataFrame with ships inside the polygon.
+            GeoDataFrame:
+                A filtered GeoDataFrame containing only the ships located inside the polygon.
+
+        Raises:
+            ValueError:
+                If the provided WKT polygon string is invalid and cannot be parsed.
+
+        Notes:
+            - The function creates a new 'geometry' column in the GeoDataFrame using latitude and longitude.
+            - Ships on the border of the polygon are excluded (strict `within` filter).
+        
+        Example:
+            polygon = "POLYGON((-81 25, -81 26, -80 26, -80 25, -81 25))"
+            filtered_ships = instance.filter_ships_by_polygon(polygon, ships_gdf)
         """
+
         try:
             polygon = loads(wkt_polygon)  # Convert WKT string to Shapely Polygon
         except Exception:
@@ -144,21 +160,54 @@ class Map:
 
     def ship_map_by_polygon(self, wkt_polygon, geojson_data, map_tile='HYBRID'):
         """
-        Creates an interactive map displaying ships located **inside the given WKT polygon**,
-        with markers colored based on their speed.
+        Create an interactive map to visualize ships located within a user-defined WKT polygon.
+
+        This function generates a folium-based map (via the leafmap wrapper) that highlights ships found within a specific
+        polygonal area. The ships are color-coded by speed and presented with informative markers. The polygon itself is also
+        drawn on the map to provide spatial context. This visualization is useful for analyzing maritime traffic density, behavior
+        patterns, or area-specific vessel presence.
 
         Parameters:
-        - wkt_polygon (str): WKT string representing the polygon area of interest.
-        - gdf (GeoDataFrame): GeoDataFrame containing ship data, including 'latitude', 'longitude', and 'speed'.
-        - map_tile (str, optional): The base map layer to use (e.g., 'HYBRID', 'ROADMAP'). Defaults to 'HYBRID'.
+            wkt_polygon (str):
+                A Well-Known Text (WKT) string defining the polygonal boundary for spatial filtering.
+                Only ships located inside this polygon will be visualized.
+            
+            geojson_data (dict or str):
+                GeoJSON ship data, either as a Python dictionary or as a file path. It is verified and
+                converted into a GeoDataFrame using the verify_geojson() utility function.
+                The data must include at least the following fields: 'latitude', 'longitude', and 'speed'.
+
+            map_tile (str, optional):
+                The base map tile to use for visualization. Defaults to 'HYBRID', but can also accept
+                other supported tiles like 'ROADMAP', etc.
 
         Returns:
-        - folium.Map object displaying:
-        - Ships inside the polygon, color-coded by speed.
-        - The polygon boundary.
-        - A legend explaining speed color codes.
-        - Returns None if no ships are found within the polygon.
+            folium.Map or None:
+                A map object displaying the filtered ships within the WKT polygon area, along with:
+                - Speed-based color-coded markers
+                - The polygon boundary as a highlighted region
+                - A custom legend explaining the speed-color mapping
+
+                If no ships are found within the polygon, a message is printed and None is returned.
+
+        Internal Workflow:
+            - The GeoJSON input is verified and converted to a GeoDataFrame.
+            - Ships are spatially filtered based on their inclusion within the provided WKT polygon.
+            - If no ships are found, the function exits early.
+            - A map is initialized and centered around the centroid of the filtered data.
+            - The polygon boundary is added to the map in yellow with transparency for visual emphasis.
+            - Each ship is plotted as a marker, color-coded by its speed:
+                Green (≤2 knots), Blue (≤10), Orange (≤25), Red (≤30), Purple (>30)
+            - Each marker includes an icon and a popup with detailed ship information.
+            - A speed legend is added to the map to support interpretation.
+
+        Example:
+            geojson_data = "ships_data.geojson"
+            wkt_polygon = "POLYGON((-81 25, -81 26, -80 26, -80 25, -81 25))"
+            m = instance.ship_map_by_polygon(wkt_polygon, geojson_data)
+            m  # Displays the interactive ship map with the selected polygon filter
         """
+
 
         # Verify and load GeoJSON data
         gdf = verify_geojson(geojson_data)
@@ -224,20 +273,46 @@ class Map:
 
     def ships_route(self, geojson_data, mmsi=None, map_tile='HYBRID'):
         """
-        Generates a map showing the routes of ships identified by its MMSI, based on a GeoJSON file.
-        If no MMSI is provided, it will display all routes. If a MMSI is provided, only show that specific route.
+        Generate an interactive map to visualize ship routes from GeoJSON data.
+
+        This function uses folium (via leafmap) to create a map showing the trajectory of one or more ships
+        based on their MMSI (Maritime Mobile Service Identity) and position data. If an MMSI is provided,
+        only that ship’s route is displayed. Otherwise, routes for all ships in the dataset are shown.
+
+        The map includes:
+        - Dashed yellow polylines representing the ship routes.
+        - A green marker for each ship's starting point.
+        - A red marker for each ship's final known position.
+        - A selectable base map tile layer (e.g., 'HYBRID').
 
         Parameters:
-        - geojson_data (str): Path to the GeoJSON file containing ship route data.
-        - mmsi (int or str, optional): MMSI (Maritime Mobile Service Identity) of the ship to visualize.
-        - map_tile (str, optional): Base map layer to use (e.g., 'HYBRID', 'ROADMAP'). Defaults to 'HYBRID'.
+            geojson_data (str or dict):
+                Path to or dictionary of a valid GeoJSON file containing ship position data.
+                The GeoJSON must include 'latitude', 'longitude', and 'mmsi' fields.
+
+            mmsi (int or str, optional):
+                The MMSI of the specific ship to visualize. If omitted, all ships in the data are plotted.
+
+            map_tile (str, optional):
+                The base map style to apply. Default is 'HYBRID'. Can be other valid basemap options supported by leafmap.
 
         Returns:
-        - folium.Map object displaying:
-        - The ship's route as a dashed polyline.
-        - Markers for the first and last positions.
-        - The selected base map.
-        - str message if no ship is found with the given MMSI or if there are not enough data points to draw a route.
+            folium.Map or str:
+                - A folium.Map object displaying the ship route(s) and key positions.
+                - A message string if no ship with the specified MMSI is found or if the dataset is empty.
+
+        Workflow:
+            - Load and validate GeoJSON data using `verify_geojson()`.
+            - Filter by MMSI if provided.
+            - Sort ship positions by timestamp (if available).
+            - For each ship with at least 2 points:
+                - Place start (green) and end (red) markers.
+                - Draw a dashed polyline showing the path.
+            - Return the map with all layers and markers.
+
+        Example:
+            m = instance.ships_route("ships.geojson", mmsi=123456789)
+            m  # Displays an interactive route map in Jupyter or Streamlit
         """
 
         # Verify and load GeoJSON data
