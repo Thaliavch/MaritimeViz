@@ -39,3 +39,35 @@ This package was created with Cookiecutter_ and the `audreyr/cookiecutter-pypack
 
 .. _Cookiecutter: https://github.com/audreyr/cookiecutter
 .. _`audreyr/cookiecutter-pypackage`: https://github.com/audreyr/cookiecutter-pypackage
+
+
+
+Module Overview
+===============
+
+``viz.py``
+----------
+
+This module offers visualization utilities for maritime data. It includes functions to:
+
+- Generate heatmaps of vessel traffic.
+- Plot vessel trajectories over time.
+- Create interactive maps highlighting specific maritime events or regions.
+
+``maritimeviz.py``
+------------------
+
+Serving as the core of the application, this module orchestrates data processing and visualization. Key functionalities include:
+
+- Integrating data from the AIS database.
+- Applying filters based on vessel type, time range, or geographic area.
+- Coordinating the generation of visual outputs using the ``viz`` module.
+
+``ais_db.py``
+-------------
+
+This module manages interactions with the AIS database. Its responsibilities encompass:
+
+- Establishing and managing database connections.
+- Executing queries to retrieve AIS data.
+- Preprocessing data for analysis and visualization.
