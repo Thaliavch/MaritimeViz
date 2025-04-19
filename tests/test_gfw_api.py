@@ -1,7 +1,8 @@
 import unittest
 import os
+import pandas as pd
 from dotenv import load_dotenv
-from src.maritimeviz.maritimeviz import GFW_api
+from src.maritimeviz.gfw_api import GFW_api
 
 # Load environment variables from .env
 load_dotenv()
@@ -34,7 +35,7 @@ class TestGFWApi(unittest.TestCase):
         response = self.api_client.get_fishing_events(vessel_id, start_date,
                                                       end_date)
         print(response)
-        self.assertIsInstance(response, list)  # Should return a list
+        self.assertIsInstance(response, pd.DataFrame)  # Should return a list
 
 
 if __name__ == "__main__":
