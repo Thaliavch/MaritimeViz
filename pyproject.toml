@@ -20,7 +20,7 @@ classifiers = [
 license = {text = "MIT license"}
 dependencies = [
   "typer",
-  "ais",
+  "libais",
   "duckdb>=0.7.1",
   "pandas",
   "geopandas",
