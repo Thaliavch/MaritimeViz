@@ -1697,7 +1697,7 @@ class ShortBinaryHandler(BaseMessageProcessor):
 
         return gpd.GeoDataFrame()
 
-# todo(Thalia): maybe implement wrapper asm 
+# todo(Thalia): maybe implement wrapper asm
 
 class AidToNavigationMessages(BaseMessageProcessor):
     """
