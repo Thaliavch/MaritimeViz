@@ -54,7 +54,7 @@ class Map:
         self.m.add_geojson(json.dumps(route_geojson), layer_name=layer_name)
 
 
-    def map_all(self, geojson_data, layer_name="Route", map_tile="HYBRID"):
+    def map_all(self, geojson_data):
         """
             Generates an interactive map displaying vessel locations and routes based on GeoJSON data.
 
@@ -161,7 +161,7 @@ class Map:
 
         return gdf[gdf.geometry.within(polygon)]  # Filter points within the polygon
 
-    def ship_map_by_polygon(self, wkt_polygon, geojson_data, map_tile='HYBRID'):
+    def ship_map_by_polygon(self, wkt_polygon, geojson_data):
         """
         Create an interactive map to visualize ships located within a user-defined WKT polygon.
 
@@ -227,7 +227,7 @@ class Map:
         #    location=[filtered_gdf.latitude.mean(), filtered_gdf.longitude.mean()],
         #    zoom_start=4
         #)
-        self.m.add_title("Ships inside the polygon", font_size="20px", align="center")
+        #self.m.add_title("Ships inside the polygon", font_size="20px", align="center")
         #self.m.add_basemap(map_tile)
 
         # Highlight the WKT polygon region
