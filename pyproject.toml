@@ -26,7 +26,7 @@ dependencies = [
   "pandas>=1.5.0",
   "geopandas>=0.13.0",
   "shapely>=1.8.0",
-  "python-dotenv>=0.21.0",
+  "python-dotenv",
 
   "leafmap>=0.20.0",
   "folium>=0.12.1",
