@@ -57,7 +57,7 @@ changelog = "https://github.com/Thaliavch/maritimeviz/blob/master/changelog.md"
 homepage = "https://github.com/Thaliavch/maritimeviz"
 
 [project.scripts]
-maritimeviz = "maritimeviz.cli.main
+maritimeviz = "maritimeviz.cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
