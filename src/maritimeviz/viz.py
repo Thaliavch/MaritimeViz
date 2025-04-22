@@ -50,7 +50,7 @@ class Map:
             print("Empty or invalid GeoJSON. Nothing to plot.")
             return
 
-        self.m.add_geojson(json.dumps(route_geojson), name=layer_name)
+        self.m.add_geojson(json.dumps(route_geojson), layer_name=layer_name)
 
     def map_all(self, geojson_data, layer_name="Route", map_tile="HYBRID"):
         """
