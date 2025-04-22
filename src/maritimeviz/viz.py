@@ -33,7 +33,7 @@ class Map:
         self.m.add_layer_control()
 
 
-    def add_route(self, route_geojson, layer_name="Route"):
+    def add_route(self, geojson_data, layer_name="Route"):
         """
         Adds a vessel route to the map using a GeoJSON representation.
 
@@ -49,11 +49,13 @@ class Map:
             self.add_route(geojson_data, "Vessel Route")
         """
 
-        if not route_geojson:
+        gdf = verify_geojson(geojson_data)
+
+        if not gdf:
             print("Empty or invalid GeoJSON. Nothing to plot.")
             return
 
-        self.m.add_geojson(json.dumps(route_geojson), layer_name=layer_name)
+        self.m.add_geojson(json.dumps(gdf), layer_name=layer_name)
 
 
     def map_all(self, geojson_data):
