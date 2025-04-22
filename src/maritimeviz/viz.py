@@ -97,10 +97,7 @@ class Map:
             if gdf["latitude"].isnull().all() or gdf["longitude"].isnull().all():
                 print("No valid coordinates found in the data.")
             else:
-                #m = leafmap.Map(location=[gdf.latitude.mean(), gdf.longitude.mean()], zoom_start=4)
                 self.m.add_title("All Vessel Routes", font_size="20px", align="center")
-                #m.add_basemap(map_tile)
-
 
                 for _, row in gdf.iterrows():
 
@@ -109,7 +106,6 @@ class Map:
                     # Extract all available data dynamically
                     info_text = "<br>".join(
                         [f"{key}: {value}" for key, value in row.items() if value and key != "geometry"])
-                        # testing
 
                     # Ensure latitude and longitude are valid
                     if row.geometry and hasattr(row.geometry, "x") and hasattr(row.geometry, "y"):
@@ -224,14 +220,6 @@ class Map:
             print("No ships found in the selected area.")
             return None
 
-        # Create map centered around filtered ships
-        #m = leafmap.foliumap.Map(
-        #    location=[filtered_gdf.latitude.mean(), filtered_gdf.longitude.mean()],
-        #    zoom_start=4
-        #)
-        #self.m.add_title("Ships inside the polygon", font_size="20px", align="center")
-        #self.m.add_basemap(map_tile)
-
         # Highlight the WKT polygon region
         polygon_geom = loads(wkt_polygon)
         polygon_coords = list(polygon_geom.exterior.coords)
@@ -338,10 +326,6 @@ class Map:
             print("*WARNING*: No timestamp found. Sorting by index...")
             gdf = gdf.sort_values(by=["mmsi", gdf.index])
 
-        #m = leafmap.foliumap.Map(location=[gdf.latitude.mean(), gdf.longitude.mean()], zoom_start=6)
-        #m.add_title("Ship Routes", font_size="20px", align="center")
-        #m.add_basemap(map_tile)
-
         for ship_id in gdf.mmsi.unique():
             ship = gdf[gdf.mmsi == ship_id]
 
@@ -376,7 +360,7 @@ class Map:
         self.m.add_layer_control()
         return self.m
 
-    def plot_ship_heatmap(self, geojson_data, map_tile='HYBRID'):
+    def plot_ship_heatmap(self, geojson_data):
         """
         Generates a heat map showing concentration of ships, based on a GeoJSON file.
 
@@ -392,10 +376,6 @@ class Map:
         # Verify and load GeoJSON data
         gdf = verify_geojson(geojson_data)
 
-        #m = leafmap.foliumap.Map(location=[gdf.latitude.mean(), gdf.longitude.mean()], zoom_start=2)
-        #m.add_title("Ships Concentration", font_size="20px", align="center")
-        #m.add_basemap(map_tile)
-
         heat_data = gdf[['latitude', 'longitude']].values.tolist()
         HeatMap(heat_data).add_to(self.m)
 
@@ -403,7 +383,7 @@ class Map:
         return self.m
 
     # A plot specific for messages from type 4
-    def plot_base_stations(self, geojson_data, tagblock_station=None, map_tile="HYBRID"):
+    def plot_base_stations(self, geojson_data, tagblock_station=None):
         """
         Plots AIS base station messages on a Leafmap map.
 
@@ -438,13 +418,6 @@ class Map:
         gdf["longitude"] = gdf.geometry.x
         gdf["latitude"] = gdf.geometry.y
 
-        #m = leafmap.foliumap.Map(
-        #    location=[gdf.latitude.mean(), gdf.longitude.mean()],
-        #    zoom_start=6
-        #)
-        #self.m.add_title("Base Stations", font_size="20px", align="center")
-        #m.add_basemap(map_tile)
-
         for _, row in gdf.iterrows():
             icon = folium.Icon(color="red", icon=check_printable_icon(row), prefix="fa")
 
@@ -466,7 +439,7 @@ class Map:
         self.m.add_layer_control()
         return self.m
 
-    def ship_by_mmsi(self, geojson_data, mmsi=None, map_tile="HYBRID"):
+    def ship_by_mmsi(self, geojson_data, mmsi=None):
         """
         Generate a map displaying the location and details of a ship identified by its MMSI.
 
@@ -509,13 +482,6 @@ class Map:
             ship = gdf[gdf.mmsi == mmsi]
         else:
             return 'No ship found with that mssi'
-
-        #m = leafmap.foliumap.Map(
-        #    location=[ship.latitude.mean(), ship.longitude.mean()],
-            zoom_start=4
-        #)
-        #m.add_title("Map by MMSI", font_size="20px", align="center")
-        #m.add_basemap(map_tile)
 
         m = plot_with_info(ship, self.m)
         return m
@@ -572,7 +538,7 @@ class Map:
 
         return m
 
-    def ship_with_speed(self, geojson_data, map_tile="HYBRID"):
+    def ship_with_speed(self, geojson_data):
         """
         Create a map visualization displaying ship data with speed information.
 
@@ -603,13 +569,6 @@ class Map:
             return 'No geojson provided'
 
         gdf = verify_geojson(geojson_data)
-
-        #m = leafmap.foliumap.Map(
-        #    location=[gdf.latitude.mean(), gdf.longitude.mean()],
-        #    zoom_start=4
-        #)
-        #m.add_title("Map by Speed", font_size="20px", align="center")
-        #m.add_basemap(map_tile)
 
         legend_html = create_speed_legend()
         self.m.get_root().html.add_child(Element(legend_html))
