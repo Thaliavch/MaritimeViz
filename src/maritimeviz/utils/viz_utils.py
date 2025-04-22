@@ -102,7 +102,8 @@ def plot_with_info(gdf, m, speed_flag=False, color="blue"):
               tooltip='Press for more info'  # Use available identifier
           ).add_to(m)
 
-      display(m)
+      #display(m)
+      m.add_layer_control()
       return m
 
 def check_printable_icon(row):
