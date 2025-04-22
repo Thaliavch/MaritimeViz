@@ -703,6 +703,12 @@ DATABASE_ALL_TABLE_CREATION_QUERIES = DATABASE_TYPE_A_TABLE_CREATION_QUERIES \
 
 DATABASE_ALL_VIEWS_CREATION_QUERIES = [QUERY_CREATE_GLOBAL_DYNAMIC_VIEW, QUERY_CREATE_GLOBAL_STATIC_VIEW, QUERY_CREATE_GLOBAL_VIEW]
 
+ALLOWED_FILTER_KEYS = {
+     "mmsi", "start_date", "end_date", "polygon_bounds",
+     "min_velocity", "max_velocity", "direction",
+     "min_turn_rate", "max_turn_rate"
+ }
+
 ALLOWED_FILTER_KEYS_CLASS_A = {
     "mmsi", "start_date", "end_date", "polygon_bounds",
     "min_velocity", "max_velocity", "direction",

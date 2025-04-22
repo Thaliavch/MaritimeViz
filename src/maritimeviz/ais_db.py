@@ -47,9 +47,14 @@ class AISDatabase:
         cls._default_db_counter += 1
         return f"ais_data_{cls._default_db_counter}.duckdb"
 
-    # TODO(Thalia): have one universal filter object and implement global set_filter function
     def set_filter(self, filter_obj: Optional[dict]) -> None:
-        pass
+        if filter_obj is not None:
+            if not isinstance(filter_obj, dict):
+                raise TypeError("Filter object must be a dictionary.")
+            if not set(filter_obj.keys()).issubset(ALLOWED_FILTER_KEYS):
+                raise TypeError(
+                    "Filter object contains invalid keys.")  # TODO(Thalia): add link to documentation in error message
+        self._filter = filter_obj
 
     def clear_filter(self) -> None:
         self._filter = None
