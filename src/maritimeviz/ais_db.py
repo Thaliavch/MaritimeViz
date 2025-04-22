@@ -9,7 +9,7 @@ import json
 
 from shapely.geometry import Point
 from .constants import *
-from src.maritimeviz.utils.ais_db_utils import *
+from .utils.ais_db_utils import *
 from . import logger
 from abc import ABC, abstractmethod
 

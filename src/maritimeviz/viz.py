@@ -16,7 +16,7 @@ from IPython.display import display
 from functools import partial
 from ipyleaflet import Map, basemaps, basemap_to_tiles
 
-from src.maritimeviz.utils.viz_utils import *
+from .utils.viz_utils import *
 
 
 class Map:
@@ -143,7 +143,7 @@ class Map:
         Notes:
             - The function creates a new 'geometry' column in the GeoDataFrame using latitude and longitude.
             - Ships on the border of the polygon are excluded (strict `within` filter).
-        
+
         Example:
             polygon = "POLYGON((-81 25, -81 26, -80 26, -80 25, -81 25))"
             filtered_ships = instance.filter_ships_by_polygon(polygon, ships_gdf)
@@ -171,7 +171,7 @@ class Map:
             wkt_polygon (str):
                 A Well-Known Text (WKT) string defining the polygonal boundary for spatial filtering.
                 Only ships located inside this polygon will be visualized.
-            
+
             geojson_data (dict or str):
                 GeoJSON ship data, either as a Python dictionary or as a file path. It is verified and
                 converted into a GeoDataFrame using the verify_geojson() utility function.
