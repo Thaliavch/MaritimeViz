@@ -51,6 +51,8 @@ class Map:
             return
 
         self.m.add_geojson(json.dumps(route_geojson), layer_name=layer_name)
+        
+        return self.m
 
     def map_all(self, geojson_data, layer_name="Route", map_tile="HYBRID"):
         """
