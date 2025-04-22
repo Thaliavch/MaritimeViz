@@ -122,6 +122,76 @@ def test_global_views_exist(setup_new_db):
     assert isinstance(df_static, pd.DataFrame)
     assert isinstance(df_all, pd.DataFrame)
 
+class TestGlobalFunctionality:
+    """
+    Functional tests for the global process, global search, and filter behavior
+    of AISDatabase.
+    """
+
+    @pytest.mark.parametrize("setup_new_db", [None], indirect=True)
+    def test_global_process_populates_views(self, setup_new_db):
+        db: AISDatabase = setup_new_db
+        db.process(AIS_FILE_PATH)
+
+        # After processing, all three global views should return GeoDataFrames
+        df_all = db.search(data="all")
+        df_dynamic = db.search(data="dynamic")
+        df_static = db.search(data="static")
+
+        assert isinstance(df_all, gpd.GeoDataFrame), "Expected GeoDataFrame for 'all'"
+        assert isinstance(df_dynamic, gpd.GeoDataFrame), "Expected GeoDataFrame for 'dynamic'"
+        assert isinstance(df_static, gpd.GeoDataFrame), "Expected GeoDataFrame for 'static'"
+
+        # At least one of them should be non‑empty if the test file has data
+        assert not (df_all.empty and df_dynamic.empty and df_static.empty), \
+            "All global views are empty after processing – expected at least one to contain data"
+
+    def test_global_search_without_and_with_filter(self, setup_existing_db):
+        mmsi = 9111254
+        db: AISDatabase = setup_existing_db
+
+        # Get the full unfiltered 'all' dataset
+        all_df = db.search(data="all")
+        assert isinstance(all_df, gpd.GeoDataFrame)
+
+        # Apply filter object and call search without explicit args
+        db.set_filter({"mmsi": mmsi})
+        filtered_df = db.search(data="all")
+        # Call search directly with the same MMSI
+        direct_df = db.search(data="all", mmsi=mmsi)
+
+        # Both results should match in length and content
+        assert isinstance(filtered_df, gpd.GeoDataFrame)
+        assert isinstance(direct_df, gpd.GeoDataFrame)
+        assert len(filtered_df) == len(direct_df), "Filter object did not produce same result as passing mmsi directly"
+        # All rows in the filtered GeoDataFrame should have the expected MMSI
+        assert all(filtered_df["mmsi"] == mmsi)
+
+        # Clearing the filter should restore the full result
+        db.clear_filter()
+        cleared_df = db.search(data="all")
+        assert len(cleared_df) == len(all_df), "Clearing filter did not restore full dataset"
+
+    def test_filter_object_type_validation(self, setup_existing_db):
+        db: AISDatabase = setup_existing_db
+
+        # Passing a non-dict to set_filter should raise TypeError
+        with pytest.raises(TypeError):
+            db.set_filter(["not", "a", "dict"])
+
+        # Passing invalid filter keys should raise TypeError
+        with pytest.raises(TypeError):
+            db.set_filter({"invalid_key": 123})
+
+        # A valid empty filter is allowed
+        db.set_filter({})
+        assert db._filter == {}
+
+        # Clean up
+        db.clear_filter()
+        assert db._filter is None
+
+
 class TestGlobalExports:
     """
     Testing global export methods in AISDatabase

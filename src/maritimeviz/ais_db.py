@@ -1006,7 +1006,6 @@ class ClassBMessages(BaseMessageProcessorPositionReport):
                 msg.get('tagblock_timestamp')
             )
         else:
-            print("Message is 18 or 19")
             # For dynamic messages (Types 18 and 19)
             query = """
                 INSERT INTO ais_msg_18_19 (
