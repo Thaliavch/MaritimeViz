@@ -10,7 +10,7 @@ import os
 import getpass
 from dotenv import load_dotenv, set_key
 
-ENV_FILE = os.path.join(os.path.dirname(__file__), ".env")
+ENV_FILE = os.path.join(os.path.dirname(__file__), "../../.env")
 
 # List token lists here
 GFW = "GFW_API_TOKEN"

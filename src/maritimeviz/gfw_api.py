@@ -1,14 +1,12 @@
 """Main module."""
 import os
-import getpass
 import requests
 from cachetools import TTLCache
 import pandas as pd
 import matplotlib as plt
-import geopandas as gpd
 import folium
 from folium.plugins import HeatMap
-from auth import load_or_get_token, GFW
+from .auth import load_or_get_token, GFW
 
 
 class GFW_api:
