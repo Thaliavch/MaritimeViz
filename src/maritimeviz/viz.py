@@ -32,6 +32,13 @@ class Map:
         self.m.add_basemap(map_tile='HYBRID')
         self.m.add_layer_control()
 
+    def _add_named_geojson(self, gdf, layer_name="Layer"):
+        '''
+        Adds Layers to Map
+        '''
+        fg = folium.FeatureGroup(name=layer_name)
+        folium.GeoJson(gdf).add_to(fg)
+        fg.add_to(self.m)
 
     def add_route(self, geojson_data, layer_name="Route"):
         """
@@ -117,7 +124,7 @@ class Map:
                             tooltip='Press for more info'
                         ).add_to(self.m)
 
-        self.m.add_geojson(gdf, layer_name="map_all")
+        self._add_named_geojson(gdf, layer_name="map_all")
 
         return self.m
 
@@ -263,7 +270,9 @@ class Map:
         # Add legend
         legend_html = create_speed_legend()
         self.m.get_root().html.add_child(Element(legend_html))
-        self.m.add_geojson(filtered_gdf, layer_name="ship_map_by_polygon")
+        
+        self._add_named_geojson(gdf, layer_name="ship_map_by_polygon")
+
 
         return self.m
 
@@ -360,7 +369,8 @@ class Map:
                 dash_array='5, 10'
             ).add_to(self.m)
 
-        self.m.add_geojson(gdf, layer_name="Ship Routes")
+        self._add_named_geojson(gdf, layer_name="ships_route")
+
         return self.m
 
     def plot_ship_heatmap(self, geojson_data):
@@ -380,8 +390,7 @@ class Map:
         gdf = verify_geojson(geojson_data)
 
         heat_data = gdf[['latitude', 'longitude']].values.tolist()
-        #HeatMap(heat_data).add_to(self.m)
-        #self.m.add_geojson(gdf, layer_name="Plot Ship Heatmap")
+        
         heat_layer = folium.FeatureGroup(name="Heatmap")
         HeatMap(heat_data).add_to(heat_layer)
         heat_layer.add_to(self.m)
@@ -441,7 +450,8 @@ class Map:
                 icon=icon,
                 tooltip="Base Station"
             ).add_to(self.m)
-        self.m.add_geojson(gdf, layer_name="Plot Base Stations")
+        
+        self._add_named_geojson(gdf, layer_name="Route")
 
         return self.m
 
