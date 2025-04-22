@@ -486,7 +486,7 @@ class Map:
             return 'No ship found with that mssi'
 
         n = plot_with_info(ship, self.m)
-        return n
+        #return n
 
     def ships_by_drawn_shape(self, geojson_data):
         """
@@ -577,7 +577,7 @@ class Map:
         self.m.get_root().html.add_child(Element(legend_html))
 
         n = plot_with_info(gdf, self.m, speed_flag=True)
-        return n
+        #return n
 
     def ship_map_on_click(self, geojson_data, radius_km=300):
         """
