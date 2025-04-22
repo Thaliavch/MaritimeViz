@@ -30,8 +30,8 @@ class Map:
         """
         self.m = leafmap.foliumap.Map(center=center, zoom=zoom)
         self.m.add_basemap(map_tile='HYBRID')
+        self.m.add_layer_control()
 
-        return self.m
 
     def add_route(self, route_geojson, layer_name="Route"):
         """
@@ -97,8 +97,6 @@ class Map:
             if gdf["latitude"].isnull().all() or gdf["longitude"].isnull().all():
                 print("No valid coordinates found in the data.")
             else:
-                self.m.add_title("All Vessel Routes", font_size="20px", align="center")
-
                 for _, row in gdf.iterrows():
 
                     icon = check_printable_icon(row) #Getting Icon
@@ -106,6 +104,7 @@ class Map:
                     # Extract all available data dynamically
                     info_text = "<br>".join(
                         [f"{key}: {value}" for key, value in row.items() if value and key != "geometry"])
+                        # testing
 
                     # Ensure latitude and longitude are valid
                     if row.geometry and hasattr(row.geometry, "x") and hasattr(row.geometry, "y"):
@@ -116,7 +115,8 @@ class Map:
                             tooltip='Press for more info'
                         ).add_to(self.m)
 
-        self.m.add_layer_control()
+        self.m.add_geojson(gdf, layer_name="map_all")
+
         return self.m
 
     def filter_ships_by_polygon(self, wkt_polygon, gdf):
@@ -261,8 +261,8 @@ class Map:
         # Add legend
         legend_html = create_speed_legend()
         self.m.get_root().html.add_child(Element(legend_html))
+        self.m.add_geojson(filtered_gdf, layer_name="ship_map_by_polygon")
 
-        self.m.add_layer_control()
         return self.m
 
     def ships_route(self, geojson_data, mmsi=None):
@@ -326,6 +326,7 @@ class Map:
             print("*WARNING*: No timestamp found. Sorting by index...")
             gdf = gdf.sort_values(by=["mmsi", gdf.index])
 
+
         for ship_id in gdf.mmsi.unique():
             ship = gdf[gdf.mmsi == ship_id]
 
@@ -357,7 +358,7 @@ class Map:
                 dash_array='5, 10'
             ).add_to(self.m)
 
-        self.m.add_layer_control()
+        self.m.add_geojson(gdf, layer_name="Ship Routes")
         return self.m
 
     def plot_ship_heatmap(self, geojson_data):
@@ -379,7 +380,8 @@ class Map:
         heat_data = gdf[['latitude', 'longitude']].values.tolist()
         HeatMap(heat_data).add_to(self.m)
 
-        self.m.add_layer_control()
+        self.m.add_geojson(gdf, layer_name="Plot Ship Heatmap")
+
         return self.m
 
     # A plot specific for messages from type 4
@@ -435,8 +437,8 @@ class Map:
                 icon=icon,
                 tooltip="Base Station"
             ).add_to(self.m)
+        self.m.add_geojson(gdf, layer_name="Plot Base Stations")
 
-        self.m.add_layer_control()
         return self.m
 
     def ship_by_mmsi(self, geojson_data, mmsi=None):
@@ -483,8 +485,8 @@ class Map:
         else:
             return 'No ship found with that mssi'
 
-        m = plot_with_info(ship, self.m)
-        return m
+        n = plot_with_info(ship, self.m)
+        return n
 
     def ships_by_drawn_shape(self, geojson_data):
         """
@@ -570,12 +572,12 @@ class Map:
 
         gdf = verify_geojson(geojson_data)
 
+
         legend_html = create_speed_legend()
         self.m.get_root().html.add_child(Element(legend_html))
 
-        m = plot_with_info(gdf, self.m, speed_flag=True)
-
-        return m
+        n = plot_with_info(gdf, self.m, speed_flag=True)
+        return n
 
     def ship_map_on_click(self, geojson_data, radius_km=300):
         """
