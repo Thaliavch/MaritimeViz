@@ -378,9 +378,11 @@ class Map:
         gdf = verify_geojson(geojson_data)
 
         heat_data = gdf[['latitude', 'longitude']].values.tolist()
-        HeatMap(heat_data).add_to(self.m)
-
-        self.m.add_geojson(gdf, layer_name="Plot Ship Heatmap")
+        #HeatMap(heat_data).add_to(self.m)
+        #self.m.add_geojson(gdf, layer_name="Plot Ship Heatmap")
+        heat_layer = folium.FeatureGroup(name="Heatmap")
+        HeatMap(heat_data).add_to(heat_layer)
+        heat_layer.add_to(self.m)
 
         return self.m
 
