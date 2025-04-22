@@ -144,7 +144,7 @@ class AISDatabase:
             end_date = end_date  or self._filter.get("end_date")
             polygon_bounds = polygon_bounds or self._filter.get("polygon_bounds")
 
-        view_name = self._get_view_name(report_type)
+        view_name = self._get_view_name(data=report_type)
         query = f"SELECT * FROM {view_name} WHERE 1=1"
         params = []
 
@@ -471,6 +471,7 @@ class BaseMessageProcessor:
         try:
             for query in DATABASE_ALL_VIEWS_CREATION_QUERIES:
                 self._conn.execute(query)
+                print("Updated View") #debug
         except Exception as e:
             logger.error(f"Error updating views: {e}")
 
@@ -505,6 +506,7 @@ class BaseMessageProcessor:
             # make sure our views reflect whatever data got inserted
             try:
                 self._update_global_views()
+                AISDatabase.clear_cache()
             except Exception as ve:
                 logger.error(f"Failed to rebuild global views: {ve}")
 
