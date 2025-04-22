@@ -29,6 +29,7 @@ class Map:
         Create a leafmap Map instance.
         """
         self.m = leafmap.foliumap.Map(center=center, zoom=zoom)
+        self.m.add_basemap(map_tile='HYBRID')
 
     def add_route(self, route_geojson, layer_name="Route"):
         """
@@ -94,9 +95,9 @@ class Map:
             if gdf["latitude"].isnull().all() or gdf["longitude"].isnull().all():
                 print("No valid coordinates found in the data.")
             else:
-                m = leafmap.Map(location=[gdf.latitude.mean(), gdf.longitude.mean()], zoom_start=4)
-                m.add_title("All Vessel Routes", font_size="20px", align="center")
-                m.add_basemap(map_tile)
+                #m = leafmap.Map(location=[gdf.latitude.mean(), gdf.longitude.mean()], zoom_start=4)
+                self.m.add_title("All Vessel Routes", font_size="20px", align="center")
+                #m.add_basemap(map_tile)
 
 
                 for _, row in gdf.iterrows():
@@ -117,6 +118,7 @@ class Map:
                             tooltip='Press for more info'
                         ).add_to(self.m)
 
+        self.m.add_layer_control()
         return self.m
 
     def filter_ships_by_polygon(self, wkt_polygon, gdf):
@@ -221,12 +223,12 @@ class Map:
             return None
 
         # Create map centered around filtered ships
-        m = leafmap.foliumap.Map(
-            location=[filtered_gdf.latitude.mean(), filtered_gdf.longitude.mean()],
-            zoom_start=4
-        )
-        m.add_title("Ships inside the polygon", font_size="20px", align="center")
-        m.add_basemap(map_tile)
+        #m = leafmap.foliumap.Map(
+        #    location=[filtered_gdf.latitude.mean(), filtered_gdf.longitude.mean()],
+        #    zoom_start=4
+        #)
+        self.m.add_title("Ships inside the polygon", font_size="20px", align="center")
+        #self.m.add_basemap(map_tile)
 
         # Highlight the WKT polygon region
         polygon_geom = loads(wkt_polygon)
