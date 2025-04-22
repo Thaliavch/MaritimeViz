@@ -471,7 +471,7 @@ class BaseMessageProcessor:
         try:
             for query in DATABASE_ALL_VIEWS_CREATION_QUERIES:
                 self._conn.execute(query)
-                print("Updated View") #debug
+                print("Data Inserted and Views Successfully Updated") #debug
         except Exception as e:
             logger.error(f"Error updating views: {e}")
 
@@ -897,7 +897,6 @@ class ClassAMessages(BaseMessageProcessorPositionReport):
             # Build GeoDataFrame
             df["geometry"] = gpd.points_from_xy(df["x"], df["y"])
             gdf = gpd.GeoDataFrame(df, geometry="geometry", crs="EPSG:4326")
-            print(gdf) #debuging
             return gdf
 
         except duckdb.Error as db_err:
@@ -1189,7 +1188,6 @@ class ClassBMessages(BaseMessageProcessorPositionReport):
             # Build GeoDataFrame
             df["geometry"] = gpd.points_from_xy(df["x"], df["y"])
             gdf = gpd.GeoDataFrame(df, geometry="geometry", crs="EPSG:4326")
-            print(gdf) #debuging
             return gdf
 
         except duckdb.Error as db_err:
@@ -1401,7 +1399,6 @@ class LongRangeMessages(BaseMessageProcessorPositionReport):
             # Build GeoDataFrame
             df["geometry"] = gpd.points_from_xy(df["x"], df["y"])
             gdf = gpd.GeoDataFrame(df, geometry="geometry", crs="EPSG:4326")
-            print(gdf) #debuging
             return gdf
 
         except duckdb.Error as db_err:
