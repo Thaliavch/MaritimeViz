@@ -441,7 +441,7 @@ class TestLongRangeMessages:
         }
 
         # Insert sample
-        processor._insert_message(sample_msg_27)
+        processor._prepare_insert(sample_msg_27)
 
         # Verify insertion
         df = db.connection().execute("SELECT * FROM ais_msg_27").fetchdf()
@@ -531,7 +531,7 @@ class TestAddressedBinaryHandler:
         }
 
         # Insert the sample message
-        processor._insert_message(sample_msg)
+        processor._prepare_insert(sample_msg)
 
         # Verify insertion by directly querying the table
         df = db.connection().execute("SELECT * FROM ais_msg_6").fetchdf()
@@ -643,7 +643,7 @@ class TestBroadcastTextHandler:
         }
 
         # Insert the sample message
-        processor._insert_message(sample_msg)
+        processor._prepare_insert(sample_msg)
 
         # Verify insertion by querying the table for type 8 messages
         df = db.connection().execute("SELECT * FROM ais_msg_8").fetchdf()
@@ -742,7 +742,7 @@ class TestShortBinaryHandler:
         }
 
         # Insert sample message
-        processor._insert_message(sample_msg)
+        processor._prepare_insert(sample_msg)
 
         # Verify insertion by directly querying the table
         df = db.connection().execute("SELECT * FROM ais_msg_25_26").fetchdf()
@@ -834,7 +834,7 @@ class TestAidToNavigationMessages:
             "tagblock_timestamp": 1600010000
         }
 
-        processor._insert_message(sample_msg_21)
+        processor._prepare_insert(sample_msg_21)
 
         df = db.connection().execute("SELECT * FROM ais_msg_21").fetchdf()
         print(df)
@@ -935,7 +935,7 @@ class TestBaseStationMessages:
             "tagblock_timestamp": 1600020000
         }
 
-        processor._insert_message(sample_msg_4)
+        processor._prepare_insert(sample_msg_4)
 
         df = db.connection().execute("SELECT * FROM ais_msg_4").fetchdf()
         print(df)
@@ -1029,8 +1029,8 @@ class TestBaseStationMessages:
 #             "tagblock_timestamp": 1600030050
 #         }
 #
-#         processor._insert_message(sample_ack_7)
-#         processor._insert_message(sample_safety_14)
+#         processor._prepare_insert(sample_ack_7)
+#         processor._prepare_insert(sample_safety_14)
 #
 #         # Check ais_msg_7_13
 #         df_7_13 = db.connection().execute("SELECT * FROM ais_msg_7_13").fetchdf()
@@ -1066,7 +1066,7 @@ class TestAcknowledgementMessages:
             "tagblock_station": "ACK-STATION",
             "tagblock_timestamp": 1600030000
         }
-        processor._insert_message(sample_ack_7)
+        processor._prepare_insert(sample_ack_7)
 
         df = db.connection().execute("SELECT * FROM ais_msg_7_13").fetchdf()
         print("Inserted Acknowledgement Message:", df)
@@ -1134,7 +1134,7 @@ class TestSafetyMessages:
             "tagblock_station": "SAFETY-STATION",
             "tagblock_timestamp": 1600030050
         }
-        processor._insert_message(sample_safety_14)
+        processor._prepare_insert(sample_safety_14)
 
         df = db.connection().execute("SELECT * FROM ais_msg_12_14").fetchdf()
         print("Inserted Safety Message:", df)
@@ -1214,7 +1214,7 @@ class TestSarAircraftMessages:
             "tagblock_timestamp": 1700000000
         }
 
-        processor._insert_message(sample_msg_9)
+        processor._prepare_insert(sample_msg_9)
 
         df = db.connection().execute("SELECT * FROM ais_msg_9").fetchdf()
         print(df)
@@ -1330,8 +1330,8 @@ class TestUtcDateMessages:
         }
 
         # Insert both messages
-        processor._insert_message(sample_msg_10)
-        processor._insert_message(sample_msg_11)
+        processor._prepare_insert(sample_msg_10)
+        processor._prepare_insert(sample_msg_11)
 
         # Verify we have two rows in ais_msg_10_11
         df = db.connection().execute("SELECT * FROM ais_msg_10_11").fetchdf()
@@ -1515,7 +1515,7 @@ class TestSystemManagementMessages:
 
         # Insert them all
         for msg in [sample_msg_15, sample_msg_16, sample_msg_17, sample_msg_20, sample_msg_22, sample_msg_23]:
-            processor._insert_message(msg)
+            processor._prepare_insert(msg)
 
         # debugging
         df = db.connection().execute("SELECT * FROM ais_msg_15_16_17_20_22_23").fetchdf()

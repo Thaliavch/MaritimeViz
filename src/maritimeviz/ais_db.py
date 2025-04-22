@@ -430,7 +430,7 @@ class AISDatabase:
 class BaseMessageProcessor:
     """
     Base class for processing AIS messages from files.
-    Subclasses should implement _filter_message() and _insert_message to filter and insert
+    Subclasses should implement _filter_message() and _prepare_insert to filter and insert
     messages of a specific type into their designated tables.
     """
     def __init__(self, conn: duckdb.DuckDBPyConnection):
@@ -441,17 +441,22 @@ class BaseMessageProcessor:
     '''
     Private methods
     '''
+
     def _process_chunk(self, chunk: list):
-        """
-            Process a chunk of lines and insert messages into the database.
-            """
-        import ais.stream  # Import required for threading compatibility
+        import ais.stream  # keep your decoder
+        batches: dict[str, list[tuple]] = {}
+
         for msg in ais.stream.decode(chunk):
             try:
-                if self._filter_message(msg):  # Filter messages
-                    self._insert_message(msg)  # Insert message into database
+                if self._filter_message(msg):
+                    q, params = self._prepare_insert(msg)
+                    batches.setdefault(q, []).append(params)
             except Exception as e:
-                logger.error(f"Error processing message: {msg} - {e}")
+                logger.error(f"Error processing message: {msg} — {e}")
+
+        # one executemany per distinct SQL
+        for q, param_list in batches.items():
+            self._conn.executemany(q, param_list)
 
     '''
     Abstract methods
@@ -462,9 +467,9 @@ class BaseMessageProcessor:
         raise NotImplementedError("Subclasses must implement _filter_message.")
 
     @abstractmethod
-    def _insert_message(self, msg: dict):
+    def _prepare_insert(self, msg: dict):
         """Insert the message into the appropriate table."""
-        raise NotImplementedError("Subclasses must implement _insert_message.")
+        raise NotImplementedError("Subclasses must implement _prepare_insert.")
 
     # TODO(Thalia): to update view when new data is inserted
     def _update_global_views(self):
@@ -483,33 +488,27 @@ class BaseMessageProcessor:
     Public methods start here
     '''
     # TODO(Thalia) Update so the process function checks for file extension and call function to process raw or csv file types.
-    def process(self, file_path: str, threading_stats=(4, 500)):
+    def process(self, file_path: str, chunk_size: int = 5000):
         """
-        Read the file in parallel, insert matching messages,
-        then always rebuild any global/materialized views—
-        even if an exception was raised halfway through.
+        Read the file in large chunks, batch‑insert,
+        then rebuild any global/materialized views at the end.
         """
         try:
-            with ThreadPoolExecutor(max_workers=threading_stats[0]) as executor:
-                futures = [
-                    executor.submit(self._process_chunk, chunk)
-                    for chunk in split_file_generator(file_path, threading_stats[1])
-                ]
-                for future in as_completed(futures):
-                    # if any _process_chunk raises, this will re‑raise
-                    future.result()
+            for chunk in split_file_generator(file_path, chunk_size):
+                try:
+                    self._process_chunk(chunk)
+                except Exception as e:
+                    logger.error(f"Chunk failed: {e}")
+                    raise
         except Exception as e:
-            logger.error(f"Error while processing {self.__class__.__name__}: {e}")
-            # re‑raise so callers know something went wrong
+            logger.error(f"Processing failed: {e}")
             raise
         finally:
-            # make sure our views reflect whatever data got inserted
             try:
                 self._update_global_views()
-                AISDatabase.clear_cache()
+                AISDatabase.clear_cache() # clear_cache to get latest inserted data in view
             except Exception as ve:
                 logger.error(f"Failed to rebuild global views: {ve}")
-
     '''
     Export Methods
     '''
@@ -646,8 +645,8 @@ class ABMessagesProcessor(BaseMessageProcessor):
     This processor reads a raw AIS file (NMEA stream, CSV, etc.), decodes every chunk,
     and for each message:
 
-      1. If `msg.id` is in {1,2,3,5}, delegates to `ClassAMessages._insert_message`.
-      2. If `msg.id` is in {18,19,24}, delegates to `ClassBMessages._insert_message`.
+      1. If `msg.id` is in {1,2,3,5}, delegates to `ClassAMessages._prepare_insert`.
+      2. If `msg.id` is in {18,19,24}, delegates to `ClassBMessages._prepare_insert`.
       3. Ignores all other message types.
 
     After all chunks have been processed, it calls `_update_global_views()` once
@@ -662,11 +661,11 @@ class ABMessagesProcessor(BaseMessageProcessor):
     def _filter_message(self, msg):
         return msg.get("id") in {1,2,3,5,18,19,24}
 
-    def _insert_message(self, msg):
+    def _prepare_insert(self, msg):
         if msg["id"] in {1, 2, 3, 5}:
-            self._proc_a._insert_message(msg)
+            return self._proc_a._prepare_insert(msg)
         else:
-            self._proc_b._insert_message(msg)
+            return self._proc_b._prepare_insert(msg)
 
     def set_filter(self, f): pass
 
@@ -681,7 +680,7 @@ class ClassAMessages(BaseMessageProcessorPositionReport):
         # Process only if the message id is one of the Class A types.
         return msg.get('id') in {1, 2, 3, 5}
 
-    def _insert_message(self, msg: dict):
+    def _prepare_insert(self, msg: dict):
         # Use .get() to provide default values for missing attributes
         # Note in _process_chunk we are already filtering per messages of type A
         if msg.get('id') == 5:
@@ -747,7 +746,7 @@ class ClassAMessages(BaseMessageProcessorPositionReport):
                 msg.get('tagblock_station'),
                 msg.get('tagblock_timestamp')
             )
-        self._conn.execute(query, params)
+        return (query, params)
 
     def set_filter(self, filter_obj: Optional[dict]) -> None:
         if filter_obj is not None:
@@ -985,7 +984,7 @@ class ClassBMessages(BaseMessageProcessorPositionReport):
         # Process only if the message id is one of the Class B types.
         return msg.get('id') in {18, 19, 24}
 
-    def _insert_message(self, msg: dict):
+    def _prepare_insert(self, msg: dict):
         if msg.get('id') == 24:
             query = """
                 INSERT INTO ais_msg_24 (
@@ -1051,7 +1050,7 @@ class ClassBMessages(BaseMessageProcessorPositionReport):
                 msg.get('tagblock_station'),
                 msg.get('tagblock_timestamp')
             )
-        self._conn.execute(query, params)
+        return (query, params)
 
     # TODO(Thalia): write function implementation and filter object for messages of class B
 
@@ -1246,7 +1245,7 @@ class LongRangeMessages(BaseMessageProcessorPositionReport):
     def _filter_message(self, msg: dict) -> bool:
         return msg.get("id") == 27
 
-    def _insert_message(self, msg: dict):
+    def _prepare_insert(self, msg: dict):
         query = """
             INSERT INTO ais_msg_27 (
                 id, repeat_indicator, mmsi, position_accuracy, raim, nav_status,
@@ -1273,7 +1272,7 @@ class LongRangeMessages(BaseMessageProcessorPositionReport):
             msg.get("tagblock_station"),
             msg.get("tagblock_timestamp")
         )
-        self._conn.execute(query, params)
+        return (query, params)
 
     def search(self,
                mmsi: Optional[Union[int, List[int]]] = None,
@@ -1424,7 +1423,7 @@ class AddressedBinaryHandler(BaseMessageProcessor):
     def _filter_message(self, msg: dict) -> bool:
         return msg.get("id") == 6
 
-    def _insert_message(self, msg: dict):
+    def _prepare_insert(self, msg: dict):
         """
         Insert a single message of type 6 into the ais_msg_6 table.
         """
@@ -1468,7 +1467,7 @@ class AddressedBinaryHandler(BaseMessageProcessor):
             msg.get("tagblock_station"),
             msg.get("tagblock_timestamp"),
         )
-        self._conn.execute(query, params)
+        return (query, params)
 
     def search(self,
                mmsi: Optional[Union[int, List[int]]] = None,
@@ -1556,7 +1555,7 @@ class BroadcastTextHandler(BaseMessageProcessor):
     def _filter_message(self, msg: dict) -> bool:
         return msg.get("id") == 8
 
-    def _insert_message(self, msg: dict):
+    def _prepare_insert(self, msg: dict):
         """
         Insert a single message of type 8 into the ais_msg_8 table.
         """
@@ -1594,7 +1593,7 @@ class BroadcastTextHandler(BaseMessageProcessor):
             msg.get("tagblock_station"),
             msg.get("tagblock_timestamp"),
         )
-        self._conn.execute(query, params)
+        return (query, params)
 
     def search(self,
                mmsi: Optional[Union[int, List[int]]] = None,
@@ -1681,7 +1680,7 @@ class ShortBinaryHandler(BaseMessageProcessor):
     def _filter_message(self, msg: dict) -> bool:
         return msg.get("id") in {25, 26}
 
-    def _insert_message(self, msg: dict):
+    def _prepare_insert(self, msg: dict):
         core_cols = {
             "id": msg.get("id"),
             "repeat_indicator": msg.get("repeat_indicator"),
@@ -1709,7 +1708,7 @@ class ShortBinaryHandler(BaseMessageProcessor):
             msg.get("tagblock_station"),
             msg.get("tagblock_timestamp"),
         )
-        self._conn.execute(query, params)
+        return (query, params)
 
     def search(self,
                mmsi: Optional[Union[int, List[int]]] = None,
@@ -1789,7 +1788,7 @@ class AidToNavigationMessages(BaseMessageProcessor):
     def _filter_message(self, msg: dict) -> bool:
         return msg.get("id") == 21
 
-    def _insert_message(self, msg: dict):
+    def _prepare_insert(self, msg: dict):
         """
         Insert a parsed AIS Message 21 (AtoN) into the ais_msg_21 table.
         Known columns are stored in top-level fields, everything else goes into application_data.
@@ -1866,7 +1865,7 @@ class AidToNavigationMessages(BaseMessageProcessor):
             msg.get("tagblock_station"),
             msg.get("tagblock_timestamp")
         )
-        self._conn.execute(query, params)
+        return (query, params)
 
     # TODO(Thalia): Update
     def search(self,
@@ -1946,7 +1945,7 @@ class BaseStationMessages(BaseMessageProcessor):
     def _filter_message(self, msg: dict) -> bool:
         return msg.get("id") == 4
 
-    def _insert_message(self, msg: dict):
+    def _prepare_insert(self, msg: dict):
         core_cols = {
             "id": msg.get("id"),
             "repeat_indicator": msg.get("repeat_indicator"),
@@ -2018,7 +2017,7 @@ class BaseStationMessages(BaseMessageProcessor):
             msg.get("tagblock_station"),
             msg.get("tagblock_timestamp"),
         )
-        self._conn.execute(query, params)
+        return (query, params)
 
     # TODO(Thalia) Update
     def search(self,
@@ -2098,7 +2097,7 @@ class AcknowledgementMessages(BaseMessageProcessor):
     def _filter_message(self, msg: dict) -> bool:
         return msg.get("id") in {7, 13}
 
-    def _insert_message(self, msg: dict):
+    def _prepare_insert(self, msg: dict):
         core_cols = {
             "id": msg.get("id"),
             "repeat_indicator": msg.get("repeat_indicator"),
@@ -2128,7 +2127,7 @@ class AcknowledgementMessages(BaseMessageProcessor):
             msg.get("tagblock_station"),
             msg.get("tagblock_timestamp")
         )
-        self._conn.execute(query, params)
+        return (query, params)
 
     def search(self, mmsi=None, conn=None, **kwargs):
         """Search for Acknowledgement messages (Types 7 & 13) in ais_msg_7_13."""
@@ -2154,7 +2153,7 @@ class SafetyMessages(BaseMessageProcessor):
     def _filter_message(self, msg: dict) -> bool:
         return msg.get("id") in {12, 14}
 
-    def _insert_message(self, msg: dict):
+    def _prepare_insert(self, msg: dict):
         core_cols = {
             "id": msg.get("id"),
             "repeat_indicator": msg.get("repeat_indicator"),
@@ -2186,7 +2185,7 @@ class SafetyMessages(BaseMessageProcessor):
             msg.get("tagblock_station"),
             msg.get("tagblock_timestamp")
         )
-        self._conn.execute(query, params)
+        return (query, params)
 
     def search(self, mmsi=None, conn=None, **kwargs):
         """Search for Safety messages (Types 12 & 14) in ais_msg_12_14."""
@@ -2212,7 +2211,7 @@ class SarAircraftMessages(BaseMessageProcessor):
         # Only process if it's actually message type 9.
         return msg.get("id") == 9
 
-    def _insert_message(self, msg: dict):
+    def _prepare_insert(self, msg: dict):
         """
         Inserts a Message 9 (SAR aircraft position report) into the `ais_msg_9` table.
         """
@@ -2241,7 +2240,7 @@ class SarAircraftMessages(BaseMessageProcessor):
 
         # Convert to JSON where needed (if your schema expects JSON text).
         # Adjust field names depending on how they appear in `msg`.
-        data_tuple = (
+        params = (
             msg.get("id"),
             msg.get("repeat_indicator"),
             msg.get("mmsi"),
@@ -2261,8 +2260,7 @@ class SarAircraftMessages(BaseMessageProcessor):
             msg.get("tagblock_timestamp"),
         )
 
-        self._conn.execute(query, data_tuple)
-        self._conn.commit()
+        return (query, params)
 
     def search(self,
                mmsi: Optional[Union[int, List[int]]] = None,
@@ -2377,7 +2375,7 @@ class UtcDateMessages(BaseMessageProcessor):
     def _filter_message(self, msg: dict) -> bool:
         return msg.get("id") in {10, 11}
 
-    def _insert_message(self, msg: dict):
+    def _prepare_insert(self, msg: dict):
         query = """
             INSERT INTO ais_msg_10_11 (
                 id,
@@ -2410,7 +2408,7 @@ class UtcDateMessages(BaseMessageProcessor):
         """
 
         # Because 10 and 11 use different fields, we .get() each with a default of None.
-        data_tuple = (
+        params = (
             msg.get("id"),
             msg.get("repeat_indicator"),
             msg.get("mmsi"),
@@ -2438,8 +2436,7 @@ class UtcDateMessages(BaseMessageProcessor):
             msg.get("tagblock_timestamp"),
         )
 
-        self._conn.execute(query, data_tuple)
-        self._conn.commit()
+        return (query, params)
 
     def search(self,
                msg_id: Optional[int] = None,  # 10 or 11
@@ -2552,7 +2549,7 @@ class SystemManagementMessages(BaseMessageProcessor):
     def _filter_message(self, msg: dict) -> bool:
         return msg.get("id") in {15, 16, 17, 20, 22, 23}
 
-    def _insert_message(self, msg: dict):
+    def _prepare_insert(self, msg: dict):
         """
         Insert any of messages 15, 16, 17, 20, 22, or 23 into our combined table.
         Unused fields for a given message type can be left as None.
@@ -2619,7 +2616,7 @@ class SystemManagementMessages(BaseMessageProcessor):
         """
 
         # Extract and default any fields not present
-        data_tuple = (
+        params = (
             msg.get("id"),
             msg.get("repeat_indicator"),
             msg.get("mmsi"),
@@ -2686,8 +2683,7 @@ class SystemManagementMessages(BaseMessageProcessor):
             msg.get("tagblock_timestamp"),
         )
 
-        self._conn.execute(query, data_tuple)
-        self._conn.commit()
+        return (query, params)
 
     def search(
         self,
