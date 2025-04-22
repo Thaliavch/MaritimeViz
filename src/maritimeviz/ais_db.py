@@ -24,7 +24,7 @@ class AISDatabase:
         self._db_path = db_path if db_path else self._get_default_db_path() # create new file_name if one is not given or if given an emtpy string
         self._conn = self._init_db(self._db_path)
         self._init_tables()
-        self._global_filter: Optional[dict] = None
+        self._filter: Optional[dict] = None
 
     def _init_db(self, db_path: str) -> duckdb.DuckDBPyConnection:
         try:
@@ -138,6 +138,13 @@ class AISDatabase:
         Returns:
             DataFrame or GeoDataFrame with the query result.
         """
+        if self._filter:
+            # only override if the user didn’t pass in an explicit value:
+            mmsi = mmsi or self._filter.get("mmsi")
+            start_date = start_date or self._filter.get("start_date")
+            end_date = end_date  or self._filter.get("end_date")
+            polygon_bounds = polygon_bounds or self._filter.get("polygon_bounds")
+
         view_name = self._get_view_name(data)
         query = f"SELECT * FROM {view_name} WHERE 1=1"
         params = []
@@ -393,6 +400,24 @@ class AISDatabase:
         """
         return SystemManagementMessages(self._conn)
 
+    def process(self, file_path: str) -> None:
+        """
+        Process a raw AIS data file and populate the database with Class A and Class B messages.
+        This method will:
+
+        1. Split the input file into chunks of roughly `threading_stats[1]` lines each.
+        2. Spin up up to `threading_stats[0]` worker threads **per** processor.
+        3. Run one passes over file and process messages of class A and class B
+
+        Parameters:
+            file_path (str):
+                Path to your raw AIS data file (NMEA stream, CSV, etc.).
+
+        Returns:
+            None
+        """
+        ABMessagesProcessor(self._conn).process(file_path)
+
 
 class BaseMessageProcessor:
     """
@@ -450,14 +475,30 @@ class BaseMessageProcessor:
     '''
     # TODO(Thalia) Update so the process function checks for file extension and call function to process raw or csv file types.
     def process(self, file_path: str, threading_stats=(4, 500)):
-        with ThreadPoolExecutor(max_workers=threading_stats[0]) as executor:
-            futures = [
-                executor.submit(self._process_chunk, chunk)
-                for chunk in split_file_generator(file_path, threading_stats[1])
-            ]
-            for future in as_completed(futures):
-                future.result()
-        self._update_global_views()
+        """
+        Read the file in parallel, insert matching messages,
+        then always rebuild any global/materialized views—
+        even if an exception was raised halfway through.
+        """
+        try:
+            with ThreadPoolExecutor(max_workers=threading_stats[0]) as executor:
+                futures = [
+                    executor.submit(self._process_chunk, chunk)
+                    for chunk in split_file_generator(file_path, threading_stats[1])
+                ]
+                for future in as_completed(futures):
+                    # if any _process_chunk raises, this will re‑raise
+                    future.result()
+        except Exception as e:
+            logger.error(f"Error while processing {self.__class__.__name__}: {e}")
+            # re‑raise so callers know something went wrong
+            raise
+        finally:
+            # make sure our views reflect whatever data got inserted
+            try:
+                self._update_global_views()
+            except Exception as ve:
+                logger.error(f"Failed to rebuild global views: {ve}")
 
     '''
     Export Methods
@@ -588,6 +629,36 @@ class BaseMessageProcessorPositionReport(BaseMessageProcessor):
         """Query vessel static data applying given arguments"""
         raise NotImplementedError("Subclasses must implement static_info.")
 
+class ABMessagesProcessor(BaseMessageProcessor):
+    """
+    Processor that handles both Class A (1, 2, 3, 5) and Class B (18, 19, 24) AIS messages in one pass.
+
+    This processor reads a raw AIS file (NMEA stream, CSV, etc.), decodes every chunk,
+    and for each message:
+
+      1. If `msg.id` is in {1,2,3,5}, delegates to `ClassAMessages._insert_message`.
+      2. If `msg.id` is in {18,19,24}, delegates to `ClassBMessages._insert_message`.
+      3. Ignores all other message types.
+
+    After all chunks have been processed, it calls `_update_global_views()` once
+    so that any “global” views reflect the newly inserted rows.
+    """
+
+    def __init__(self, conn):
+        super().__init__(conn)
+        self._proc_a = ClassAMessages(conn)
+        self._proc_b = ClassBMessages(conn)
+
+    def _filter_message(self, msg):
+        return msg.get("id") in {1,2,3,5,18,19,24}
+
+    def _insert_message(self, msg):
+        if msg["id"] in {1, 2, 3, 5}:
+            self._proc_a._insert_message(msg)
+        else:
+            self._proc_b._insert_message(msg)
+
+    def set_filter(self, f): pass
 
 class ClassAMessages(BaseMessageProcessorPositionReport):
     """
@@ -1154,9 +1225,6 @@ class OtherMessages(BaseMessageProcessor):
     """
     def __init__(self, conn: duckdb.DuckDBPyConnection):
         super().__init__(conn)
-
-
-
 
 
 class LongRangeMessages(BaseMessageProcessorPositionReport):
