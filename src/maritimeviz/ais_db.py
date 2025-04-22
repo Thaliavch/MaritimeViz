@@ -443,7 +443,7 @@ class BaseMessageProcessor:
     '''
 
     def _process_chunk(self, chunk: list):
-        import ais.stream  # keep your decoder
+        import ais.stream
         batches: dict[str, list[tuple]] = {}
 
         for msg in ais.stream.decode(chunk):
