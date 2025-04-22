@@ -259,13 +259,22 @@ class AISDatabase:
         """
         Returns a JSON object and exports the global AIS data to a JSON file.
         """
-        df = self._get_global_df(report_type, mmsi, start_date, end_date, polygon_bounds,
+        df = self._get_global_df(report_type, mmsi, start_date, end_date,
+                                 polygon_bounds,
                                  as_geodf=False)
         if df.empty:
             return "No data available to export."
+
+        # Convert to JSON once and store
+        json_data = df.to_json(
+            orient='records')  # Use orient='records' for a list of JSON objects
+
+        # Write to file
         with open(file_path, "w") as f:
-            f.write(df.to_json())
-        return json.loads(df.to_json())
+            f.write(json_data)
+
+        # Return the JSON data
+        return json.loads(json_data)
 
     def get_shapefile(self, file_path: str = "ais_shapefile",
                       report_type: str = "position",
@@ -970,7 +979,6 @@ class ClassBMessages(BaseMessageProcessorPositionReport):
     """
     def __init__(self, conn: duckdb.DuckDBPyConnection):
         super().__init__(conn)
-        print("Inside class B messages constructor...") #debugging
 
     def _filter_message(self, msg: dict) -> bool:
         # Process only if the message id is one of the Class B types.
