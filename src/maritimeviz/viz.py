@@ -31,8 +31,6 @@ class Map:
         self.m = leafmap.foliumap.Map(center=center, zoom=zoom)
         self.m.add_basemap(map_tile='HYBRID')
 
-        return self.m
-
     def add_route(self, route_geojson, layer_name="Route"):
         """
         Adds a vessel route to the map using a GeoJSON representation.
