@@ -102,14 +102,13 @@ class AISDatabase:
         Determine the view name based on the 'data' parameter.
 
         Parameters:
-            data (str): One of "all", "dynamic", or "static".
+            data (str): One of "position" or "static"
 
         Returns:
             str: The name of the view to query.
         """
         mapping = {
-            "all": "global_ais_data",
-            "dynamic": "global_ais_dynamic",
+            "position": "global_ais_dynamic",
             "static": "global_ais_static"
         }
         if data not in mapping:
@@ -117,7 +116,7 @@ class AISDatabase:
                 "Invalid data parameter. Must be 'all', 'dynamic', or 'static'.")
         return mapping[data]
 
-    def _get_global_df(self, data: str = "all",
+    def _get_global_df(self, report_type: str = "position",
                        mmsi: Optional[int] = None,
                        start_date: Optional[str] = None,
                        end_date: Optional[str] = None,
@@ -128,7 +127,7 @@ class AISDatabase:
         Query the appropriate global view (all/dynamic/static) with optional filters.
 
         Parameters:
-            data (str): Which dataset to query – "all", "dynamic", or "static".
+            report_type (str): Which dataset to query – position or static reports.
             mmsi (Optional[int]): Optional MMSI filter.
             start_date (Optional[str]): Start date ("YYYY-MM-DD").
             end_date (Optional[str]): End date ("YYYY-MM-DD").
@@ -145,7 +144,7 @@ class AISDatabase:
             end_date = end_date  or self._filter.get("end_date")
             polygon_bounds = polygon_bounds or self._filter.get("polygon_bounds")
 
-        view_name = self._get_view_name(data)
+        view_name = self._get_view_name(report_type)
         query = f"SELECT * FROM {view_name} WHERE 1=1"
         params = []
 
@@ -190,30 +189,30 @@ class AISDatabase:
             return gpd.GeoDataFrame(df, geometry="geometry", crs="EPSG:4326")
         return df
 
-    def search(self,data: str = "all",
+    def search(self, report_type: str = "position",
+               mmsi: Optional[int] = None,
+               start_date: Optional[str] = None,
+               end_date: Optional[str] = None,
+               polygon_bounds: Optional[str] = None):
+        return self._get_global_df(report_type, mmsi, start_date, end_date, polygon_bounds)
+
+    # TODO(THALIA) Update to drop all rows for which x, y are null
+    def get_geojson(self, report_type: str = "position",
                     mmsi: Optional[int] = None,
                     start_date: Optional[str] = None,
                     end_date: Optional[str] = None,
-                    polygon_bounds: Optional[str] = None):
-        return self._get_global_df(data, mmsi, start_date, end_date, polygon_bounds)
-
-    # TODO(THALIA) Update to drop all rows for which x, y are null
-    def get_geojson(self, data: str = "all",
-                           mmsi: Optional[int] = None,
-                           start_date: Optional[str] = None,
-                           end_date: Optional[str] = None,
-                           polygon_bounds: Optional[str] = None) -> dict:
+                    polygon_bounds: Optional[str] = None) -> dict:
         """
         Return a GeoJSON representation of global AIS data.
 
         Parameters:
-            data (str): One of "all", "dynamic", or "static".
+            report_type (str): One of "position" or "static"
             ... (other filters)
 
         Returns:
             dict: The GeoJSON representation.
         """
-        gdf = self._get_global_df(data, mmsi, start_date, end_date,
+        gdf = self._get_global_df(report_type, mmsi, start_date, end_date,
                                   polygon_bounds, as_geodf=True)
         if gdf.empty:
             logger.info(f"No AIS data available for MMSI {mmsi}")
@@ -223,12 +222,12 @@ class AISDatabase:
         return json.loads(gdf.to_json())
 
     def get_csv(self, file_path: str = "ais_data.csv",
-                       data: str = "all",
-                       mmsi: Optional[int] = None,
-                       start_date: Optional[str] = None,
-                       end_date: Optional[str] = None,
-                       polygon_bounds: Optional[str] = None) -> str:
-        df = self._get_global_df(data, mmsi, start_date, end_date,
+                report_type: str = "position",
+                mmsi: Optional[int] = None,
+                start_date: Optional[str] = None,
+                end_date: Optional[str] = None,
+                polygon_bounds: Optional[str] = None) -> str:
+        df = self._get_global_df(report_type, mmsi, start_date, end_date,
                                  polygon_bounds, as_geodf=False)
         if df.empty:
             return "No data available to export."
@@ -236,15 +235,15 @@ class AISDatabase:
         return f"CSV saved at {file_path}"
 
     def get_parquet(self, file_path: str = "ais_data.parquet",
-                           data: str = "all",
-                           mmsi: Optional[int] = None,
-                           start_date: Optional[str] = None,
-                           end_date: Optional[str] = None,
-                           polygon_bounds: Optional[str] = None) -> str:
+                    report_type: str = "position",
+                    mmsi: Optional[int] = None,
+                    start_date: Optional[str] = None,
+                    end_date: Optional[str] = None,
+                    polygon_bounds: Optional[str] = None) -> str:
         """
         Exports global AIS data to a Parquet file.
         """
-        df = self._get_global_df(data, mmsi, start_date, end_date, polygon_bounds,
+        df = self._get_global_df(report_type, mmsi, start_date, end_date, polygon_bounds,
                                  as_geodf=False)
         if df.empty:
             return "No data available to export."
@@ -252,15 +251,15 @@ class AISDatabase:
         return f"Parquet file saved at {file_path}"
 
     def get_json(self, file_path: str = "ais_data.json",
-                        data: str = "all",
-                        mmsi: Optional[int] = None,
-                        start_date: Optional[str] = None,
-                        end_date: Optional[str] = None,
-                        polygon_bounds: Optional[str] = None):
+                 report_type: str = "position",
+                 mmsi: Optional[int] = None,
+                 start_date: Optional[str] = None,
+                 end_date: Optional[str] = None,
+                 polygon_bounds: Optional[str] = None):
         """
         Returns a JSON object and exports the global AIS data to a JSON file.
         """
-        df = self._get_global_df(data, mmsi, start_date, end_date, polygon_bounds,
+        df = self._get_global_df(report_type, mmsi, start_date, end_date, polygon_bounds,
                                  as_geodf=False)
         if df.empty:
             return "No data available to export."
@@ -269,15 +268,15 @@ class AISDatabase:
         return json.loads(df.to_json())
 
     def get_shapefile(self, file_path: str = "ais_shapefile",
-                             data: str = "all",
-                             mmsi: Optional[int] = None,
-                             start_date: Optional[str] = None,
-                             end_date: Optional[str] = None,
-                             polygon_bounds: Optional[str] = None) -> str:
+                      report_type: str = "position",
+                      mmsi: Optional[int] = None,
+                      start_date: Optional[str] = None,
+                      end_date: Optional[str] = None,
+                      polygon_bounds: Optional[str] = None) -> str:
         """
         Exports global AIS data to a Shapefile.
         """
-        gdf = self._get_global_df(data, mmsi, start_date, end_date, polygon_bounds,
+        gdf = self._get_global_df(report_type, mmsi, start_date, end_date, polygon_bounds,
                                   as_geodf=True)
         if gdf.empty:
             return "No data available to export."
@@ -285,15 +284,15 @@ class AISDatabase:
         return f"Shapefile saved at {file_path}"
 
     def get_kml(self, file_path: str = "ais_data.kml",
-                       data: str = "all",
-                       mmsi: Optional[int] = None,
-                       start_date: Optional[str] = None,
-                       end_date: Optional[str] = None,
-                       polygon_bounds: Optional[str] = None) -> str:
+                report_type: str = "position",
+                mmsi: Optional[int] = None,
+                start_date: Optional[str] = None,
+                end_date: Optional[str] = None,
+                polygon_bounds: Optional[str] = None) -> str:
         """
         Exports global AIS data to a KML file.
         """
-        gdf = self._get_global_df(data, mmsi, start_date, end_date, polygon_bounds,
+        gdf = self._get_global_df(report_type, mmsi, start_date, end_date, polygon_bounds,
                                   as_geodf=True)
         if gdf.empty:
             return "No data available to export."
@@ -301,15 +300,15 @@ class AISDatabase:
         return f"KML file saved at {file_path}"
 
     def get_excel(self, file_path: str = "ais_data.xlsx",
-                         data: str = "all",
-                         mmsi: Optional[int] = None,
-                         start_date: Optional[str] = None,
-                         end_date: Optional[str] = None,
-                         polygon_bounds: Optional[str] = None) -> str:
+                  report_type: str = "position",
+                  mmsi: Optional[int] = None,
+                  start_date: Optional[str] = None,
+                  end_date: Optional[str] = None,
+                  polygon_bounds: Optional[str] = None) -> str:
         """
         Exports global AIS data to an Excel file.
         """
-        df = self._get_global_df(data, mmsi, start_date, end_date, polygon_bounds,
+        df = self._get_global_df(report_type, mmsi, start_date, end_date, polygon_bounds,
                                  as_geodf=False)
         if df.empty:
             return "No data available to export."
@@ -317,14 +316,14 @@ class AISDatabase:
         return f"Excel file saved at {file_path}"
 
     def get_wkt(self, mmsi: Optional[int] = None,
-                       data: str = "all",
-                       start_date: Optional[str] = None,
-                       end_date: Optional[str] = None,
-                       polygon_bounds: Optional[str] = None):
+                report_type: str = "position",
+                start_date: Optional[str] = None,
+                end_date: Optional[str] = None,
+                polygon_bounds: Optional[str] = None):
         """
         Returns global AIS data in Well-Known Text (WKT) format.
         """
-        gdf = self._get_global_df(data, mmsi, start_date, end_date, polygon_bounds,
+        gdf = self._get_global_df(report_type, mmsi, start_date, end_date, polygon_bounds,
                                   as_geodf=True)
         if gdf.empty:
             return "No data available to export."
@@ -428,7 +427,7 @@ class BaseMessageProcessor:
     def __init__(self, conn: duckdb.DuckDBPyConnection):
         self._conn = conn
         self._filter: Optional[dict] = None
-        print("BaseMessageProcessor instantiated ...") #debug
+
 
     '''
     Private methods
