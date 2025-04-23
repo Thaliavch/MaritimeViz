@@ -8,7 +8,7 @@ import folium
 import leafmap.foliumap
 import geopandas as gpd
 import leafmap
-from folium import Marker, Icon, Popup
+from folium import Marker, Icon, Popup, FeatureGroup
 from branca.element import Element
 from shapely.wkt import loads
 from folium.plugins import HeatMap
@@ -30,93 +30,56 @@ class Map:
         """
         self.m = leafmap.foliumap.Map(center=center, zoom=zoom)
         self.m.add_basemap(map_tile='HYBRID')
+        # track whether we've already added a LayerControl
+        self._control_added = False
 
-        return self.m
-
-    def add_route(self, route_geojson, layer_name="Route"):
+    def map_all(self, geojson_data, layer_name="All Vessel Routes"):
         """
-        Adds a vessel route to the map using a GeoJSON representation.
+        Adds a toggleable layer of all vessel positions/routes to the existing map.
 
         Parameters:
-            route_geojson (dict or str): The GeoJSON data representing the vessel route.
-            layer_name (str, optional): The name of the layer to be added to the map. Defaults to "Route".
-
-        Behavior:
-            - If the provided GeoJSON is empty or invalid, a message is printed and the function returns without modifying the map.
-            - If valid GeoJSON is provided, it is added to the map as a GeoJSON layer.
-
-        Example Usage:
-            self.add_route(geojson_data, "Vessel Route")
+            geojson_data (str | dict): GeoJSON data (or path) for vessel positions.
+            layer_name (str): Name for the layer in the layer control.
         """
-
-        if not route_geojson:
-            print("Empty or invalid GeoJSON. Nothing to plot.")
-            return
-
-        self.m.add_geojson(json.dumps(route_geojson), layer_name=layer_name)
-
-
-    def map_all(self, geojson_data):
-        """
-            Generates an interactive map displaying vessel locations and routes based on GeoJSON data.
-
-            Parameters:
-                route_geojson (str): The file path to a GeoJSON file containing vessel route data.
-                layer_name (str, optional): The name of the map layer. Defaults to "Route".
-
-            Behavior:
-                - If the GeoJSON file is empty or invalid, a message is printed, and the function returns.
-                - Reads the GeoJSON file into a GeoDataFrame.
-                - If the data contains valid geometry, extracts longitude and latitude coordinates.
-                - Initializes a map centered around the average latitude and longitude of the dataset.
-                - Iterates through the data and places markers representing vessels.
-                - Each marker includes:
-                    - A popup displaying the ship's ID and speed.
-                    - A tooltip showing ship details on hover.
-                - Returns the generated map object.
-
-            Returns:
-                leafmap.Map: An interactive folium-based map with vessel locations.
-
-            Example Usage:
-                map_object = self.map_all("vessel_routes.geojson")
-                map_object  # Display the map in a Jupyter Notebook or web interface.
-            """
-
         gdf = verify_geojson(geojson_data)
-
         if gdf.empty:
             print("No valid ship route data found.")
-        else:
-            # Extract latitude and longitude if not already present
-            if "latitude" not in gdf.columns or "longitude" not in gdf.columns:
-                gdf["longitude"] = gdf["geometry"].apply(lambda geom: geom.x if geom else None)
-                gdf["latitude"] = gdf["geometry"].apply(lambda geom: geom.y if geom else None)
+            return self.m
 
-            # Ensure there are valid coordinates
-            if gdf["latitude"].isnull().all() or gdf["longitude"].isnull().all():
-                print("No valid coordinates found in the data.")
-            else:
-                self.m.add_title("All Vessel Routes", font_size="20px", align="center")
+        # make sure we have lat/lon columns
+        if "latitude" not in gdf.columns or "longitude" not in gdf.columns:
+            gdf["longitude"] = gdf.geometry.x
+            gdf["latitude"] = gdf.geometry.y
 
-                for _, row in gdf.iterrows():
+        if gdf["latitude"].isnull().all() or gdf["longitude"].isnull().all():
+            print("No valid coordinates found in the data.")
+            return self.m
 
-                    icon = check_printable_icon(row) #Getting Icon
+        # create a separate FeatureGroup so it shows up as its own toggleable layer
+        fg = FeatureGroup(name=layer_name, show=True)
 
-                    # Extract all available data dynamically
-                    info_text = "<br>".join(
-                        [f"{key}: {value}" for key, value in row.items() if value and key != "geometry"])
+        for _, row in gdf.iterrows():
+            icon_name = check_printable_icon(row)
+            info_html = "<br>".join(
+                f"{k}: {v}" for k, v in row.items()
+                if v is not None and k not in (
+                "geometry", "latitude", "longitude")
+            )
+            Marker(
+                location=[row.latitude, row.longitude],
+                icon=Icon(color="blue", icon=icon_name, prefix="fa"),
+                popup=Popup(info_html, max_width=300),
+                tooltip="Press for more info"
+            ).add_to(fg)
 
-                    # Ensure latitude and longitude are valid
-                    if row.geometry and hasattr(row.geometry, "x") and hasattr(row.geometry, "y"):
-                        folium.Marker(
-                            icon=folium.Icon(color="blue", icon=icon, prefix="fa"),
-                            location=[row.geometry.y, row.geometry.x],  # Latitude, Longitude
-                            popup=folium.Popup(info_text, max_width=300),  # Display all available info
-                            tooltip='Press for more info'
-                        ).add_to(self.m)
+        # add this layer
+        fg.add_to(self.m)
 
-        self.m.add_layer_control()
+        # add the layer control once
+        if not self._control_added:
+            self.m.add_layer_control()
+            self._control_added = True
+
         return self.m
 
     def filter_ships_by_polygon(self, wkt_polygon, gdf):
