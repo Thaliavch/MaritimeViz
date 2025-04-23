@@ -194,51 +194,43 @@ class Map:
 
     def map_all(self, geojson_data, layer_name="All Vessel Routes"):
         """
-        Adds a toggleable point‐layer of vessel positions/routes to the map.
+        Adds a toggleable layer of all vessel positions/routes to the map.
         """
         gdf = verify_geojson(geojson_data)
         if gdf.empty:
-            print("No valid ship route data found.")
+            print("No valid data.")
             return self
 
-        # Ensure latitude/longitude cols
-        if "latitude" not in gdf.columns or "longitude" not in gdf.columns:
+        # ensure lat/lon
+        if "latitude" not in gdf or "longitude" not in gdf:
             gdf["longitude"] = gdf.geometry.x
             gdf["latitude"] = gdf.geometry.y
 
-        if gdf["latitude"].isnull().all() or gdf["longitude"].isnull().all():
-            print("No valid coordinates found in the data.")
-            return self
-
-        # Build a FeatureGroup so it shows up as its own toggleable layer
         fg = FeatureGroup(name=layer_name, show=True)
-
         for _, row in gdf.iterrows():
-            # skip if no valid point
-            if not row.geometry or not hasattr(row.geometry,
-                                               "x") or not hasattr(
-                row.geometry, "y"):
+            # skip if no valid geometry
+            if row.geometry is None:
                 continue
+            lon, lat = row.geometry.x, row.geometry.y
 
             icon_name = check_printable_icon(row)
-            info_html = "<br>".join(
+            info = "<br>".join(
                 f"{k}: {v}"
                 for k, v in row.items()
-                if v is not None and k not in (
-                "geometry", "latitude", "longitude")
+                if v is not None and k not in ("geometry","latitude","longitude")
             )
 
-            Marker(
-                location=[row.geometry.y, row.geometry.x],
-                icon=Icon(color="blue", icon=icon_name, prefix="fa"),
-                popup=Popup(info_html, max_width=300),
+            folium.Marker(
+                location=[lat, lon],
+                icon=folium.Icon(color="blue", icon=icon_name, prefix="fa"),
+                popup=folium.Popup(info, max_width=300),
                 tooltip="Press for more info"
             ).add_to(fg)
 
         fg.add_to(self.m)
-        self._maybe_add_layer_control()
+        self._maybe_add_control()
         return self
-
+    
     def ship_map_by_polygon(self, wkt_polygon, geojson_data, layer_name="Ships in Polygon"):
         """Adds a layer showing only ships within a WKT polygon, color‐coded by speed."""
         gdf = verify_geojson(geojson_data)
