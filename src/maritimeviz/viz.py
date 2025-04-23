@@ -228,9 +228,9 @@ class Map:
             ).add_to(fg)
 
         fg.add_to(self.m)
-        self._maybe_add_control()
+        self._maybe_add_layer_control()
         return self
-    
+
     def ship_map_by_polygon(self, wkt_polygon, geojson_data, layer_name="Ships in Polygon"):
         """Adds a layer showing only ships within a WKT polygon, color‐coded by speed."""
         gdf = verify_geojson(geojson_data)
