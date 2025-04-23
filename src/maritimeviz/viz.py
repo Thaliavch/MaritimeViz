@@ -154,6 +154,7 @@ class Map:
             # Add a Folium LayerControl exactly once
             LayerControl().add_to(self.m)
             self._layer_control_added = True
+            print("layer control set to ", self._layer_control_added)
 
     def map_all(self, geojson_data, layer_name="All Vessel Routes"):
         """
@@ -166,7 +167,7 @@ class Map:
         gdf = verify_geojson(geojson_data)
         if gdf.empty:
             print("No valid ship route data found.")
-            return self.m
+            return self
 
         # Guarantee latitude/longitude columns
         if "latitude" not in gdf.columns or "longitude" not in gdf.columns:
@@ -175,7 +176,7 @@ class Map:
 
         if gdf["latitude"].isnull().all() or gdf["longitude"].isnull().all():
             print("No valid coordinates found in the data.")
-            return self.m
+            return self
 
         # Build a FeatureGroup so it appears as one toggleable layer
         fg = FeatureGroup(name=layer_name, show=True)
@@ -224,368 +225,595 @@ class Map:
         self._maybe_add_layer_control()
         return self
 
-
-    def ship_map_by_polygon(self, wkt_polygon, geojson_data):
-        """
-        Create an interactive map to visualize ships located within a user-defined WKT polygon.
-
-        This function generates a folium-based map (via the leafmap wrapper) that highlights ships found within a specific
-        polygonal area. The ships are color-coded by speed and presented with informative markers. The polygon itself is also
-        drawn on the map to provide spatial context. This visualization is useful for analyzing maritime traffic density, behavior
-        patterns, or area-specific vessel presence.
-
-        Parameters:
-            wkt_polygon (str):
-                A Well-Known Text (WKT) string defining the polygonal boundary for spatial filtering.
-                Only ships located inside this polygon will be visualized.
-
-            geojson_data (dict or str):
-                GeoJSON ship data, either as a Python dictionary or as a file path. It is verified and
-                converted into a GeoDataFrame using the verify_geojson() utility function.
-                The data must include at least the following fields: 'latitude', 'longitude', and 'speed'.
-
-            map_tile (str, optional):
-                The base map tile to use for visualization. Defaults to 'HYBRID', but can also accept
-                other supported tiles like 'ROADMAP', etc.
-
-        Returns:
-            folium.Map or None:
-                A map object displaying the filtered ships within the WKT polygon area, along with:
-                - Speed-based color-coded markers
-                - The polygon boundary as a highlighted region
-                - A custom legend explaining the speed-color mapping
-
-                If no ships are found within the polygon, a message is printed and None is returned.
-
-        Internal Workflow:
-            - The GeoJSON input is verified and converted to a GeoDataFrame.
-            - Ships are spatially filtered based on their inclusion within the provided WKT polygon.
-            - If no ships are found, the function exits early.
-            - A map is initialized and centered around the centroid of the filtered data.
-            - The polygon boundary is added to the map in yellow with transparency for visual emphasis.
-            - Each ship is plotted as a marker, color-coded by its speed:
-                Green (≤2 knots), Blue (≤10), Orange (≤25), Red (≤30), Purple (>30)
-            - Each marker includes an icon and a popup with detailed ship information.
-            - A speed legend is added to the map to support interpretation.
-
-        Example:
-            geojson_data = "ships_data.geojson"
-            wkt_polygon = "POLYGON((-81 25, -81 26, -80 26, -80 25, -81 25))"
-            m = instance.ship_map_by_polygon(wkt_polygon, geojson_data)
-            m  # Displays the interactive ship map with the selected polygon filter
-        """
-
-
-        # Verify and load GeoJSON data
+    def ship_map_by_polygon(self, wkt_polygon, geojson_data, layer_name="Ships in Polygon"):
+        """Adds a layer showing only ships within a WKT polygon, color‐coded by speed."""
         gdf = verify_geojson(geojson_data)
-
-        # Filter ships inside the polygon
-        filtered_gdf = filter_ships_by_polygon(wkt_polygon, gdf)
-
-        if filtered_gdf.empty:
+        # spatial filter
+        try:
+            poly = loads(wkt_polygon)
+        except Exception:
+            raise ValueError("Invalid WKT polygon format")
+        gdf["geometry"] = gpd.points_from_xy(gdf.longitude, gdf.latitude, crs="EPSG:4326")
+        filtered = gdf[gdf.geometry.within(poly)]
+        if filtered.empty:
             print("No ships found in the selected area.")
-            return None
+            return self
 
-        # Highlight the WKT polygon region
-        polygon_geom = loads(wkt_polygon)
-        polygon_coords = list(polygon_geom.exterior.coords)
-        folium.Polygon(
-            locations=[(lat, lon) for lon, lat in polygon_coords],
-            color='yellow',
-            weight=3,
-            fill=True,
-            fill_opacity=0.2,
-            popup="WKT Region"
-        ).add_to(self.m)
+        fg = FeatureGroup(name=layer_name, show=True)
+        # draw polygon
+        coords = [(lat, lon) for lon, lat in poly.exterior.coords]
+        Polygon(locations=coords, color="yellow", weight=3, fill=True, fill_opacity=0.2).add_to(fg)
 
-        for _, row in filtered_gdf.iterrows():
-
-            info_text = get_info(row)  # Keep the existing logic
-
-            icon = check_printable_icon(row) #Getting Icon
-
-            # Assign color based on speed
-            speed = row["speed"]
+        for _, row in filtered.iterrows():
+            # speed‐based color
+            speed = row.get("speed", 0)
             if speed <= 2:
-                color = "green"
+                col = "green"
             elif speed <= 10:
-                color = "blue"
+                col = "blue"
             elif speed <= 25:
-                color = "orange"
+                col = "orange"
             elif speed <= 30:
-                color = "red"
+                col = "red"
             else:
-                color = "purple"
+                col = "purple"
 
-            # Add marker
-            folium.Marker(
-                icon=Icon(color=color, icon=icon, prefix="fa"),
-                location=[row.latitude, row.longitude],
-                popup=Popup(info_text, max_width=300),
-            ).add_to(self.m)
+            info = get_info(row)
+            icon_name = check_printable_icon(row)
+            # skip bad geometry
+            if not row.geometry or not hasattr(row.geometry, "x") or not hasattr(row.geometry, "y"):
+                continue
 
-        # Add legend
-        legend_html = create_speed_legend()
-        self.m.get_root().html.add_child(Element(legend_html))
+            Marker(
+                location=[row.geometry.y, row.geometry.x],
+                icon=Icon(color=col, icon=icon_name, prefix="fa"),
+                popup=Popup(info, max_width=300)
+            ).add_to(fg)
 
-        display(self.m)
+        # add speed legend
+        fg.add_to(self.m)
+        legend = create_speed_legend()
+        self.m.get_root().html.add_child(Element(legend))
 
-    def ships_route(self, geojson_data, mmsi=None):
-        """
-        Generate an interactive map to visualize ship routes from GeoJSON data.
+        self._maybe_add_layer_control()
+        return self
 
-        This function uses folium (via leafmap) to create a map showing the trajectory of one or more ships
-        based on their MMSI (Maritime Mobile Service Identity) and position data. If an MMSI is provided,
-        only that ship’s route is displayed. Otherwise, routes for all ships in the dataset are shown.
-
-        The map includes:
-        - Dashed yellow polylines representing the ship routes.
-        - A green marker for each ship's starting point.
-        - A red marker for each ship's final known position.
-        - A selectable base map tile layer (e.g., 'HYBRID').
-
-        Parameters:
-            geojson_data (str or dict):
-                Path to or dictionary of a valid GeoJSON file containing ship position data.
-                The GeoJSON must include 'latitude', 'longitude', and 'mmsi' fields.
-
-            mmsi (int or str, optional):
-                The MMSI of the specific ship to visualize. If omitted, all ships in the data are plotted.
-
-            map_tile (str, optional):
-                The base map style to apply. Default is 'HYBRID'. Can be other valid basemap options supported by leafmap.
-
-        Returns:
-            folium.Map or str:
-                - A folium.Map object displaying the ship route(s) and key positions.
-                - A message string if no ship with the specified MMSI is found or if the dataset is empty.
-
-        Workflow:
-            - Load and validate GeoJSON data using `verify_geojson()`.
-            - Filter by MMSI if provided.
-            - Sort ship positions by timestamp (if available).
-            - For each ship with at least 2 points:
-                - Place start (green) and end (red) markers.
-                - Draw a dashed polyline showing the path.
-            - Return the map with all layers and markers.
-
-        Example:
-            m = instance.ships_route("ships.geojson", mmsi=123456789)
-            m  # Displays an interactive route map in Jupyter or Streamlit
-        """
-
-        # Verify and load GeoJSON data
+    def ships_route(self, geojson_data, mmsi=None, layer_name="Ship Routes"):
+        """Adds dashed‐line routes (and start/stop markers) as a separate layer."""
         gdf = verify_geojson(geojson_data)
-
         if mmsi is not None:
             if mmsi not in gdf.mmsi.values:
-                return 'No ship found with that mmsi'
+                print(f"No ship found with MMSI {mmsi}")
+                return self
             gdf = gdf[gdf.mmsi == mmsi]
 
         if gdf.empty:
-            return 'No data available to plot'
+            print("No data available to plot.")
+            return self
 
+        # sort by timestamp if available
         if "timestamp" in gdf.columns:
             gdf = gdf.sort_values(by=["mmsi", "timestamp"])
         else:
-            print("*WARNING*: No timestamp found. Sorting by index...")
             gdf = gdf.sort_values(by=["mmsi", gdf.index])
 
+        fg = FeatureGroup(name=layer_name, show=True)
         for ship_id in gdf.mmsi.unique():
             ship = gdf[gdf.mmsi == ship_id]
-
             if len(ship) < 2:
-                print(f"Skipping MMSI {ship_id}: Not enough data points.")
                 continue
-
-            first = ship.iloc[0]
-            last = ship.iloc[-1]
-
-            folium.Marker(
+            first, last = ship.iloc[0], ship.iloc[-1]
+            # markers
+            Marker(
                 location=[first.latitude, first.longitude],
-                popup=f"MMSI {ship_id} - First Position",
-                icon=folium.Icon(color="green", icon="play", prefix="fa"),
-            ).add_to(self.m)
-
-            folium.Marker(
+                icon=Icon(color="green", icon="play", prefix="fa"),
+                popup=f"MMSI {ship_id} - First"
+            ).add_to(fg)
+            Marker(
                 location=[last.latitude, last.longitude],
-                popup=f"MMSI {ship_id} - Last Position",
-                icon=folium.Icon(color="red", icon="stop", prefix="fa"),
-            ).add_to(self.m)
+                icon=Icon(color="red", icon="stop", prefix="fa"),
+                popup=f"MMSI {ship_id} - Last"
+            ).add_to(fg)
+            # route polyline
+            coords = ship[["latitude", "longitude"]].values.tolist()
+            folium.PolyLine(locations=coords, color="yellow", weight=3,
+                            dash_array="5,10", opacity=1).add_to(fg)
 
-            route_coords = ship[['latitude', 'longitude']].values.tolist()
-            folium.PolyLine(
-                locations=route_coords,
-                color="yellow",
-                weight=3,
-                opacity=1,
-                dash_array='5, 10'
-            ).add_to(self.m)
+        fg.add_to(self.m)
+        self._maybe_add_layer_control()
+        return self
 
-        display(self.m)
-
-    def plot_ship_heatmap(self, geojson_data):
-        """
-        Generates a heat map showing concentration of ships, based on a GeoJSON file.
-
-        Parameters:
-        - geojson_data (str): Path to the GeoJSON file containing ship route data.
-        - map_tile (str, optional): Base map layer to use (e.g., 'HYBRID', 'ROADMAP'). Defaults to 'HYBRID'.
-
-        Returns:
-        - folium.Map object displaying:
-        - Ships concentration by heatmap: heat
-        """
-
-        # Verify and load GeoJSON data
+    def plot_ship_heatmap(self, geojson_data, layer_name="Heatmap"):
+        """Adds a heat‐map layer of ship concentrations."""
         gdf = verify_geojson(geojson_data)
+        if gdf.empty:
+            print("No data for heatmap.")
+            return self
 
-        heat_data = gdf[['latitude', 'longitude']].values.tolist()
-        HeatMap(heat_data).add_to(self.m)
+        # ensure lat/lon
+        if "latitude" not in gdf.columns or "longitude" not in gdf.columns:
+            gdf["longitude"] = gdf.geometry.x
+            gdf["latitude"] = gdf.geometry.y
 
-        display(self.m)
+        fg = FeatureGroup(name=layer_name, show=True)
+        heat_data = gdf[["latitude", "longitude"]].values.tolist()
+        HeatMap(heat_data).add_to(fg)
 
-    # A plot specific for messages from type 4
-    def plot_base_stations(self, geojson_data, tagblock_station=None):
-        """
-        Plots AIS base station messages on a Leafmap map.
+        fg.add_to(self.m)
+        self._maybe_add_layer_control()
+        return self
 
-        Parameters:
-        - geojson_data (str): Path to the GeoJSON file.
-        - tagblock_station (str, optional): Station ID to filter by. If None, shows all stations.
-        - map_tile (str): Basemap style (e.g., 'ROADMAP', 'HYBRID').
-
-        Returns:
-        - leafmap.foliumap.Map: The generated map with base station markers.
-        """
-
-        # Verify and load GeoJSON data
+    def plot_base_stations(self, geojson_data, tagblock_station=None, layer_name="Base Stations"):
+        """Adds base‐station markers as a toggleable layer."""
         gdf = verify_geojson(geojson_data)
-
-
         if "tagblock_station" not in gdf.columns:
-            print("No 'tagblock_station' field found in data.")
-            return None
+            print("No 'tagblock_station' field found.")
+            return self
 
-        # Filter by station if specified
         if tagblock_station:
             gdf = gdf[gdf.tagblock_station == tagblock_station]
             if gdf.empty:
-                print(f"No data found for station: {tagblock_station}")
-                return None
-            print(f"Displaying only data for station: {tagblock_station}")
-        else:
-            print("Displaying all stations.")
+                print(f"No data for station {tagblock_station}.")
+                return self
 
-        # Extract coordinates
+        # ensure lat/lon
         gdf["longitude"] = gdf.geometry.x
         gdf["latitude"] = gdf.geometry.y
 
+        fg = FeatureGroup(name=layer_name, show=True)
         for _, row in gdf.iterrows():
-            icon = folium.Icon(color="red", icon=check_printable_icon(row), prefix="fa")
-
-            popup_html = f"""
-            <b>Station ID:</b> {row.get('tagblock_station', 'N/A')}<br>
-            <b>MMSI:</b> {row.get('mmsi')}<br>
-            <b>Message Type (ID):</b> {row.get('id')}<br>
-            <b>Date/Time:</b> {row.get('datetime')}<br>
-            <b>Received Stations:</b> {row.get('received_stations')}
-            """
-
-            folium.Marker(
+            if not row.geometry or not hasattr(row.geometry, "x"):
+                continue
+            icon_name = check_printable_icon(row)
+            popup = (
+                f"<b>Station:</b> {row.tagblock_station}<br>"
+                f"<b>MMSI:</b> {row.mmsi}<br>"
+                f"<b>Date/Time:</b> {row.datetime}<br>"
+                f"<b>Received:</b> {row.received_stations}"
+            )
+            Marker(
                 location=[row.latitude, row.longitude],
-                popup=folium.Popup(popup_html, max_width=300),
-                icon=icon,
-                tooltip="Base Station"
-            ).add_to(self.m)
+                icon=Icon(color="red", icon=icon_name, prefix="fa"),
+                popup=Popup(popup, max_width=300)
+            ).add_to(fg)
 
-        display(self.m)
+        fg.add_to(self.m)
+        self._maybe_add_layer_control()
+        return self
 
-    def ship_by_mmsi(self, geojson_data, mmsi=None):
-        """
-        Generate a map displaying the location and details of a ship identified by its MMSI.
-
-        This function processes a GeoJSON dataset containing ship information, verifies its validity, and extracts
-        the specific ship record corresponding to the provided Maritime Mobile Service Identity (MMSI) number.
-        It then creates a map centered on the average latitude and longitude of the ship's data points, adds a title,
-        applies a specified basemap tile, and plots additional information related to the ship.
-
-        Args:
-            geojson_data (dict or str): A valid GeoJSON dataset containing ship tracking information. This data must include
-                fields such as "mmsi", "latitude", and "longitude" which are used to filter and position the ship on the map.
-            mmsi (int, optional): The Maritime Mobile Service Identity number that uniquely identifies the ship to be plotted.
-                If omitted (None), the function returns an error message. Defaults to None.
-            map_tile (str, optional): The basemap style to be used for the map. Common options include "HYBRID", "SATELLITE", etc.
-                Defaults to "HYBRID".
-
-        Returns:
-            folium.Map or str: Returns a folium map object with the ship's data plotted and visualized if the MMSI is found in
-            the provided GeoJSON data. If any required input is missing or the ship is not found, one of the following error
-            messages is returned:
-
-                - 'No mmsi provided' : When the mmsi argument is None.
-                - 'No geojson provided' : When the geojson_data argument is None.
-                - 'No ship found with that mssi' : When the MMSI is not present in the GeoJSON dataset.
-
-        Example:
-             geojson_data = { ... }  # A valid GeoJSON dict containing ship data
-             map_object = instance.ship_by_mmsi(geojson_data, mmsi=123456789, map_tile="SATELLITE")
-             # The returned map_object can then be visualized or saved to an HTML file.
-        """
-        if mmsi is None:
-            return 'No mmsi provided'
-
-        if geojson_data is None:
-            return 'No geojson provided'
-
+    def ship_by_mmsi(self, geojson_data, mmsi, layer_name=None):
+        """Adds just one ship’s track as its own layer of points."""
         gdf = verify_geojson(geojson_data)
+        if mmsi is None or geojson_data is None:
+            print("Must supply both geojson_data and mmsi.")
+            return self
+        if mmsi not in gdf.mmsi.values:
+            print(f"No ship found with MMSI {mmsi}")
+            return self
 
-        if mmsi in gdf.mmsi.values:
-            ship = gdf[gdf.mmsi == mmsi]
-        else:
-            return 'No ship found with that mssi'
+        subset = gdf[gdf.mmsi == mmsi]
+        fg = FeatureGroup(name=layer_name or f"Ship {mmsi}", show=True)
+        for _, row in subset.iterrows():
+            if not row.geometry or not hasattr(row.geometry, "x"):
+                continue
+            info = get_info(row)
+            icon_name = check_printable_icon(row)
+            Marker(
+                location=[row.geometry.y, row.geometry.x],
+                icon=Icon(color="blue", icon=icon_name, prefix="fa"),
+                popup=Popup(info, max_width=300)
+            ).add_to(fg)
 
-        m = plot_with_info(ship, self.m)
+        fg.add_to(self.m)
+        self._maybe_add_layer_control()
+        return self
 
-        display(m)
-
-
-    def ship_with_speed(self, geojson_data):
-        """
-        Create a map visualization displaying ship data with speed information.
-
-        This function processes AIS ship data provided in GeoJSON format, verifies its correctness, and computes
-        the mean latitude and longitude to establish the center of the map. It then configures a folium map with a
-        title "Map by Speed" and a customizable basemap. Additionally, it generates a custom speed legend using the
-        create_speed_legend() function and incorporates it into the map's HTML. Finally, the function plots the ship
-        data on the map, highlighting speed details by enabling the speed_flag.
-
-        Parameters:
-            geojson_data (dict or str):
-                A valid GeoJSON dataset containing ship information, including coordinates (latitude and longitude).
-                This input can be a dictionary with the data or a file path to a GeoJSON file.
-            map_tile (str, optional):
-                A string specifying the basemap style to use (e.g., "HYBRID", "SATELLITE", etc.). The default is "HYBRID".
-
-        Returns:
-            folium.Map or str:
-                A folium map object with the ship data plotted and annotated with speed details. If the geojson_data
-                is None, the function returns the string 'No geojson provided'.
-
-        Example:
-             geojson_data = { ... }  # Provide valid AIS GeoJSON data with latitude and longitude information
-             map_object = instance.ship_with_speed(geojson_data, map_tile="HYBRID")
-             map_object  # Display the interactive map with ship speed details
-        """
-        if geojson_data is None:
-            return 'No geojson provided'
-
+    def ship_with_speed(self, geojson_data, layer_name="Speed Map"):
+        """Adds a point layer, colored by speed, plus a legend."""
         gdf = verify_geojson(geojson_data)
+        if gdf.empty:
+            print("No data.")
+            return self
 
-        legend_html = create_speed_legend()
-        self.m.get_root().html.add_child(Element(legend_html))
+        # ensure lat/lon
+        if "latitude" not in gdf.columns or "longitude" not in gdf.columns:
+            gdf["longitude"] = gdf.geometry.x
+            gdf["latitude"] = gdf.geometry.y
 
-        m = plot_with_info(gdf, self.m, speed_flag=True)
+        fg = FeatureGroup(name=layer_name, show=True)
+        for _, row in gdf.iterrows():
+            if not row.geometry or not hasattr(row.geometry, "x"):
+                continue
+            speed = row.sog or row.speed or 0
+            # pick a color:
+            if speed <= 2:
+                col = "green"
+            elif speed <= 10:
+                col = "blue"
+            elif speed <= 25:
+                col = "orange"
+            elif speed <= 30:
+                col = "red"
+            else:
+                col = "purple"
 
-        display(m)
+            info = get_info(row)
+            icon_name = check_printable_icon(row)
+            Marker(
+                location=[row.geometry.y, row.geometry.x],
+                icon=Icon(color=col, icon=icon_name, prefix="fa"),
+                popup=Popup(info, max_width=300)
+            ).add_to(fg)
+
+        fg.add_to(self.m)
+        # add speed legend once
+        legend = create_speed_legend()
+        self.m.get_root().html.add_child(Element(legend))
+
+        self._maybe_add_layer_control()
+        return self
+
+    # def ship_map_by_polygon(self, wkt_polygon, geojson_data):
+    #     """
+    #     Create an interactive map to visualize ships located within a user-defined WKT polygon.
+    #
+    #     This function generates a folium-based map (via the leafmap wrapper) that highlights ships found within a specific
+    #     polygonal area. The ships are color-coded by speed and presented with informative markers. The polygon itself is also
+    #     drawn on the map to provide spatial context. This visualization is useful for analyzing maritime traffic density, behavior
+    #     patterns, or area-specific vessel presence.
+    #
+    #     Parameters:
+    #         wkt_polygon (str):
+    #             A Well-Known Text (WKT) string defining the polygonal boundary for spatial filtering.
+    #             Only ships located inside this polygon will be visualized.
+    #
+    #         geojson_data (dict or str):
+    #             GeoJSON ship data, either as a Python dictionary or as a file path. It is verified and
+    #             converted into a GeoDataFrame using the verify_geojson() utility function.
+    #             The data must include at least the following fields: 'latitude', 'longitude', and 'speed'.
+    #
+    #         map_tile (str, optional):
+    #             The base map tile to use for visualization. Defaults to 'HYBRID', but can also accept
+    #             other supported tiles like 'ROADMAP', etc.
+    #
+    #     Returns:
+    #         folium.Map or None:
+    #             A map object displaying the filtered ships within the WKT polygon area, along with:
+    #             - Speed-based color-coded markers
+    #             - The polygon boundary as a highlighted region
+    #             - A custom legend explaining the speed-color mapping
+    #
+    #             If no ships are found within the polygon, a message is printed and None is returned.
+    #
+    #     Internal Workflow:
+    #         - The GeoJSON input is verified and converted to a GeoDataFrame.
+    #         - Ships are spatially filtered based on their inclusion within the provided WKT polygon.
+    #         - If no ships are found, the function exits early.
+    #         - A map is initialized and centered around the centroid of the filtered data.
+    #         - The polygon boundary is added to the map in yellow with transparency for visual emphasis.
+    #         - Each ship is plotted as a marker, color-coded by its speed:
+    #             Green (≤2 knots), Blue (≤10), Orange (≤25), Red (≤30), Purple (>30)
+    #         - Each marker includes an icon and a popup with detailed ship information.
+    #         - A speed legend is added to the map to support interpretation.
+    #
+    #     Example:
+    #         geojson_data = "ships_data.geojson"
+    #         wkt_polygon = "POLYGON((-81 25, -81 26, -80 26, -80 25, -81 25))"
+    #         m = instance.ship_map_by_polygon(wkt_polygon, geojson_data)
+    #         m  # Displays the interactive ship map with the selected polygon filter
+    #     """
+    #
+    #
+    #     # Verify and load GeoJSON data
+    #     gdf = verify_geojson(geojson_data)
+    #
+    #     # Filter ships inside the polygon
+    #     filtered_gdf = filter_ships_by_polygon(wkt_polygon, gdf)
+    #
+    #     if filtered_gdf.empty:
+    #         print("No ships found in the selected area.")
+    #         return None
+    #
+    #     # Highlight the WKT polygon region
+    #     polygon_geom = loads(wkt_polygon)
+    #     polygon_coords = list(polygon_geom.exterior.coords)
+    #     folium.Polygon(
+    #         locations=[(lat, lon) for lon, lat in polygon_coords],
+    #         color='yellow',
+    #         weight=3,
+    #         fill=True,
+    #         fill_opacity=0.2,
+    #         popup="WKT Region"
+    #     ).add_to(self.m)
+    #
+    #     for _, row in filtered_gdf.iterrows():
+    #
+    #         info_text = get_info(row)  # Keep the existing logic
+    #
+    #         icon = check_printable_icon(row) #Getting Icon
+    #
+    #         # Assign color based on speed
+    #         speed = row["speed"]
+    #         if speed <= 2:
+    #             color = "green"
+    #         elif speed <= 10:
+    #             color = "blue"
+    #         elif speed <= 25:
+    #             color = "orange"
+    #         elif speed <= 30:
+    #             color = "red"
+    #         else:
+    #             color = "purple"
+    #
+    #         # Add marker
+    #         folium.Marker(
+    #             icon=Icon(color=color, icon=icon, prefix="fa"),
+    #             location=[row.latitude, row.longitude],
+    #             popup=Popup(info_text, max_width=300),
+    #         ).add_to(self.m)
+    #
+    #     # Add legend
+    #     legend_html = create_speed_legend()
+    #     self.m.get_root().html.add_child(Element(legend_html))
+    #
+    #     display(self.m)
+    #
+    # def ships_route(self, geojson_data, mmsi=None):
+    #     """
+    #     Generate an interactive map to visualize ship routes from GeoJSON data.
+    #
+    #     This function uses folium (via leafmap) to create a map showing the trajectory of one or more ships
+    #     based on their MMSI (Maritime Mobile Service Identity) and position data. If an MMSI is provided,
+    #     only that ship’s route is displayed. Otherwise, routes for all ships in the dataset are shown.
+    #
+    #     The map includes:
+    #     - Dashed yellow polylines representing the ship routes.
+    #     - A green marker for each ship's starting point.
+    #     - A red marker for each ship's final known position.
+    #     - A selectable base map tile layer (e.g., 'HYBRID').
+    #
+    #     Parameters:
+    #         geojson_data (str or dict):
+    #             Path to or dictionary of a valid GeoJSON file containing ship position data.
+    #             The GeoJSON must include 'latitude', 'longitude', and 'mmsi' fields.
+    #
+    #         mmsi (int or str, optional):
+    #             The MMSI of the specific ship to visualize. If omitted, all ships in the data are plotted.
+    #
+    #         map_tile (str, optional):
+    #             The base map style to apply. Default is 'HYBRID'. Can be other valid basemap options supported by leafmap.
+    #
+    #     Returns:
+    #         folium.Map or str:
+    #             - A folium.Map object displaying the ship route(s) and key positions.
+    #             - A message string if no ship with the specified MMSI is found or if the dataset is empty.
+    #
+    #     Workflow:
+    #         - Load and validate GeoJSON data using `verify_geojson()`.
+    #         - Filter by MMSI if provided.
+    #         - Sort ship positions by timestamp (if available).
+    #         - For each ship with at least 2 points:
+    #             - Place start (green) and end (red) markers.
+    #             - Draw a dashed polyline showing the path.
+    #         - Return the map with all layers and markers.
+    #
+    #     Example:
+    #         m = instance.ships_route("ships.geojson", mmsi=123456789)
+    #         m  # Displays an interactive route map in Jupyter or Streamlit
+    #     """
+    #
+    #     # Verify and load GeoJSON data
+    #     gdf = verify_geojson(geojson_data)
+    #
+    #     if mmsi is not None:
+    #         if mmsi not in gdf.mmsi.values:
+    #             return 'No ship found with that mmsi'
+    #         gdf = gdf[gdf.mmsi == mmsi]
+    #
+    #     if gdf.empty:
+    #         return 'No data available to plot'
+    #
+    #     if "timestamp" in gdf.columns:
+    #         gdf = gdf.sort_values(by=["mmsi", "timestamp"])
+    #     else:
+    #         print("*WARNING*: No timestamp found. Sorting by index...")
+    #         gdf = gdf.sort_values(by=["mmsi", gdf.index])
+    #
+    #     for ship_id in gdf.mmsi.unique():
+    #         ship = gdf[gdf.mmsi == ship_id]
+    #
+    #         if len(ship) < 2:
+    #             print(f"Skipping MMSI {ship_id}: Not enough data points.")
+    #             continue
+    #
+    #         first = ship.iloc[0]
+    #         last = ship.iloc[-1]
+    #
+    #         folium.Marker(
+    #             location=[first.latitude, first.longitude],
+    #             popup=f"MMSI {ship_id} - First Position",
+    #             icon=folium.Icon(color="green", icon="play", prefix="fa"),
+    #         ).add_to(self.m)
+    #
+    #         folium.Marker(
+    #             location=[last.latitude, last.longitude],
+    #             popup=f"MMSI {ship_id} - Last Position",
+    #             icon=folium.Icon(color="red", icon="stop", prefix="fa"),
+    #         ).add_to(self.m)
+    #
+    #         route_coords = ship[['latitude', 'longitude']].values.tolist()
+    #         folium.PolyLine(
+    #             locations=route_coords,
+    #             color="yellow",
+    #             weight=3,
+    #             opacity=1,
+    #             dash_array='5, 10'
+    #         ).add_to(self.m)
+    #
+    #     display(self.m)
+    #
+    # def plot_ship_heatmap(self, geojson_data):
+    #     """
+    #     Generates a heat map showing concentration of ships, based on a GeoJSON file.
+    #
+    #     Parameters:
+    #     - geojson_data (str): Path to the GeoJSON file containing ship route data.
+    #     - map_tile (str, optional): Base map layer to use (e.g., 'HYBRID', 'ROADMAP'). Defaults to 'HYBRID'.
+    #
+    #     Returns:
+    #     - folium.Map object displaying:
+    #     - Ships concentration by heatmap: heat
+    #     """
+    #
+    #     # Verify and load GeoJSON data
+    #     gdf = verify_geojson(geojson_data)
+    #
+    #     heat_data = gdf[['latitude', 'longitude']].values.tolist()
+    #     HeatMap(heat_data).add_to(self.m)
+    #
+    #     display(self.m)
+    #
+    # # A plot specific for messages from type 4
+    # def plot_base_stations(self, geojson_data, tagblock_station=None):
+    #     """
+    #     Plots AIS base station messages on a Leafmap map.
+    #
+    #     Parameters:
+    #     - geojson_data (str): Path to the GeoJSON file.
+    #     - tagblock_station (str, optional): Station ID to filter by. If None, shows all stations.
+    #     - map_tile (str): Basemap style (e.g., 'ROADMAP', 'HYBRID').
+    #
+    #     Returns:
+    #     - leafmap.foliumap.Map: The generated map with base station markers.
+    #     """
+    #
+    #     # Verify and load GeoJSON data
+    #     gdf = verify_geojson(geojson_data)
+    #
+    #
+    #     if "tagblock_station" not in gdf.columns:
+    #         print("No 'tagblock_station' field found in data.")
+    #         return None
+    #
+    #     # Filter by station if specified
+    #     if tagblock_station:
+    #         gdf = gdf[gdf.tagblock_station == tagblock_station]
+    #         if gdf.empty:
+    #             print(f"No data found for station: {tagblock_station}")
+    #             return None
+    #         print(f"Displaying only data for station: {tagblock_station}")
+    #     else:
+    #         print("Displaying all stations.")
+    #
+    #     # Extract coordinates
+    #     gdf["longitude"] = gdf.geometry.x
+    #     gdf["latitude"] = gdf.geometry.y
+    #
+    #     for _, row in gdf.iterrows():
+    #         icon = folium.Icon(color="red", icon=check_printable_icon(row), prefix="fa")
+    #
+    #         popup_html = f"""
+    #         <b>Station ID:</b> {row.get('tagblock_station', 'N/A')}<br>
+    #         <b>MMSI:</b> {row.get('mmsi')}<br>
+    #         <b>Message Type (ID):</b> {row.get('id')}<br>
+    #         <b>Date/Time:</b> {row.get('datetime')}<br>
+    #         <b>Received Stations:</b> {row.get('received_stations')}
+    #         """
+    #
+    #         folium.Marker(
+    #             location=[row.latitude, row.longitude],
+    #             popup=folium.Popup(popup_html, max_width=300),
+    #             icon=icon,
+    #             tooltip="Base Station"
+    #         ).add_to(self.m)
+    #
+    #     display(self.m)
+    #
+    # def ship_by_mmsi(self, geojson_data, mmsi=None):
+    #     """
+    #     Generate a map displaying the location and details of a ship identified by its MMSI.
+    #
+    #     This function processes a GeoJSON dataset containing ship information, verifies its validity, and extracts
+    #     the specific ship record corresponding to the provided Maritime Mobile Service Identity (MMSI) number.
+    #     It then creates a map centered on the average latitude and longitude of the ship's data points, adds a title,
+    #     applies a specified basemap tile, and plots additional information related to the ship.
+    #
+    #     Args:
+    #         geojson_data (dict or str): A valid GeoJSON dataset containing ship tracking information. This data must include
+    #             fields such as "mmsi", "latitude", and "longitude" which are used to filter and position the ship on the map.
+    #         mmsi (int, optional): The Maritime Mobile Service Identity number that uniquely identifies the ship to be plotted.
+    #             If omitted (None), the function returns an error message. Defaults to None.
+    #         map_tile (str, optional): The basemap style to be used for the map. Common options include "HYBRID", "SATELLITE", etc.
+    #             Defaults to "HYBRID".
+    #
+    #     Returns:
+    #         folium.Map or str: Returns a folium map object with the ship's data plotted and visualized if the MMSI is found in
+    #         the provided GeoJSON data. If any required input is missing or the ship is not found, one of the following error
+    #         messages is returned:
+    #
+    #             - 'No mmsi provided' : When the mmsi argument is None.
+    #             - 'No geojson provided' : When the geojson_data argument is None.
+    #             - 'No ship found with that mssi' : When the MMSI is not present in the GeoJSON dataset.
+    #
+    #     Example:
+    #          geojson_data = { ... }  # A valid GeoJSON dict containing ship data
+    #          map_object = instance.ship_by_mmsi(geojson_data, mmsi=123456789, map_tile="SATELLITE")
+    #          # The returned map_object can then be visualized or saved to an HTML file.
+    #     """
+    #     if mmsi is None:
+    #         return 'No mmsi provided'
+    #
+    #     if geojson_data is None:
+    #         return 'No geojson provided'
+    #
+    #     gdf = verify_geojson(geojson_data)
+    #
+    #     if mmsi in gdf.mmsi.values:
+    #         ship = gdf[gdf.mmsi == mmsi]
+    #     else:
+    #         return 'No ship found with that mssi'
+    #
+    #     m = plot_with_info(ship, self.m)
+    #
+    #     display(m)
+    #
+    #
+    # def ship_with_speed(self, geojson_data):
+    #     """
+    #     Create a map visualization displaying ship data with speed information.
+    #
+    #     This function processes AIS ship data provided in GeoJSON format, verifies its correctness, and computes
+    #     the mean latitude and longitude to establish the center of the map. It then configures a folium map with a
+    #     title "Map by Speed" and a customizable basemap. Additionally, it generates a custom speed legend using the
+    #     create_speed_legend() function and incorporates it into the map's HTML. Finally, the function plots the ship
+    #     data on the map, highlighting speed details by enabling the speed_flag.
+    #
+    #     Parameters:
+    #         geojson_data (dict or str):
+    #             A valid GeoJSON dataset containing ship information, including coordinates (latitude and longitude).
+    #             This input can be a dictionary with the data or a file path to a GeoJSON file.
+    #         map_tile (str, optional):
+    #             A string specifying the basemap style to use (e.g., "HYBRID", "SATELLITE", etc.). The default is "HYBRID".
+    #
+    #     Returns:
+    #         folium.Map or str:
+    #             A folium map object with the ship data plotted and annotated with speed details. If the geojson_data
+    #             is None, the function returns the string 'No geojson provided'.
+    #
+    #     Example:
+    #          geojson_data = { ... }  # Provide valid AIS GeoJSON data with latitude and longitude information
+    #          map_object = instance.ship_with_speed(geojson_data, map_tile="HYBRID")
+    #          map_object  # Display the interactive map with ship speed details
+    #     """
+    #     if geojson_data is None:
+    #         return 'No geojson provided'
+    #
+    #     gdf = verify_geojson(geojson_data)
+    #
+    #     legend_html = create_speed_legend()
+    #     self.m.get_root().html.add_child(Element(legend_html))
+    #
+    #     m = plot_with_info(gdf, self.m, speed_flag=True)
+    #
+    #     display(m)
 
