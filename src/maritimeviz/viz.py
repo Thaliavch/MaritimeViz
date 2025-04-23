@@ -77,7 +77,7 @@ class Map:
                 popup=Popup(info_html, max_width=300),
                 tooltip="Press for more info"
             ).add_to(fg)
-
+            
         fg.add_to(self.m)
         self._maybe_add_layer_control()
         return self.m
