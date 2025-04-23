@@ -24,29 +24,31 @@ class Map:
     A simple Map class to visualize AIS data using leafmap.
     """
 
-    def __init__(self, center=[0, 0], zoom=2):
-        """
-        Create a leafmap Map instance.
-        """
+    def __init__(self, center=(0, 0), zoom=2):
+        # This is a folium-based map
         self.m = leafmap.foliumap.Map(center=center, zoom=zoom)
-        self.m.add_basemap(map_tile='HYBRID')
-        # track whether we've already added a LayerControl
-        self._control_added = False
+        self.m.add_basemap(map_tile="HYBRID")
+        self._layer_control_added = False
+
+    def _maybe_add_layer_control(self):
+        if not self._layer_control_added:
+            self.m.add_layer_control()
+            self._layer_control_added = True
 
     def map_all(self, geojson_data, layer_name="All Vessel Routes"):
         """
-        Adds a toggleable layer of all vessel positions/routes to the existing map.
+        Adds a toggleable point‐layer of vessel positions/routes to the map.
 
         Parameters:
-            geojson_data (str | dict): GeoJSON data (or path) for vessel positions.
-            layer_name (str): Name for the layer in the layer control.
+            geojson_data (str|dict): GeoJSON data or path for vessel positions.
+            layer_name (str): Layer name in the control.
         """
         gdf = verify_geojson(geojson_data)
         if gdf.empty:
             print("No valid ship route data found.")
             return self.m
 
-        # make sure we have lat/lon columns
+        # Guarantee latitude/longitude columns
         if "latitude" not in gdf.columns or "longitude" not in gdf.columns:
             gdf["longitude"] = gdf.geometry.x
             gdf["latitude"] = gdf.geometry.y
@@ -55,31 +57,29 @@ class Map:
             print("No valid coordinates found in the data.")
             return self.m
 
-        # create a separate FeatureGroup so it shows up as its own toggleable layer
+        # Build a FeatureGroup so it appears as one toggleable layer
         fg = FeatureGroup(name=layer_name, show=True)
 
         for _, row in gdf.iterrows():
             icon_name = check_printable_icon(row)
             info_html = "<br>".join(
-                f"{k}: {v}" for k, v in row.items()
+                f"{k}: {v}"
+                for k, v in row.items()
                 if v is not None and k not in (
                 "geometry", "latitude", "longitude")
             )
-            Marker(
+            marker_icon = folium.Icon(color="blue", icon=icon_name,
+                                      prefix="fa")
+
+            folium.Marker(
                 location=[row.latitude, row.longitude],
-                icon=Icon(color="blue", icon=icon_name, prefix="fa"),
+                icon=marker_icon,
                 popup=Popup(info_html, max_width=300),
                 tooltip="Press for more info"
             ).add_to(fg)
 
-        # add this layer
         fg.add_to(self.m)
-
-        # add the layer control once
-        if not self._control_added:
-            self.m.add_layer_control()
-            self._control_added = True
-
+        self._maybe_add_layer_control()
         return self.m
 
     def filter_ships_by_polygon(self, wkt_polygon, gdf):
