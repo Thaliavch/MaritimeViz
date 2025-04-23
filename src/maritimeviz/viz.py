@@ -114,8 +114,7 @@ class Map:
                             tooltip='Press for more info'
                         ).add_to(self.m)
 
-        self.m.add_layer_control()
-        return self.m
+        display(self.m)
 
     def filter_ships_by_polygon(self, wkt_polygon, gdf):
         """
@@ -260,8 +259,7 @@ class Map:
         legend_html = create_speed_legend()
         self.m.get_root().html.add_child(Element(legend_html))
 
-        self.m.add_layer_control()
-        return self.m
+        display(self.m)
 
     def ships_route(self, geojson_data, mmsi=None):
         """
@@ -355,8 +353,7 @@ class Map:
                 dash_array='5, 10'
             ).add_to(self.m)
 
-        self.m.add_layer_control()
-        return self.m
+        display(self.m)
 
     def plot_ship_heatmap(self, geojson_data):
         """
@@ -377,8 +374,7 @@ class Map:
         heat_data = gdf[['latitude', 'longitude']].values.tolist()
         HeatMap(heat_data).add_to(self.m)
 
-        self.m.add_layer_control()
-        return self.m
+        display(self.m)
 
     # A plot specific for messages from type 4
     def plot_base_stations(self, geojson_data, tagblock_station=None):
@@ -434,8 +430,7 @@ class Map:
                 tooltip="Base Station"
             ).add_to(self.m)
 
-        self.m.add_layer_control()
-        return self.m
+        display(self.m)
 
     def ship_by_mmsi(self, geojson_data, mmsi=None):
         """
@@ -482,7 +477,8 @@ class Map:
             return 'No ship found with that mssi'
 
         m = plot_with_info(ship, self.m)
-        return m
+        
+        display(m)
 
     def ships_by_drawn_shape(self, geojson_data):
         """
@@ -534,7 +530,7 @@ class Map:
         callback = partial(handle_draw, state, m, geojson_data)
         draw_control.on_draw(callback)
 
-        return m
+        display(m)
 
     def ship_with_speed(self, geojson_data):
         """
@@ -573,7 +569,7 @@ class Map:
 
         m = plot_with_info(gdf, self.m, speed_flag=True)
 
-        return m
+        display(m)
 
     def ship_map_on_click(self, geojson_data, radius_km=300):
         """
@@ -636,6 +632,6 @@ class Map:
         # Optional: customize basemap tiles if desired
 
         m.on_interaction(create_click_handler(radius_km, m, clicked_coords, gdf))
+        
         display(m)
-        return m
 
