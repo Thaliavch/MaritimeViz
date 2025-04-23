@@ -80,47 +80,7 @@ class Map:
 
         fg.add_to(self.m)
         self._maybe_add_layer_control()
-        return self.m
-
-    def filter_ships_by_polygon(self, wkt_polygon, gdf):
-        """
-        Filter ship positions that fall within a specified polygon.
-
-        This function takes a GeoDataFrame of ship positions (with latitude and longitude)
-        and returns only those ships located inside the area defined by a WKT (Well-Known Text) polygon.
-
-        Parameters:
-            wkt_polygon (str):
-                A string in WKT format representing the polygon to filter by.
-
-            gdf (GeoDataFrame):
-                A GeoPandas GeoDataFrame containing ship data with at least 'latitude' and 'longitude' columns.
-
-        Returns:
-            GeoDataFrame:
-                A filtered GeoDataFrame containing only the ships located inside the polygon.
-
-        Raises:
-            ValueError:
-                If the provided WKT polygon string is invalid and cannot be parsed.
-
-        Notes:
-            - The function creates a new 'geometry' column in the GeoDataFrame using latitude and longitude.
-            - Ships on the border of the polygon are excluded (strict `within` filter).
-
-        Example:
-            polygon = "POLYGON((-81 25, -81 26, -80 26, -80 25, -81 25))"
-            filtered_ships = instance.filter_ships_by_polygon(polygon, ships_gdf)
-        """
-
-        try:
-            polygon = loads(wkt_polygon)  # Convert WKT string to Shapely Polygon
-        except Exception:
-            raise ValueError("Invalid WKT polygon format")
-
-        gdf["geometry"] = gpd.points_from_xy(gdf.longitude, gdf.latitude)  # Convert lat/lon to points
-
-        return gdf[gdf.geometry.within(polygon)]  # Filter points within the polygon
+        display(self.m)
 
     def ship_map_by_polygon(self, wkt_polygon, geojson_data):
         """
@@ -177,7 +137,7 @@ class Map:
         gdf = verify_geojson(geojson_data)
 
         # Filter ships inside the polygon
-        filtered_gdf = self.filter_ships_by_polygon(wkt_polygon, gdf)
+        filtered_gdf = filter_ships_by_polygon(wkt_polygon, gdf)
 
         if filtered_gdf.empty:
             print("No ships found in the selected area.")
