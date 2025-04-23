@@ -135,36 +135,42 @@ def ship_map_on_click(geojson_data, radius_km=300):
     m
 
 
-def add_speed_layer(m: leafmap.foliumap.Map, geojson_data) -> leafmap.foliumap.Map:
+def plot_speed(geojson_data):
     """
-    Add a ship‐with‐speed layer (and legend) to an existing map.
+    Create a map and add a ship-with-speed layer (and legend) to it.
 
     Parameters:
     -----------
-    m : leafmap.foliumap.Map
-        Your map instance (e.g. `m = leafmap.foliumap.Map(...)` or from your Map.m).
     geojson_data : str | dict
         Either a file path or a dict of your AIS GeoJSON.
 
     Returns:
     --------
     m : leafmap.foliumap.Map
-        The same map, now with speed‐colored markers and a legend injected.
+        A new map instance with speed-colored markers and a legend injected.
     """
     if geojson_data is None:
         print("No geojson provided; skipping speed layer.")
-        return m
+        # Return a default map or None, depending on desired behavior when no data
+        # Returning a basic map seems reasonable for a plotting function
+        return leafmap.foliumap.Map()
 
     gdf = verify_geojson(geojson_data)
     if gdf.empty:
         print("GeoJSON had no valid features; skipping speed layer.")
-        return m
+        # Return a basic map when no valid data is found
+        return leafmap.foliumap.Map()
 
-    # stick speed‐legend into the map’s HTML
+    # Create a map instance inside the function
+    # You might want to set a default location or bounding box based on data,
+    # but for now, creating a basic map centered somewhere global.
+    m = leafmap.foliumap.Map(center=(0, 0), zoom=2) # Add initial center/zoom
+
+    # stick speed-legend into the map’s HTML
     legend_html = create_speed_legend()
     m.get_root().html.add_child(Element(legend_html))
 
-    # drop in your plotted markers & one LayerControl
+    # drop in your plotted markers & one LayerControl, using the internal map 'm'
     plot_with_info(gdf, m, speed_flag=True)
 
     return m
@@ -270,10 +276,10 @@ class Map:
             if not row.geometry or not hasattr(row.geometry, "x") or not hasattr(row.geometry, "y"):
                 continue
 
-            Marker(
+            folium.Marker(
                 location=[row.geometry.y, row.geometry.x],
-                icon=Icon(color=col, icon=icon_name, prefix="fa"),
-                popup=Popup(info, max_width=300)
+                icon=folium.Icon(color=col, icon=icon_name, prefix="fa"),
+                popup=folium.Popup(info, max_width=300)
             ).add_to(fg)
 
         # add speed legend
@@ -310,15 +316,15 @@ class Map:
                 continue
             first, last = ship.iloc[0], ship.iloc[-1]
             # markers
-            Marker(
+            folium.Marker(
                 location=[first.latitude, first.longitude],
-                icon=Icon(color="green", icon="play", prefix="fa"),
-                popup=f"MMSI {ship_id} - First"
+                icon=folium.Icon(color="green", icon="play", prefix="fa"),
+                popup=folium.Popup(f"MMSI {ship_id} - First")
             ).add_to(fg)
-            Marker(
+            folium.Marker(
                 location=[last.latitude, last.longitude],
-                icon=Icon(color="red", icon="stop", prefix="fa"),
-                popup=f"MMSI {ship_id} - Last"
+                icon=folium.Icon(color="red", icon="stop", prefix="fa"),
+                popup=folium.Popup(f"MMSI {ship_id} - Last")
             ).add_to(fg)
             # route polyline
             coords = ship[["latitude", "longitude"]].values.tolist()
@@ -377,10 +383,10 @@ class Map:
                 f"<b>Date/Time:</b> {row.datetime}<br>"
                 f"<b>Received:</b> {row.received_stations}"
             )
-            Marker(
+            folium.Marker(
                 location=[row.latitude, row.longitude],
-                icon=Icon(color="red", icon=icon_name, prefix="fa"),
-                popup=Popup(popup, max_width=300)
+                icon=folium.Icon(color="red", icon=icon_name, prefix="fa"),
+                popup=folium.Popup(popup, max_width=300)
             ).add_to(fg)
 
         fg.add_to(self.m)
@@ -404,10 +410,10 @@ class Map:
                 continue
             info = get_info(row)
             icon_name = check_printable_icon(row)
-            Marker(
+            folium.Marker(
                 location=[row.geometry.y, row.geometry.x],
-                icon=Icon(color="blue", icon=icon_name, prefix="fa"),
-                popup=Popup(info, max_width=300)
+                icon=folium.Icon(color="blue", icon=icon_name, prefix="fa"),
+                popup=folium.Popup(info, max_width=300)
             ).add_to(fg)
 
         fg.add_to(self.m)
