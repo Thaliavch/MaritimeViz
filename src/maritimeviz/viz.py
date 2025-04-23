@@ -152,7 +152,7 @@ class Map:
     def _maybe_add_layer_control(self):
         if not self._layer_control_added:
             # Add a Folium LayerControl exactly once
-            LayerControl(collapsed=False).add_to(self.m)
+            LayerControl().add_to(self.m)
             self._layer_control_added = True
 
     def map_all(self, geojson_data, layer_name="All Vessel Routes"):
