@@ -145,6 +145,10 @@ class Map:
         self.m.add_basemap(map_tile="HYBRID")
         self._layer_control_added = False
 
+    def _repr_html_(self):
+        # Jupyter will call this to get the HTML to render
+        return self.m._repr_html_()
+
     def _maybe_add_layer_control(self):
         if not self._layer_control_added:
             self.m.add_layer_control()
@@ -175,27 +179,50 @@ class Map:
         # Build a FeatureGroup so it appears as one toggleable layer
         fg = FeatureGroup(name=layer_name, show=True)
 
-        for _, row in gdf.iterrows():
-            icon_name = check_printable_icon(row)
-            info_html = "<br>".join(
-                f"{k}: {v}"
-                for k, v in row.items()
-                if v is not None and k not in (
-                "geometry", "latitude", "longitude")
-            )
-            marker_icon = folium.Icon(color="blue", icon=icon_name,
-                                      prefix="fa")
+        # for _, row in gdf.iterrows():
+        #     icon_name = check_printable_icon(row)
+        #     info_html = "<br>".join(
+        #         f"{k}: {v}"
+        #         for k, v in row.items()
+        #         if v is not None and k not in (
+        #         "geometry", "latitude", "longitude")
+        #     )
+        #     marker_icon = folium.Icon(color="blue", icon=icon_name,
+        #                               prefix="fa")
+        #
+        #     folium.Marker(
+        #         location=[row.latitude, row.longitude],
+        #         icon=marker_icon,
+        #         popup=Popup(info_html, max_width=300),
+        #         tooltip="Press for more info"
+        #     ).add_to(fg)
 
-            folium.Marker(
-                location=[row.latitude, row.longitude],
-                icon=marker_icon,
-                popup=Popup(info_html, max_width=300),
-                tooltip="Press for more info"
-            ).add_to(fg)
-            
+        for _, row in gdf.iterrows():
+
+            icon = check_printable_icon(row)  # Getting Icon
+
+            # Extract all available data dynamically
+            info_text = "<br>".join(
+                [f"{key}: {value}" for key, value in row.items() if
+                 value and key != "geometry"])
+            # testing
+
+            # Ensure latitude and longitude are valid
+            if row.geometry and hasattr(row.geometry, "x") and hasattr(
+                row.geometry, "y"):
+                folium.Marker(
+                    icon=folium.Icon(color="blue", icon=icon, prefix="fa"),
+                    location=[row.geometry.y, row.geometry.x],
+                    # Latitude, Longitude
+                    popup=folium.Popup(info_text, max_width=300),
+                    # Display all available info
+                    tooltip='Press for more info'
+                ).add_to(fg)
+
         fg.add_to(self.m)
         self._maybe_add_layer_control()
-        display(self.m)
+        return self
+
 
     def ship_map_by_polygon(self, wkt_polygon, geojson_data):
         """
