@@ -68,7 +68,7 @@ def ships_by_drawn_shape(geojson_data):
     callback = partial(handle_draw, state, m, geojson_data)
     draw_control.on_draw(callback)
 
-    display(m)
+    m
 
 def ship_map_on_click(geojson_data, radius_km=300):
     """
@@ -132,7 +132,43 @@ def ship_map_on_click(geojson_data, radius_km=300):
 
     m.on_interaction(create_click_handler(radius_km, m, clicked_coords, gdf))
 
-    display(m)
+    m
+
+
+def add_speed_layer(m: leafmap.foliumap.Map, geojson_data) -> leafmap.foliumap.Map:
+    """
+    Add a ship‐with‐speed layer (and legend) to an existing map.
+
+    Parameters:
+    -----------
+    m : leafmap.foliumap.Map
+        Your map instance (e.g. `m = leafmap.foliumap.Map(...)` or from your Map.m).
+    geojson_data : str | dict
+        Either a file path or a dict of your AIS GeoJSON.
+
+    Returns:
+    --------
+    m : leafmap.foliumap.Map
+        The same map, now with speed‐colored markers and a legend injected.
+    """
+    if geojson_data is None:
+        print("No geojson provided; skipping speed layer.")
+        return m
+
+    gdf = verify_geojson(geojson_data)
+    if gdf.empty:
+        print("GeoJSON had no valid features; skipping speed layer.")
+        return m
+
+    # stick speed‐legend into the map’s HTML
+    legend_html = create_speed_legend()
+    m.get_root().html.add_child(Element(legend_html))
+
+    # drop in your plotted markers & one LayerControl
+    plot_with_info(gdf, m, speed_flag=True)
+
+    return m
+
 
 class Map:
     """
@@ -159,17 +195,13 @@ class Map:
     def map_all(self, geojson_data, layer_name="All Vessel Routes"):
         """
         Adds a toggleable point‐layer of vessel positions/routes to the map.
-
-        Parameters:
-            geojson_data (str|dict): GeoJSON data or path for vessel positions.
-            layer_name (str): Layer name in the control.
         """
         gdf = verify_geojson(geojson_data)
         if gdf.empty:
             print("No valid ship route data found.")
             return self
 
-        # Guarantee latitude/longitude columns
+        # Ensure latitude/longitude cols
         if "latitude" not in gdf.columns or "longitude" not in gdf.columns:
             gdf["longitude"] = gdf.geometry.x
             gdf["latitude"] = gdf.geometry.y
@@ -178,48 +210,30 @@ class Map:
             print("No valid coordinates found in the data.")
             return self
 
-        # Build a FeatureGroup so it appears as one toggleable layer
+        # Build a FeatureGroup so it shows up as its own toggleable layer
         fg = FeatureGroup(name=layer_name, show=True)
 
-        # for _, row in gdf.iterrows():
-        #     icon_name = check_printable_icon(row)
-        #     info_html = "<br>".join(
-        #         f"{k}: {v}"
-        #         for k, v in row.items()
-        #         if v is not None and k not in (
-        #         "geometry", "latitude", "longitude")
-        #     )
-        #     marker_icon = folium.Icon(color="blue", icon=icon_name,
-        #                               prefix="fa")
-        #
-        #     folium.Marker(
-        #         location=[row.latitude, row.longitude],
-        #         icon=marker_icon,
-        #         popup=Popup(info_html, max_width=300),
-        #         tooltip="Press for more info"
-        #     ).add_to(fg)
-
         for _, row in gdf.iterrows():
-
-            icon = check_printable_icon(row)  # Getting Icon
-
-            # Extract all available data dynamically
-            info_text = "<br>".join(
-                [f"{key}: {value}" for key, value in row.items() if
-                 value and key != "geometry"])
-            # testing
-
-            # Ensure latitude and longitude are valid
-            if row.geometry and hasattr(row.geometry, "x") and hasattr(
+            # skip if no valid point
+            if not row.geometry or not hasattr(row.geometry,
+                                               "x") or not hasattr(
                 row.geometry, "y"):
-                folium.Marker(
-                    icon=folium.Icon(color="blue", icon=icon, prefix="fa"),
-                    location=[row.geometry.y, row.geometry.x],
-                    # Latitude, Longitude
-                    popup=folium.Popup(info_text, max_width=300),
-                    # Display all available info
-                    tooltip='Press for more info'
-                ).add_to(fg)
+                continue
+
+            icon_name = check_printable_icon(row)
+            info_html = "<br>".join(
+                f"{k}: {v}"
+                for k, v in row.items()
+                if v is not None and k not in (
+                "geometry", "latitude", "longitude")
+            )
+
+            Marker(
+                location=[row.geometry.y, row.geometry.x],
+                icon=Icon(color="blue", icon=icon_name, prefix="fa"),
+                popup=Popup(info_html, max_width=300),
+                tooltip="Press for more info"
+            ).add_to(fg)
 
         fg.add_to(self.m)
         self._maybe_add_layer_control()
@@ -408,50 +422,17 @@ class Map:
         self._maybe_add_layer_control()
         return self
 
-    def ship_with_speed(self, geojson_data, layer_name="Speed Map"):
-        """Adds a point layer, colored by speed, plus a legend."""
-        gdf = verify_geojson(geojson_data)
-        if gdf.empty:
-            print("No data.")
-            return self
-
-        # ensure lat/lon
-        if "latitude" not in gdf.columns or "longitude" not in gdf.columns:
-            gdf["longitude"] = gdf.geometry.x
-            gdf["latitude"] = gdf.geometry.y
-
-        fg = FeatureGroup(name=layer_name, show=True)
-        for _, row in gdf.iterrows():
-            if not row.geometry or not hasattr(row.geometry, "x"):
-                continue
-            speed = row.sog or row.speed or 0
-            # pick a color:
-            if speed <= 2:
-                col = "green"
-            elif speed <= 10:
-                col = "blue"
-            elif speed <= 25:
-                col = "orange"
-            elif speed <= 30:
-                col = "red"
-            else:
-                col = "purple"
-
-            info = get_info(row)
-            icon_name = check_printable_icon(row)
-            Marker(
-                location=[row.geometry.y, row.geometry.x],
-                icon=Icon(color=col, icon=icon_name, prefix="fa"),
-                popup=Popup(info, max_width=300)
-            ).add_to(fg)
-
-        fg.add_to(self.m)
-        # add speed legend once
-        legend = create_speed_legend()
-        self.m.get_root().html.add_child(Element(legend))
-
-        self._maybe_add_layer_control()
-        return self
+    #     if geojson_data is None:
+    #         return 'No geojson provided'
+    #
+    #     gdf = verify_geojson(geojson_data)
+    #
+    #     legend_html = create_speed_legend()
+    #     self.m.get_root().html.add_child(Element(legend_html))
+    #
+    #     m = plot_with_info(gdf, self.m, speed_flag=True)
+    #
+    #     display(m)
 
     # def ship_map_by_polygon(self, wkt_polygon, geojson_data):
     #     """
@@ -778,42 +759,4 @@ class Map:
     #     display(m)
     #
     #
-    # def ship_with_speed(self, geojson_data):
-    #     """
-    #     Create a map visualization displaying ship data with speed information.
-    #
-    #     This function processes AIS ship data provided in GeoJSON format, verifies its correctness, and computes
-    #     the mean latitude and longitude to establish the center of the map. It then configures a folium map with a
-    #     title "Map by Speed" and a customizable basemap. Additionally, it generates a custom speed legend using the
-    #     create_speed_legend() function and incorporates it into the map's HTML. Finally, the function plots the ship
-    #     data on the map, highlighting speed details by enabling the speed_flag.
-    #
-    #     Parameters:
-    #         geojson_data (dict or str):
-    #             A valid GeoJSON dataset containing ship information, including coordinates (latitude and longitude).
-    #             This input can be a dictionary with the data or a file path to a GeoJSON file.
-    #         map_tile (str, optional):
-    #             A string specifying the basemap style to use (e.g., "HYBRID", "SATELLITE", etc.). The default is "HYBRID".
-    #
-    #     Returns:
-    #         folium.Map or str:
-    #             A folium map object with the ship data plotted and annotated with speed details. If the geojson_data
-    #             is None, the function returns the string 'No geojson provided'.
-    #
-    #     Example:
-    #          geojson_data = { ... }  # Provide valid AIS GeoJSON data with latitude and longitude information
-    #          map_object = instance.ship_with_speed(geojson_data, map_tile="HYBRID")
-    #          map_object  # Display the interactive map with ship speed details
-    #     """
-    #     if geojson_data is None:
-    #         return 'No geojson provided'
-    #
-    #     gdf = verify_geojson(geojson_data)
-    #
-    #     legend_html = create_speed_legend()
-    #     self.m.get_root().html.add_child(Element(legend_html))
-    #
-    #     m = plot_with_info(gdf, self.m, speed_flag=True)
-    #
-    #     display(m)
 
