@@ -8,7 +8,7 @@ import folium
 import leafmap.foliumap
 import geopandas as gpd
 import leafmap
-from folium import Marker, Icon, Popup, FeatureGroup
+from folium import Marker, Icon, Popup, FeatureGroup, LayerControl
 from branca.element import Element
 from shapely.wkt import loads
 from folium.plugins import HeatMap
@@ -151,7 +151,8 @@ class Map:
 
     def _maybe_add_layer_control(self):
         if not self._layer_control_added:
-            self.m.add_layer_control()
+            # Add a Folium LayerControl exactly once
+            LayerControl(collapsed=False).add_to(self.m)
             self._layer_control_added = True
 
     def map_all(self, geojson_data, layer_name="All Vessel Routes"):
