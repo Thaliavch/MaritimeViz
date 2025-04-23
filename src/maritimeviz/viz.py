@@ -18,6 +18,121 @@ from ipyleaflet import Map, basemaps, basemap_to_tiles
 
 from .utils.viz_utils import *
 
+def ships_by_drawn_shape(geojson_data):
+    """
+    Set up an interactive map with drawing controls to update ship markers based on user-drawn polygons.
+    This function is designed for use in environments such as Google Colab where interactive maps
+    facilitate dynamic data exploration. When users draw a polygon on the map, a callback function is
+    triggered to update the displayed ship markers based on the provided AIS GeoJSON data.
+
+    Parameters:
+        geojson_data (str or dict):
+            The AIS data in GeoJSON format. This can either be the file path to a GeoJSON file or a
+            dictionary containing GeoJSON data. The data should include details necessary for mapping,
+            such as coordinates and ship identifiers.
+
+    Returns:
+        leafmap.Map:
+            An interactive map object that includes drawing controls and a hybrid basemap. The map is
+            configured to allow users to draw polygons, which in turn update the ship markers on the map
+            based on the provided AIS data.
+
+    Internal Details:
+        - A leafmap Map object is instantiated with a default zoom level of 3 and the ipyleaflet interface enabled.
+        - A hybrid basemap is added to the map for a comprehensive satellite and road overlay.
+        - The function initializes a mutable state dictionary with keys:
+            • "features": an empty list that will hold drawn GeoJSON features,
+            • "ship_marker_layer": a placeholder for the layer containing ship markers,
+            • "ship_polygon_layer": a placeholder for the layer representing drawn polygons.
+        - The drawing control's callback is set up using `functools.partial` to bind the state, the map object,
+            and the provided geojson_data to a handler function (`handle_draw`). This allows dynamic updates
+            of ship markers whenever a new polygon is drawn.
+
+    Example:
+        geojson_data = "path/to/ais_data.geojson"  # or geojson_data can be a dict with your AIS data
+        interactive_map = instance.ships_by_drawn_shape(geojson_data)
+        interactive_map  # Display the map in a compatible environment like Colab
+    """
+    m = leafmap.Map(zoom=3, ipyleaflet=True)
+    m.add_basemap("Hybrid")
+    draw_control = m.draw_control
+
+    # Create a mutable state dictionary for drawing features and layers.
+    state = {
+        "features": [],
+        "ship_marker_layer": None,
+        "ship_polygon_layer": None
+    }
+
+    # Use partial to bind state, map_obj, and geojson_data to the handle_draw callback.
+    callback = partial(handle_draw, state, m, geojson_data)
+    draw_control.on_draw(callback)
+
+    display(m)
+
+def ship_map_on_click(geojson_data, radius_km=300):
+    """
+    Create an interactive map with a clickable interface to display ship data within a specified radius.
+
+    This function sets up an interactive map using the leafmap library. The map is initialized at a global view
+    (centered at [0, 0] with a zoom level of 3) and enhanced with two basemap layers: a satellite imagery layer and
+    a transparent label layer to simulate a hybrid view. When a user interacts with the map (for example, by clicking
+    on it), a custom click handler is triggered. This handler uses the provided GeoJSON ship data to display or update
+    ship information within the specified radius (in kilometers) around the clicked location.
+
+    Parameters:
+        geojson_data (dict or str):
+            A valid GeoJSON dataset or file path containing ship location data. This data is verified using the
+            verify_geojson() function and is utilized to filter and display ships based on their geographical positions.
+        radius_km (int or float, optional):
+            The radius (in kilometers) around a clicked point within which ship data should be filtered and shown.
+            The default value is 300 km.
+
+    Returns:
+        leafmap.Map or str:
+            An interactive map object with the configured layers and click interaction enabled. If the geojson_data
+            is None, the function returns the string 'No geojson provided'.
+
+    Internal Workflow:
+        - Checks if geojson_data is provided; if not, returns an error message.
+        - Verifies the GeoJSON data using verify_geojson().
+        - Initializes an empty list to store coordinates from the user's click interactions.
+        - Creates a global map object centered at [0, 0] with scroll wheel zoom enabled.
+        - Converts basemap tiles for satellite imagery (using Esri WorldImagery) and for transparent labels
+            (using CartoDB PositronOnlyLabels) to simulate a hybrid basemap view.
+        - Adds both the satellite and label layers to the map.
+        - Sets up an interactive event listener using the create_click_handler() callback, binding the radius,
+            map object, clicked coordinates list, and the verified GeoJSON data. This handler processes click events
+            on the map to update the ship data shown based on the user's input.
+        - Displays the map immediately in the current environment.
+
+    Example:
+            geojson_data = { ... }  # Provide valid GeoJSON data containing ship location information.
+            interactive_map = instance.ship_map_on_click(geojson_data, radius_km=300)
+            interactive_map  # This will display the interactive clickable map in a compatible environment.
+    """
+    if geojson_data is None:
+        return 'No geojson provided'
+
+    gdf = verify_geojson(geojson_data)
+
+    clicked_coords = []
+
+    m = leafmap.Map(center=[0, 0], zoom=3, scroll_wheel_zoom=True)
+
+    satellite = basemap_to_tiles(basemaps.Esri.WorldImagery)
+
+    # Transparent labels (simulate hybrid)
+    labels = basemap_to_tiles(basemaps.CartoDB.PositronOnlyLabels)
+
+    m.add_layer(satellite)
+    m.add_layer(labels)
+
+    # Optional: customize basemap tiles if desired
+
+    m.on_interaction(create_click_handler(radius_km, m, clicked_coords, gdf))
+
+    display(m)
 
 class Map:
     """
@@ -80,47 +195,7 @@ class Map:
             
         fg.add_to(self.m)
         self._maybe_add_layer_control()
-        return self.m
-
-    def filter_ships_by_polygon(self, wkt_polygon, gdf):
-        """
-        Filter ship positions that fall within a specified polygon.
-
-        This function takes a GeoDataFrame of ship positions (with latitude and longitude)
-        and returns only those ships located inside the area defined by a WKT (Well-Known Text) polygon.
-
-        Parameters:
-            wkt_polygon (str):
-                A string in WKT format representing the polygon to filter by.
-
-            gdf (GeoDataFrame):
-                A GeoPandas GeoDataFrame containing ship data with at least 'latitude' and 'longitude' columns.
-
-        Returns:
-            GeoDataFrame:
-                A filtered GeoDataFrame containing only the ships located inside the polygon.
-
-        Raises:
-            ValueError:
-                If the provided WKT polygon string is invalid and cannot be parsed.
-
-        Notes:
-            - The function creates a new 'geometry' column in the GeoDataFrame using latitude and longitude.
-            - Ships on the border of the polygon are excluded (strict `within` filter).
-
-        Example:
-            polygon = "POLYGON((-81 25, -81 26, -80 26, -80 25, -81 25))"
-            filtered_ships = instance.filter_ships_by_polygon(polygon, ships_gdf)
-        """
-
-        try:
-            polygon = loads(wkt_polygon)  # Convert WKT string to Shapely Polygon
-        except Exception:
-            raise ValueError("Invalid WKT polygon format")
-
-        gdf["geometry"] = gpd.points_from_xy(gdf.longitude, gdf.latitude)  # Convert lat/lon to points
-
-        return gdf[gdf.geometry.within(polygon)]  # Filter points within the polygon
+        display(self.m)
 
     def ship_map_by_polygon(self, wkt_polygon, geojson_data):
         """
@@ -177,7 +252,7 @@ class Map:
         gdf = verify_geojson(geojson_data)
 
         # Filter ships inside the polygon
-        filtered_gdf = self.filter_ships_by_polygon(wkt_polygon, gdf)
+        filtered_gdf = filter_ships_by_polygon(wkt_polygon, gdf)
 
         if filtered_gdf.empty:
             print("No ships found in the selected area.")
@@ -446,57 +521,6 @@ class Map:
 
         display(m)
 
-    def ships_by_drawn_shape(self, geojson_data):
-        """
-        Set up an interactive map with drawing controls to update ship markers based on user-drawn polygons.
-        This function is designed for use in environments such as Google Colab where interactive maps
-        facilitate dynamic data exploration. When users draw a polygon on the map, a callback function is
-        triggered to update the displayed ship markers based on the provided AIS GeoJSON data.
-
-        Parameters:
-            geojson_data (str or dict):
-                The AIS data in GeoJSON format. This can either be the file path to a GeoJSON file or a
-                dictionary containing GeoJSON data. The data should include details necessary for mapping,
-                such as coordinates and ship identifiers.
-
-        Returns:
-            leafmap.Map:
-                An interactive map object that includes drawing controls and a hybrid basemap. The map is
-                configured to allow users to draw polygons, which in turn update the ship markers on the map
-                based on the provided AIS data.
-
-        Internal Details:
-            - A leafmap Map object is instantiated with a default zoom level of 3 and the ipyleaflet interface enabled.
-            - A hybrid basemap is added to the map for a comprehensive satellite and road overlay.
-            - The function initializes a mutable state dictionary with keys:
-                • "features": an empty list that will hold drawn GeoJSON features,
-                • "ship_marker_layer": a placeholder for the layer containing ship markers,
-                • "ship_polygon_layer": a placeholder for the layer representing drawn polygons.
-            - The drawing control's callback is set up using `functools.partial` to bind the state, the map object,
-              and the provided geojson_data to a handler function (`handle_draw`). This allows dynamic updates
-              of ship markers whenever a new polygon is drawn.
-
-        Example:
-            geojson_data = "path/to/ais_data.geojson"  # or geojson_data can be a dict with your AIS data
-            interactive_map = instance.ships_by_drawn_shape(geojson_data)
-            interactive_map  # Display the map in a compatible environment like Colab
-        """
-        m = leafmap.Map(zoom=3, ipyleaflet=True)
-        m.add_basemap("Hybrid")
-        draw_control = m.draw_control
-
-        # Create a mutable state dictionary for drawing features and layers.
-        state = {
-            "features": [],
-            "ship_marker_layer": None,
-            "ship_polygon_layer": None
-        }
-
-        # Use partial to bind state, map_obj, and geojson_data to the handle_draw callback.
-        callback = partial(handle_draw, state, m, geojson_data)
-        draw_control.on_draw(callback)
-
-        display(m)
 
     def ship_with_speed(self, geojson_data):
         """
@@ -534,70 +558,6 @@ class Map:
         self.m.get_root().html.add_child(Element(legend_html))
 
         m = plot_with_info(gdf, self.m, speed_flag=True)
-
-        display(m)
-
-    def ship_map_on_click(self, geojson_data, radius_km=300):
-        """
-        Create an interactive map with a clickable interface to display ship data within a specified radius.
-
-        This function sets up an interactive map using the leafmap library. The map is initialized at a global view
-        (centered at [0, 0] with a zoom level of 3) and enhanced with two basemap layers: a satellite imagery layer and
-        a transparent label layer to simulate a hybrid view. When a user interacts with the map (for example, by clicking
-        on it), a custom click handler is triggered. This handler uses the provided GeoJSON ship data to display or update
-        ship information within the specified radius (in kilometers) around the clicked location.
-
-        Parameters:
-            geojson_data (dict or str):
-                A valid GeoJSON dataset or file path containing ship location data. This data is verified using the
-                verify_geojson() function and is utilized to filter and display ships based on their geographical positions.
-            radius_km (int or float, optional):
-                The radius (in kilometers) around a clicked point within which ship data should be filtered and shown.
-                The default value is 300 km.
-
-        Returns:
-            leafmap.Map or str:
-                An interactive map object with the configured layers and click interaction enabled. If the geojson_data
-                is None, the function returns the string 'No geojson provided'.
-
-        Internal Workflow:
-            - Checks if geojson_data is provided; if not, returns an error message.
-            - Verifies the GeoJSON data using verify_geojson().
-            - Initializes an empty list to store coordinates from the user's click interactions.
-            - Creates a global map object centered at [0, 0] with scroll wheel zoom enabled.
-            - Converts basemap tiles for satellite imagery (using Esri WorldImagery) and for transparent labels
-              (using CartoDB PositronOnlyLabels) to simulate a hybrid basemap view.
-            - Adds both the satellite and label layers to the map.
-            - Sets up an interactive event listener using the create_click_handler() callback, binding the radius,
-              map object, clicked coordinates list, and the verified GeoJSON data. This handler processes click events
-              on the map to update the ship data shown based on the user's input.
-            - Displays the map immediately in the current environment.
-
-        Example:
-             geojson_data = { ... }  # Provide valid GeoJSON data containing ship location information.
-             interactive_map = instance.ship_map_on_click(geojson_data, radius_km=300)
-             interactive_map  # This will display the interactive clickable map in a compatible environment.
-        """
-        if geojson_data is None:
-            return 'No geojson provided'
-
-        gdf = verify_geojson(geojson_data)
-
-        clicked_coords = []
-
-        m = leafmap.Map(center=[0, 0], zoom=3, scroll_wheel_zoom=True)
-
-        satellite = basemap_to_tiles(basemaps.Esri.WorldImagery)
-
-        # Transparent labels (simulate hybrid)
-        labels = basemap_to_tiles(basemaps.CartoDB.PositronOnlyLabels)
-
-        m.add_layer(satellite)
-        m.add_layer(labels)
-
-        # Optional: customize basemap tiles if desired
-
-        m.on_interaction(create_click_handler(radius_km, m, clicked_coords, gdf))
 
         display(m)
 
