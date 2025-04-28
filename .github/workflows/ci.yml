@@ -36,6 +36,8 @@ jobs:
       # run your test suite via tox
       - name: Run tests
         run: tox
+        env:
+            GFW_API_TOKEN: ${{ secrets.GFW_API_TOKEN }}
 
       # optionally can upload coverage to codecov
       # - name: Upload coverage to Codecov

@@ -10,7 +10,8 @@ from src.maritimeviz.ais_db import AISDatabase
 
 # Database and AIS files for testing
 TEST_DB_PATH = "ais_data .duckdb"
-AIS_FILE_PATH = "ais_2016_07_28_aa"
+# Use os.path.join and os.path.dirname(__file__) to get the path relative to the current file
+AIS_FILE_PATH = os.path.join(os.path.dirname(__file__), "ais_2016_07_28_aa")
 
 
 @pytest.fixture(scope="function")
