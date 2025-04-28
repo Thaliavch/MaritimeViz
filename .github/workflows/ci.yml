@@ -13,7 +13,7 @@ jobs:
 
     strategy:
       matrix:
-        python-version: [3.6, 3.7, 3.8]
+        python-version: [3.11, 3.12]
 
     steps:
       # grab the code
@@ -30,7 +30,8 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e .[dev] tox-travis
+          pip install .[dev]
+          pip install tox-travis
 
       # run your test suite via tox
       - name: Run tests
