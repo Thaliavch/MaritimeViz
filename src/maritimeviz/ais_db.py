@@ -59,20 +59,6 @@ class AISDatabase:
     def clear_filter(self) -> None:
         self._filter = None
 
-    # TODO(Thalia): See what I will do with this method. We may call it since this block of code is repeated on two methods so far.
-    # def _filter_mmsi_query(self, mmsi: Union[int, List[int]], query: str, params: List) -> str:
-    #     if mmsi is not None:
-    #         if isinstance(mmsi, int):
-    #             query += " AND mmsi = ?"
-    #             params.append(mmsi)
-    #         elif isinstance(mmsi, list) and all(isinstance(i, int) for i in mmsi):
-    #             placeholders = ", ".join(["?"] * len(mmsi))
-    #             query += f" AND mmsi IN ({placeholders})"
-    #             params.extend(mmsi)
-    #         else:
-    #             raise ValueError("MMSI must be an integer or a list of integers.")
-    #     return query
-
     def open(self):
         if not self._conn:
             self._conn = duckdb.connect(self._db_path)
@@ -351,10 +337,6 @@ class AISDatabase:
         """Long range broadcast messages (Type 27)."""
         return LongRangeMessages(self._conn)
 
-    # todo(Thalia): come back to this
-    # def asm(self):
-    #     """Application-specific binary messages (Types 6, 8, 25, 26)."""
-    #     return ApplicationSpecificMessages(self._conn)
     def addressed_binary(self):
         """ Addressed Binary Message 6 (binary payload) """
         return AddressedBinaryHandler(self._conn)
@@ -374,10 +356,6 @@ class AISDatabase:
     def base_station(self):
         """Base Station Report (Type 4)."""
         return BaseStationMessages(self._conn)
-
-    # def safety_and_ack(self):
-    #     """Factory method for Safety and Acknowledgement Messages (Types 7, 13, 12, 14)"""
-    #     return SafetyAndAcknowledgementMessages(self._conn)
 
     def safety(self):
         """Factory method for Safety Messages (Types 7, 13)"""
@@ -411,15 +389,12 @@ class AISDatabase:
     def process(self, file_path: str) -> None:
         """
         Process a raw AIS data file and populate the database with Class A and Class B messages.
-        This method will:
-
-        1. Split the input file into chunks of roughly `threading_stats[1]` lines each.
-        2. Spin up up to `threading_stats[0]` worker threads **per** processor.
-        3. Run one passes over file and process messages of class A and class B
+        This method will parsed each nmea sentence using libais and insert to its corresponding
+        table in the database.
 
         Parameters:
             file_path (str):
-                Path to your raw AIS data file (NMEA stream, CSV, etc.).
+                Path to your raw AIS data file
 
         Returns:
             None
@@ -441,7 +416,6 @@ class BaseMessageProcessor:
     '''
     Private methods
     '''
-
     def _process_chunk(self, chunk: list):
         import ais.stream
         batches: dict[str, list[tuple]] = {}
@@ -484,6 +458,7 @@ class BaseMessageProcessor:
     def set_filter(self, filter_obj: Optional[dict]) -> None:
         """ Set filter object for querying data from database """
         raise NotImplementedError("Subclasses must implement set_filter.")
+
     '''
     Public methods start here
     '''
@@ -640,7 +615,7 @@ class BaseMessageProcessorPositionReport(BaseMessageProcessor):
 
 class ABMessagesProcessor(BaseMessageProcessor):
     """
-    Processor that handles both Class A (1, 2, 3, 5) and Class B (18, 19, 24) AIS messages in one pass.
+    Processor that handles both Class A (1, 2, 3, 5) and Class B (18, 19, 24) AIS messages in one pass.
 
     This processor reads a raw AIS file (NMEA stream, CSV, etc.), decodes every chunk,
     and for each message:
@@ -956,16 +931,6 @@ class ClassAMessages(BaseMessageProcessorPositionReport):
 
             if df.empty:
                 return {"No static MMSI info found."}
-
-            # --- Optionally retrieve more from an external table or API not sure aobut global fish wash---
-            # Suppose we have a 'vessel_details' table with columns [mmsi, captain, fleet_operator, flag]
-            # ext_query = """SELECT captain, fleet_operator, flag FROM vessel_details WHERE mmsi = ?"""
-            # ext_info = conn.execute(ext_query, [mmsi]).fetchone()
-            # if ext_info:
-            #     info_dict["captain"] = ext_info[0]
-            #     info_dict["fleet_operator"] = ext_info[1]
-            #     info_dict["flag"] = ext_info[2]
-
             return df
 
         except Exception as e:
@@ -1053,7 +1018,6 @@ class ClassBMessages(BaseMessageProcessorPositionReport):
         return (query, params)
 
     # TODO(Thalia): write function implementation and filter object for messages of class B
-
     def set_filter(self, filter_obj: Optional[dict] = None) -> None:
         if filter_obj is not None:
             if not isinstance(filter_obj, dict):
@@ -2737,7 +2701,6 @@ class SystemManagementMessages(BaseMessageProcessor):
                 else:
                     raise ValueError("MMSI must be an int or list of ints.")
 
-            # Date range (using tagblock_timestamp)
             if start_date:
                 start_ts = date_to_tagblock_timestamp(
                     *map(int, start_date.split("-"))

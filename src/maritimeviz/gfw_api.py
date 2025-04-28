@@ -172,48 +172,6 @@ class GFW_api:
 
         return df
 
-    # None of the following three methods are finished
-    @staticmethod
-    def fishing_event_charts(df):
-        """
-        Generate charts for fishing event insights.
-        """
-        if df.empty:
-            print("No data available for chart generation.")
-            return
-
-        # Convert dates to datetime format
-        df["Start Time"] = pd.to_datetime(df["Start Time"])
-        df["End Time"] = pd.to_datetime(df["End Time"])
-
-        # Fishing Events Over Time
-        plt.figure(figsize=(12, 6))
-        df["Start Time"].dt.date.value_counts().sort_index().plot(kind="bar",
-                                                                  color="skyblue")
-        plt.xlabel("Date")
-        plt.ylabel("Number of Events")
-        plt.title("Fishing Events Over Time")
-        plt.xticks(rotation=45)
-        plt.show()
-
-        # 2️Total Distance per Event
-        plt.figure(figsize=(10, 5))
-        plt.barh(df["Event ID"], df["Total Distance (km)"], color="coral")
-        plt.xlabel("Total Distance (km)")
-        plt.ylabel("Event ID")
-        plt.title("Total Distance Covered During Fishing Events")
-        plt.gca().invert_yaxis()
-        plt.show()
-
-        # Average Speed Per Event
-        plt.figure(figsize=(10, 5))
-        plt.barh(df["Event ID"], df["Avg Speed (knots)"], color="teal")
-        plt.xlabel("Average Speed (knots)")
-        plt.ylabel("Event ID")
-        plt.title("Average Speed During Fishing Events")
-        plt.gca().invert_yaxis()
-        plt.show()
-
     @staticmethod
     def fishing_event_map(df):
         """

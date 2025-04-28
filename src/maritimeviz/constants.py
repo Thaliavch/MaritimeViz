@@ -299,7 +299,8 @@ QUERY_CREATE_TABLE_4 = """
             );
             """
 
-# ******************************************************
+# *******************************************************
+
 QUERY_CREATE_TABLE_7_13 = """
 CREATE TABLE IF NOT EXISTS ais_msg_7_13 (
     id INTEGER,                -- 7 or 13
@@ -720,7 +721,6 @@ ALLOWED_FILTER_KEYS_CLASS_B = {
     "min_velocity", "max_velocity", "direction"
 }
 
-# TODO(Thalia): Crete global filter object and one per class.
 class FilterCriteria(TypedDict, total=False): # total set to False to make all fields optional
     mmsi: Union[int, List[int]]
     start_date: str
@@ -738,28 +738,3 @@ class MessageType(Enum):
     B = "B"
     C = "C"
 
-# Scratch
-#{'id': 27, 'repeat_indicator': 0, 'mmsi': 538006828, 'position_accuracy': 0, 'raim': False,
-# 'nav_status': 1, 'x': -89.35833333333333, 'y': 28.913333333333334, 'sog': 0, 'cog': 336,
-# 'gnss': True, 'spare': 0, 'tagblock_group': {'sentence': 1, 'groupsize': 2, 'id': 7928},
-# 'tagblock_line_count': 1351, 'tagblock_station': 'D08MN-NO-VENBS1', 'tagblock_timestamp': 1469665321}
-# 16 attributes
-
-# {'id': 8, 'repeat_indicator': 0, 'mmsi': 993161005, 'spare': 0, 'dac': 1,
-# 'fi': 11, 'x': -125.62686666666667, 'y': 48.8853, 'wind_ave': 15, 'wind_gust': 18,
-# 'wind_dir': 261, 'wind_gust_dir': 18, 'air_temp': 42.29999923706055, 'rel_humid': 127,
-# 'dew_point': 31.100000381469727, 'air_pres': 1311.0, 'air_pres_trend': 3, 'horz_vis': 25.5,
-# 'water_level': 41.099998474121094, 'water_level_trend': 3, 'surf_cur_speed': 0.20000000298023224,
-# 'surf_cur_dir': 237, 'cur_speed_2': 0.10000000149011612, 'cur_dir_2': 110, 'cur_depth_2': 15, 'cur_speed_3': 0.30000001192092896,
-# 'cur_dir_3': 159, 'cur_depth_3': 30, 'wave_height': 1.100000023841858, 'wave_period': 7, 'wave_dir': 263, 'swell_height': 2.0,
-# 'swell_period': 63, 'swell_dir': 511, 'sea_state': 15, 'water_temp': 41.099998474121094, 'precip_type': 7,
-# 'ice': 3, 'ext_water_level': 63, 'spare2': 63, 'tagblock_group': {'sentence': 1, 'groupsize': 2, 'id': 3213},
-# 'tagblock_line_count': 3915, 'tagblock_station': 'D13MN-PS-BAHBS1', 'tagblock_timestamp': 1469665805}
-
-#{'id': 25, 'repeat_indicator': 0, 'mmsi': 366787180, 'tagblock_group': {'sentence': 1, 'groupsize': 2, 'id': 1349},
-# 'tagblock_line_count': 2672, 'tagblock_station': 'D07MN-CH-PRLBS1', 'tagblock_timestamp': 1469664477}
-
-
-#{'id': 26, 'repeat_indicator': 1, 'mmsi': 618431799, 'dest_mmsi': 855000294,
-# 'sync_state': 0, 'received_stations': 4533, 'tagblock_line_count': 154899,
-# 'tagblock_station': 'r17MKET2', 'tagblock_timestamp': 1469664218}
