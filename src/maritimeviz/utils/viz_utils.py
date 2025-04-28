@@ -269,7 +269,7 @@ def update_map_with_all_ships_for_drawing(map_obj, geojson_data, features, old_m
         for _, row in filtered_gdf.iterrows():
             # Use the FontAwesome ship icon ("fa-ship") with a constant marker color "blue".
             icon = AwesomeIcon(name="fa-ship", marker_color="blue", icon_color="white")
-            marker = Marker(
+            marker = folium.Marker(
                 location=(row.latitude, row.longitude),
                 draggable=False,
                 icon=icon
@@ -361,7 +361,7 @@ def create_click_handler(radius_km, map_object, clicked_coords, gdf):
                 name, info_text = get_info(ship)
 
                 lat, lon = ship.geometry.y, ship.geometry.x
-                marker = Marker(location=(lat, lon), draggable=False)
+                marker = folium.Marker(location=(lat, lon), draggable=False)
                 # marker = Marker(location=(lat, lon), draggable=False)
 
                 # Style text to be black
