@@ -1,14 +1,10 @@
-import leafmap
-import geopandas as gpd
 import folium
-from shapely.wkt import loads
-from IPython.display import display
-from ipyleaflet import Map, DrawControl, Marker, AwesomeIcon, Polygon, LayerGroup, Circle
-
-
-from ipywidgets import HTML
+import geopandas as gpd
 from geopandas import GeoDataFrame
 from geopy.distance import geodesic
+from ipyleaflet import Marker, AwesomeIcon, Polygon, LayerGroup, Circle
+from ipywidgets import HTML
+from shapely.wkt import loads
 
 
 def filter_ships_by_polygon(wkt_polygon, gdf):
@@ -47,9 +43,12 @@ def filter_ships_by_polygon(wkt_polygon, gdf):
     except Exception:
         raise ValueError("Invalid WKT polygon format")
 
-    gdf["geometry"] = gpd.points_from_xy(gdf.longitude, gdf.latitude)  # Convert lat/lon to points
+    gdf["geometry"] = gpd.points_from_xy(gdf.longitude,
+                                         gdf.latitude)  # Convert lat/lon to points
 
-    return gdf[gdf.geometry.within(polygon)]  # Filter points within the polygon
+    return gdf[
+        gdf.geometry.within(polygon)]  # Filter points within the polygon
+
 
 def create_speed_legend():
     """
@@ -91,6 +90,7 @@ def create_speed_legend():
 
     return legend_html
 
+
 def get_info(row):
     """
         Extracts and formats information from a dictionary representing a data row.
@@ -108,45 +108,49 @@ def get_info(row):
                                     presented on a separate line using <br> tags.
         """
 
-    info_text = "<br>".join([f"{key}: {value}" for key, value in row.items() if value and key != "geometry"])
+    info_text = "<br>".join([f"{key}: {value}" for key, value in row.items() if
+                             value and key != "geometry"])
     name = row.get("mmsi", row.get("name", row.get("id", "Unknown")))
 
     return name, info_text
 
 
 def plot_with_info(gdf, m, speed_flag=False, color="blue"):
+    for _, row in gdf.iterrows():
+        name, info_text = get_info(row)
+        color = color
 
-  for _, row in gdf.iterrows():
-      name, info_text = get_info(row)
-      color = color
+        if speed_flag:
+            speed = row["speed"]
+            if speed <= 2:
+                color = "green"
+            elif speed <= 10:
+                color = "blue"
+            elif speed <= 25:
+                color = "orange"
+            elif speed <= 30:
+                color = "red"
+            else:
+                color = "purple"
 
-      if speed_flag:
-          speed = row["speed"]
-          if speed <= 2:
-              color = "green"
-          elif speed <= 10:
-              color = "blue"
-          elif speed <= 25:
-              color = "orange"
-          elif speed <= 30:
-              color = "red"
-          else:
-              color = "purple"
+        if row.geometry and hasattr(row.geometry, "x") and hasattr(
+            row.geometry, "y"):
+            folium.Marker(
+                icon=folium.Icon(color=color, icon=check_printable_icon(row),
+                                 prefix="fa"),
+                location=[row.geometry.y, row.geometry.x],
+                # Latitude, Longitude
+                popup=folium.Popup(info_text, max_width=300),
+                # Display all available info
+                tooltip='Press for more info'  # Use available identifier
+            ).add_to(m)
 
-      if row.geometry and hasattr(row.geometry, "x") and hasattr(row.geometry, "y"):
-          folium.Marker(
-              icon=folium.Icon(color=color, icon=check_printable_icon(row), prefix="fa"),
-              location=[row.geometry.y, row.geometry.x],  # Latitude, Longitude
-              popup=folium.Popup(info_text, max_width=300),  # Display all available info
-              tooltip='Press for more info'  # Use available identifier
-          ).add_to(m)
+        # display(m)
+        m.add_layer_control()
+        return m
 
-      #display(m)
-      m.add_layer_control()
-      return m
 
 def check_printable_icon(row):
-
     """
     Checks for which Icon to use based on message type.
 
@@ -173,6 +177,7 @@ def check_printable_icon(row):
     else:
         return "asterisk"
 
+
 def verify_geojson(geojson_data):
     """
     Verify if the provided GeoJSON is valid and convert it into a GeoDataFrame.
@@ -197,6 +202,7 @@ def verify_geojson(geojson_data):
     except Exception as e:
         raise ValueError(f"Failed to load GeoJSON: {e}")
 
+
 # ========================================================================================================================
 
 def handle_draw(state, map_obj, geojson_data, target, action, geo_json):
@@ -215,7 +221,8 @@ def handle_draw(state, map_obj, geojson_data, target, action, geo_json):
     # Update the map with all ship markers based on the current features.
     new_marker_layer, new_polygon_layer = update_map_with_all_ships_for_drawing(
         map_obj,
-        geojson_data,  # Use the geojson file passed into the ships_by_drawn_shape function.
+        geojson_data,
+        # Use the geojson file passed into the ships_by_drawn_shape function.
         state["features"],
         state["ship_marker_layer"],
         state["ship_polygon_layer"]
@@ -226,8 +233,8 @@ def handle_draw(state, map_obj, geojson_data, target, action, geo_json):
     state["ship_polygon_layer"] = new_polygon_layer
 
 
-
-def update_map_with_all_ships_for_drawing(map_obj, geojson_data, features, old_marker_layer, old_polygon_layer):
+def update_map_with_all_ships_for_drawing(map_obj, geojson_data, features,
+                                          old_marker_layer, old_polygon_layer):
     """
     For every drawn polygon stored in 'features', create a polygon overlay and
     ship markers for ships within that polygon. Any previous layers are removed from the map.
@@ -268,7 +275,8 @@ def update_map_with_all_ships_for_drawing(map_obj, geojson_data, features, old_m
         filtered_gdf = filter_ships_by_polygon(wkt_shape, gdf)
         for _, row in filtered_gdf.iterrows():
             # Use the FontAwesome ship icon ("fa-ship") with a constant marker color "blue".
-            icon = AwesomeIcon(name="fa-ship", marker_color="blue", icon_color="white")
+            icon = AwesomeIcon(name="fa-ship", marker_color="blue",
+                               icon_color="white")
             marker = folium.Marker(
                 location=(row.latitude, row.longitude),
                 draggable=False,
@@ -276,7 +284,8 @@ def update_map_with_all_ships_for_drawing(map_obj, geojson_data, features, old_m
             )
             # Attach a popup with ship details (black text).
             _, info_text = get_info(row)
-            marker.popup = HTML(value=f"<div style='color:black;'>{info_text}</div>")
+            marker.popup = HTML(
+                value=f"<div style='color:black;'>{info_text}</div>")
             new_marker_layer.add(marker)
 
     # Add the new layers to the map.
@@ -285,13 +294,14 @@ def update_map_with_all_ships_for_drawing(map_obj, geojson_data, features, old_m
 
     return new_marker_layer, new_polygon_layer
 
-def geojson_to_wkt(geojson_polygon):
 
+def geojson_to_wkt(geojson_polygon):
     coords = geojson_polygon["geometry"]["coordinates"][0]
     coord_strings = [f"{lon} {lat}" for lon, lat in coords]
     coord_block = ",\n".join(coord_strings)
     wkt = f"POLYGON((\n{coord_block}\n))"
     return wkt
+
 
 def filter_ships_by_polygon(wkt_polygon, gdf):
     """
@@ -349,7 +359,8 @@ def create_click_handler(radius_km, map_object, clicked_coords, gdf):
             for _, row in gdf.iterrows():
                 coordinates = row.geometry.coords[0]
                 ship_location = (coordinates[1], coordinates[0])  # (lat, lon)
-                if -90 <= coordinates[1] <= 90 and -180 <= coordinates[0] <= 180:
+                if -90 <= coordinates[1] <= 90 and -180 <= coordinates[
+                    0] <= 180:
                     if geodesic(latlng, ship_location).km <= radius_km:
                         ships_in_circle.append(row)
 
@@ -364,7 +375,8 @@ def create_click_handler(radius_km, map_object, clicked_coords, gdf):
                 marker = Marker(location=(lat, lon), draggable=False)
 
                 # Style text to be black
-                popup_content = HTML(value=f"<div style='color:black;'>{info_text}</div>")
+                popup_content = HTML(
+                    value=f"<div style='color:black;'>{info_text}</div>")
                 marker.popup = popup_content
 
                 markers.append(marker)
