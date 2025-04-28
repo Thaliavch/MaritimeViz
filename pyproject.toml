@@ -15,9 +15,7 @@ authors = [
 maintainers = [
   {name = "Thalia Valle, Marcelo Amorin, Henrique Baggio", email = "thaliasaxo@gmail.com"}
 ]
-classifiers = [
-
-]
+classifiers = []
 
 dependencies = [
   "typer>=0.15.0",
@@ -68,9 +66,6 @@ include = ["maritimeviz*"]
 
 [tool.setuptools.package-data]
 "*" = ["*.*"]
-
-
-
 
 # Mypy
 # ----

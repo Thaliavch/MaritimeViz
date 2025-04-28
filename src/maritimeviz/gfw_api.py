@@ -340,20 +340,3 @@ class GFW_api:
         else:
             print("Error retrieving PNG tiles.")
             return None
-
-
-#token = input('Enter TOKEN: ')
-#
-#gfw = GFW_api(token)
-#
-#gfw.search_vessel('7831410')
-#
-#gfw.get_fishing_stats(start_date='2022-01-01', end_date='2023-01-01')
-#
-#gfw.get_fishing_stats(start_date='2022-01-01', end_date='2023-01-01')
-#
-#gfw.get_vessel_insights(start_date='2022-01-01', end_date='2023-01-01', vessels = [
-#    {"datasetId": "public-global-vessel-identity:latest", "vesselId": "785101812-2127-e5d2-e8bf-7152c5259f5f"}
-#])
-#gfw.generate_fishing_effort_png_tiles(interval="DAY", dataset = "public-global-fishing-effort:latest",
-#                                color="#361c0c", start_date="2020-01-01", end_date="2020-01-31",)
