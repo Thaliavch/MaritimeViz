@@ -82,24 +82,40 @@ Quickstart
 Core Features
 -------------
 - **AIS Database Management**
+
   • Ingest raw AIS streams (NMEA, CSV, etc.) sequentially.
+
   • Materialize global “position” and “static” views
+
   • Flexible filtering by MMSI, date range, or spatial polygon, and more.
+
   • Export to GeoJSON, CSV, Shapefile, KML, Excel, or WKT
 
+
 - **Interactive Mapping**
+
   • Leafmap/Folium wrapper for points, routes, heatmaps, and base stations
+
   • Polygon‐based and MMSI filtering
 
+
 - **Global Fishing Watch API**
+
   • Vessel identity lookup (MMSI/IMO → vesselId)
+
   • Fetch fishing events, effort statistics, vessel insights
+
   • Built-in mapping helpers
 
+
 - **Extensible Architecture**
+
   • Pluggable “message processor” classes for Class A, Class B, long‐range, ASM, etc.
+
   • Utilities for cache clearing, and data cleaning.
+
   • Roadmap: buoy/water data ingestion, anomaly detection, ML pipelines
+
 
 Credits
 -------

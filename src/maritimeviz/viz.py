@@ -17,7 +17,7 @@ from ipyleaflet import basemaps, basemap_to_tiles
 
 from .utils.viz_utils import *
 
-class VesselMap:
+class Map:
     """
     A class to visualize AIS ship data through interactive maps using Leafmap and Folium.
 
@@ -47,7 +47,7 @@ class VesselMap:
             layer_name (str): Name of the layer for display.
 
         Returns:
-            VesselMap: Self, for chaining.
+            Map: Self, for chaining.
         """
         gdf = verify_geojson(geojson_data)
         if gdf.empty:
@@ -90,7 +90,7 @@ class VesselMap:
             layer_name (str): Display name for the layer.
 
         Returns:
-            VesselMap: Self.
+            Map: Self.
         """
         gdf = verify_geojson(geojson_data)
         try:
@@ -140,10 +140,12 @@ class VesselMap:
             layer_name (str): Name for the layer.
 
         Returns:
-            VesselMap: Self.
+            Map: Self.
         """
         gdf = verify_geojson(geojson_data)
         if mmsi is not None:
+            if mmsi not in gdf.mmsi.values:
+                return 'No ship found with that mmsi'
             gdf = gdf[gdf.mmsi == mmsi]
 
         if gdf.empty:
@@ -186,7 +188,7 @@ class VesselMap:
             layer_name (str): Name for the heatmap layer.
 
         Returns:
-            VesselMap: Self.
+            Map: Self.
         """
         gdf = verify_geojson(geojson_data)
         if gdf.empty:
@@ -210,7 +212,7 @@ class VesselMap:
             layer_name (str): Name for the layer.
 
         Returns:
-            VesselMap: Self.
+            Map: Self.
         """
         gdf = verify_geojson(geojson_data)
         if "tagblock_station" not in gdf.columns:
@@ -257,7 +259,7 @@ class VesselMap:
             layer_name (str, optional): Custom name for the map layer.
 
         Returns:
-            VesselMap: Self.
+            Map: Self.
         """
         gdf = verify_geojson(geojson_data)
         if mmsi not in gdf.mmsi.values:

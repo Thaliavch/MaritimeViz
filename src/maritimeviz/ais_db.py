@@ -99,7 +99,7 @@ class AISDatabase:
         }
         if data not in mapping:
             raise ValueError(
-                "Invalid data parameter. Must be 'all', 'dynamic', or 'static'.")
+                "Invalid data parameter. Must be 'position' or 'static'.")
         return mapping[data]
 
     def _get_global_df(self, report_type: str = "position",
