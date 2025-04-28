@@ -220,48 +220,6 @@ class AISDatabase:
         df.to_csv(file_path, index=False)
         return f"CSV saved at {file_path}"
 
-    def get_parquet(self, file_path: str = "ais_data.parquet",
-                    report_type: str = "position",
-                    mmsi: Optional[int] = None,
-                    start_date: Optional[str] = None,
-                    end_date: Optional[str] = None,
-                    polygon_bounds: Optional[str] = None) -> str:
-        """
-        Exports global AIS data to a Parquet file.
-        """
-        df = self._get_global_df(report_type, mmsi, start_date, end_date, polygon_bounds,
-                                 as_geodf=False)
-        if df.empty:
-            return "No data available to export."
-        df.to_parquet(file_path)
-        return f"Parquet file saved at {file_path}"
-
-    def get_json(self, file_path: str = "ais_data.json",
-                 report_type: str = "position",
-                 mmsi: Optional[int] = None,
-                 start_date: Optional[str] = None,
-                 end_date: Optional[str] = None,
-                 polygon_bounds: Optional[str] = None):
-        """
-        Returns a JSON object and exports the global AIS data to a JSON file.
-        """
-        df = self._get_global_df(report_type, mmsi, start_date, end_date,
-                                 polygon_bounds,
-                                 as_geodf=False)
-        if df.empty:
-            return "No data available to export."
-
-        # Convert to JSON once and store
-        json_data = df.to_json(
-            orient='records')  # Use orient='records' for a list of JSON objects
-
-        # Write to file
-        with open(file_path, "w") as f:
-            f.write(json_data)
-
-        # Return the JSON data
-        return json.loads(json_data)
-
     def get_shapefile(self, file_path: str = "ais_shapefile",
                       report_type: str = "position",
                       mmsi: Optional[int] = None,
@@ -532,28 +490,6 @@ class BaseMessageProcessor:
 
         gdf.to_csv(file_path, index=False)
         return f"CSV saved at {file_path}"
-
-    def get_parquet(self, file_path="ais_data.parquet", mmsi=None, start_date=None, end_date=None, polygon_bounds=None):
-        """
-        Exports AIS data to a Parquet file.
-        """
-        gdf = self.search(mmsi, start_date, end_date, polygon_bounds)
-        if gdf.empty:
-            return "No data available to export."
-
-        gdf.to_parquet(file_path)
-        return f"Parquet file saved at {file_path}"
-
-    def get_json(self, file_path="ais_data.json", mmsi=None, start_date=None, end_date=None, polygon_bounds=None):
-        """
-        Return JSON object and export to json file
-        """
-        gdf = self.search(mmsi, start_date, end_date, polygon_bounds)
-        if gdf.empty:
-            return "No data available to export."
-        with open(file_path, "w") as f:
-            f.write(gdf.to_json())
-        return json.loads(gdf.to_json())
 
     def get_shapefile(self, file_path="ais_shapefile", mmsi=None, start_date=None, end_date=None, polygon_bounds=None):
         """

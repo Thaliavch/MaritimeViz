@@ -217,28 +217,6 @@ class TestGlobalExports:
         assert isinstance(df, pd.DataFrame)
 
 
-    def test_get_global_parquet(self, setup_existing_db):
-        db = setup_existing_db
-        file_path = "test_data.parquet"
-        result = db.get_parquet(file_path=file_path, data="all")
-        if result.startswith("No data"):
-            pytest.skip("No data available to export; skipping Parquet test.")
-        assert os.path.exists(file_path)
-        df = pd.read_parquet(file_path)
-        assert isinstance(df, pd.DataFrame)
-
-
-    def test_get_global_json(self, setup_existing_db):
-        db = setup_existing_db
-        file_path = "test_data.json"
-        result = db.get_json(file_path=file_path, data="all")
-        if isinstance(result, str) and result.startswith("No data"):
-            pytest.skip("No data available to export; skipping JSON test.")
-        # Check that the result is a dict and file exists
-        assert isinstance(result, dict)
-        assert os.path.exists(file_path)
-
-
     def test_get_global_shapefile(self, setup_existing_db):
         db = setup_existing_db
         folder_path = "ais_shapefile"

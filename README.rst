@@ -85,7 +85,7 @@ Core Features
   • Ingest raw AIS streams (NMEA, CSV, etc.) sequentially.
   • Materialize global “position” and “static” views
   • Flexible filtering by MMSI, date range, or spatial polygon, and more.
-  • Export to GeoJSON, CSV, Parquet, Shapefile, KML, Excel, or WKT
+  • Export to GeoJSON, CSV, Shapefile, KML, Excel, or WKT
 
 - **Interactive Mapping**
   • Leafmap/Folium wrapper for points, routes, heatmaps, and base stations
