@@ -361,8 +361,7 @@ def create_click_handler(radius_km, map_object, clicked_coords, gdf):
                 name, info_text = get_info(ship)
 
                 lat, lon = ship.geometry.y, ship.geometry.x
-                marker = folium.Marker(location=(lat, lon), draggable=False)
-                # marker = Marker(location=(lat, lon), draggable=False)
+                marker = Marker(location=(lat, lon), draggable=False)
 
                 # Style text to be black
                 popup_content = HTML(value=f"<div style='color:black;'>{info_text}</div>")
