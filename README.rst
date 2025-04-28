@@ -120,7 +120,7 @@ Core Features
 Credits
 -------
 - **Global Fishing Watch** for vessel & event data (https://globalfishingwatch.org)
-- **libais** for AIS message decoding and parsing
+- **libais** for AIS message decoding and parsing (https://github.com/schwehr/libais)
 - Mentorship and guidance by **Kurt Schewher**
 - Built on top of: DuckDB, Pandas, GeoPandas, Leafmap, Folium, Shapely, Cachetools, Requests
 - Project template courtesy of audreyr/cookiecutter-pypackage

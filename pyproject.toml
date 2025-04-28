@@ -12,7 +12,7 @@ license = { text = "MIT" }
 authors = [
   {name = "Thalia Valle, Marcelo Amorin, Henrique Baggio", email = "thaliasaxo@gmail.com"}
 ]
-maintainers = [
+mantainers=[
   {name = "Thalia Valle, Marcelo Amorin, Henrique Baggio", email = "thaliasaxo@gmail.com"}
 ]
 classifiers = []
