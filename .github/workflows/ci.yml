@@ -30,7 +30,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install tox-travis       # or tox, depending on your tox.ini
+          pip install -e .[dev] tox-travis
 
       # run your test suite via tox
       - name: Run tests
