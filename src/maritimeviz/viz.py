@@ -20,38 +20,16 @@ from .utils.viz_utils import *
 
 def ships_by_drawn_shape(geojson_data):
     """
-    Set up an interactive map with drawing controls to update ship markers based on user-drawn polygons.
-    This function is designed for use in environments such as Google Colab where interactive maps
-    facilitate dynamic data exploration. When users draw a polygon on the map, a callback function is
-    triggered to update the displayed ship markers based on the provided AIS GeoJSON data.
+    Set up an interactive map with dynamic drawing controls to filter ships by user-defined polygons.
+
+    Allows users to dynamically update ship markers based on polygons drawn on the map. 
+    The displayed ships automatically adjust in real-time as users add, edit, or remove drawn areas.
 
     Parameters:
-        geojson_data (str or dict):
-            The AIS data in GeoJSON format. This can either be the file path to a GeoJSON file or a
-            dictionary containing GeoJSON data. The data should include details necessary for mapping,
-            such as coordinates and ship identifiers.
+        geojson_data (str or dict): AIS data in GeoJSON format or file path.
 
     Returns:
-        leafmap.Map:
-            An interactive map object that includes drawing controls and a hybrid basemap. The map is
-            configured to allow users to draw polygons, which in turn update the ship markers on the map
-            based on the provided AIS data.
-
-    Internal Details:
-        - A leafmap Map object is instantiated with a default zoom level of 3 and the ipyleaflet interface enabled.
-        - A hybrid basemap is added to the map for a comprehensive satellite and road overlay.
-        - The function initializes a mutable state dictionary with keys:
-            • "features": an empty list that will hold drawn GeoJSON features,
-            • "ship_marker_layer": a placeholder for the layer containing ship markers,
-            • "ship_polygon_layer": a placeholder for the layer representing drawn polygons.
-        - The drawing control's callback is set up using `functools.partial` to bind the state, the map object,
-            and the provided geojson_data to a handler function (`handle_draw`). This allows dynamic updates
-            of ship markers whenever a new polygon is drawn.
-
-    Example:
-        geojson_data = "path/to/ais_data.geojson"  # or geojson_data can be a dict with your AIS data
-        interactive_map = instance.ships_by_drawn_shape(geojson_data)
-        interactive_map  # Display the map in a compatible environment like Colab
+        leafmap.Map: An interactive map with drawing tools and real-time ship updates.
     """
     m = leafmap.Map(zoom=3, ipyleaflet=True)
     m.add_basemap("Hybrid")
@@ -71,44 +49,16 @@ def ships_by_drawn_shape(geojson_data):
 
 def ship_map_on_click(geojson_data, radius_km=300):
     """
-    Create an interactive map with a clickable interface to display ship data within a specified radius.
+    Create an interactive clickable map to display ships within a specified radius of a clicked location.
 
-    This function sets up an interactive map using the leafmap library. The map is initialized at a global view
-    (centered at [0, 0] with a zoom level of 3) and enhanced with two basemap layers: a satellite imagery layer and
-    a transparent label layer to simulate a hybrid view. When a user interacts with the map (for example, by clicking
-    on it), a custom click handler is triggered. This handler uses the provided GeoJSON ship data to display or update
-    ship information within the specified radius (in kilometers) around the clicked location.
+    Displays ship markers located within a set distance of user clicks. Ships dynamically update based on proximity.
 
     Parameters:
-        geojson_data (dict or str):
-            A valid GeoJSON dataset or file path containing ship location data. This data is verified using the
-            verify_geojson() function and is utilized to filter and display ships based on their geographical positions.
-        radius_km (int or float, optional):
-            The radius (in kilometers) around a clicked point within which ship data should be filtered and shown.
-            The default value is 300 km.
+        geojson_data (str or dict): Ship data in GeoJSON format or path.
+        radius_km (int or float): Search radius around clicks (default 300 km).
 
     Returns:
-        leafmap.Map or str:
-            An interactive map object with the configured layers and click interaction enabled. If the geojson_data
-            is None, the function returns the string 'No geojson provided'.
-
-    Internal Workflow:
-        - Checks if geojson_data is provided; if not, returns an error message.
-        - Verifies the GeoJSON data using verify_geojson().
-        - Initializes an empty list to store coordinates from the user's click interactions.
-        - Creates a global map object centered at [0, 0] with scroll wheel zoom enabled.
-        - Converts basemap tiles for satellite imagery (using Esri WorldImagery) and for transparent labels
-            (using CartoDB PositronOnlyLabels) to simulate a hybrid basemap view.
-        - Adds both the satellite and label layers to the map.
-        - Sets up an interactive event listener using the create_click_handler() callback, binding the radius,
-            map object, clicked coordinates list, and the verified GeoJSON data. This handler processes click events
-            on the map to update the ship data shown based on the user's input.
-        - Displays the map immediately in the current environment.
-
-    Example:
-            geojson_data = { ... }  # Provide valid GeoJSON data containing ship location information.
-            interactive_map = instance.ship_map_on_click(geojson_data, radius_km=300)
-            interactive_map  # This will display the interactive clickable map in a compatible environment.
+        leafmap.Map or str: Interactive map or error string if no data provided.
     """
     if geojson_data is None:
         return 'No geojson provided'
@@ -129,7 +79,15 @@ def ship_map_on_click(geojson_data, radius_km=300):
 
 def plot_speed(geojson_data):
     """
-    Create a map and add a ship-with-speed layer.
+    Create a map showing ships color-coded by speed with an interactive legend.
+
+    Ships are plotted globally with marker colors representing their speed. A custom speed legend is included.
+
+    Parameters:
+        geojson_data (str or dict): AIS ship data.
+
+    Returns:
+        leafmap.foliumap.Map: Map with speed-colored ship markers.
     """
     if geojson_data is None:
         print("No geojson provided; skipping speed layer.")
@@ -152,7 +110,10 @@ def plot_speed(geojson_data):
 
 class VesselMap:
     """
-    A simple class to visualize AIS data.
+    A class to visualize AIS ship data through interactive maps using Leafmap and Folium.
+
+    Provides multiple visualization options, including ship routes, heatmaps, base stations,
+    and ships filtered by drawn polygons.
     """
 
     def __init__(self, center=(0, 0), zoom=2):
@@ -170,11 +131,14 @@ class VesselMap:
 
     def map_all(self, geojson_data, layer_name="All Vessel Routes"):
         """
-        Adds a toggleable point‐layer of vessel positions/routes to the map.
+        Add a toggleable marker layer showing all vessel positions on the map.
 
         Parameters:
-            geojson_data (str|dict): GeoJSON data or path for vessel positions.
-            layer_name (str): Layer name in the control.
+            geojson_data (str|dict): GeoJSON vessel data.
+            layer_name (str): Name of the layer for display.
+
+        Returns:
+            VesselMap: Self, for chaining.
         """
         gdf = verify_geojson(geojson_data)
         if gdf.empty:
@@ -206,52 +170,18 @@ class VesselMap:
 
     def ship_map_by_polygon(self, wkt_polygon, geojson_data, layer_name="Ships in Polygon"):
         """
-        Create an interactive map to visualize ships located within a user-defined WKT polygon.
+        Visualize ships located inside a user-defined WKT polygon.
 
-        This function generates a folium-based map (via the leafmap wrapper) that highlights ships found within a specific
-        polygonal area. The ships are color-coded by speed and presented with informative markers. The polygon itself is also
-        drawn on the map to provide spatial context. This visualization is useful for analyzing maritime traffic density, behavior
-        patterns, or area-specific vessel presence.
+        Ships are filtered spatially and color-coded based on speed.
+        If no ships are inside the polygon, a message is printed, and the map is still returned.
 
         Parameters:
-            wkt_polygon (str):
-                A Well-Known Text (WKT) string defining the polygonal boundary for spatial filtering.
-                Only ships located inside this polygon will be visualized.
-
-            geojson_data (dict or str):
-                GeoJSON ship data, either as a Python dictionary or as a file path. It is verified and
-                converted into a GeoDataFrame using the verify_geojson() utility function.
-                The data must include at least the following fields: 'latitude', 'longitude', and 'speed'.
-
-            map_tile (str, optional):
-                The base map tile to use for visualization. Defaults to 'HYBRID', but can also accept
-                other supported tiles like 'ROADMAP', etc.
+            wkt_polygon (str): WKT format polygon.
+            geojson_data (str|dict): Ship data.
+            layer_name (str): Display name for the layer.
 
         Returns:
-            folium.Map or None:
-                A map object displaying the filtered ships within the WKT polygon area, along with:
-                - Speed-based color-coded markers
-                - The polygon boundary as a highlighted region
-                - A custom legend explaining the speed-color mapping
-
-                If no ships are found within the polygon, a message is printed and None is returned.
-
-        Internal Workflow:
-            - The GeoJSON input is verified and converted to a GeoDataFrame.
-            - Ships are spatially filtered based on their inclusion within the provided WKT polygon.
-            - If no ships are found, the function exits early.
-            - A map is initialized and centered around the centroid of the filtered data.
-            - The polygon boundary is added to the map in yellow with transparency for visual emphasis.
-            - Each ship is plotted as a marker, color-coded by its speed:
-                Green (≤2 knots), Blue (≤10), Orange (≤25), Red (≤30), Purple (>30)
-            - Each marker includes an icon and a popup with detailed ship information.
-            - A speed legend is added to the map to support interpretation.
-
-        Example:
-            geojson_data = "ships_data.geojson"
-            wkt_polygon = "POLYGON((-81 25, -81 26, -80 26, -80 25, -81 25))"
-            m = instance.ship_map_by_polygon(wkt_polygon, geojson_data)
-            m  # Displays the interactive ship map with the selected polygon filter
+            VesselMap: Self.
         """
         gdf = verify_geojson(geojson_data)
         try:
@@ -293,46 +223,15 @@ class VesselMap:
 
     def ships_route(self, geojson_data, mmsi=None, layer_name="Ship Routes"):
         """
-        Generate an interactive map to visualize ship routes from GeoJSON data.
-
-        This function uses folium (via leafmap) to create a map showing the trajectory of one or more ships
-        based on their MMSI (Maritime Mobile Service Identity) and position data. If an MMSI is provided,
-        only that ship’s route is displayed. Otherwise, routes for all ships in the dataset are shown.
-
-        The map includes:
-        - Dashed yellow polylines representing the ship routes.
-        - A green marker for each ship's starting point.
-        - A red marker for each ship's final known position.
-        - A selectable base map tile layer (e.g., 'HYBRID').
+        Visualize ship routes with dashed lines and starting/ending point markers.
 
         Parameters:
-            geojson_data (str or dict):
-                Path to or dictionary of a valid GeoJSON file containing ship position data.
-                The GeoJSON must include 'latitude', 'longitude', and 'mmsi' fields.
-
-            mmsi (int or str, optional):
-                The MMSI of the specific ship to visualize. If omitted, all ships in the data are plotted.
-
-            map_tile (str, optional):
-                The base map style to apply. Default is 'HYBRID'. Can be other valid basemap options supported by leafmap.
+            geojson_data (str|dict): AIS data.
+            mmsi (int or str, optional): Specific ship MMSI.
+            layer_name (str): Name for the layer.
 
         Returns:
-            folium.Map or str:
-                - A folium.Map object displaying the ship route(s) and key positions.
-                - A message string if no ship with the specified MMSI is found or if the dataset is empty.
-
-        Workflow:
-            - Load and validate GeoJSON data using `verify_geojson()`.
-            - Filter by MMSI if provided.
-            - Sort ship positions by timestamp (if available).
-            - For each ship with at least 2 points:
-                - Place start (green) and end (red) markers.
-                - Draw a dashed polyline showing the path.
-            - Return the map with all layers and markers.
-
-        Example:
-            m = instance.ships_route("ships.geojson", mmsi=123456789)
-            m  # Displays an interactive route map in Jupyter or Streamlit
+            VesselMap: Self.
         """
         gdf = verify_geojson(geojson_data)
         if mmsi is not None:
@@ -371,15 +270,14 @@ class VesselMap:
 
     def plot_ship_heatmap(self, geojson_data, layer_name="Heatmap"):
         """
-        Generates a heat map showing concentration of ships, based on a GeoJSON file.
+        Generate a heatmap showing concentration of ships based on GeoJSON data.
 
         Parameters:
-        - geojson_data (str): Path to the GeoJSON file containing ship route data.
-        - map_tile (str, optional): Base map layer to use (e.g., 'HYBRID', 'ROADMAP'). Defaults to 'HYBRID'.
+            geojson_data (str|dict): Ship location data.
+            layer_name (str): Name for the heatmap layer.
 
         Returns:
-        - folium.Map object displaying:
-        - Ships concentration by heatmap: heat
+            VesselMap: Self.
         """
         gdf = verify_geojson(geojson_data)
         if gdf.empty:
@@ -395,15 +293,15 @@ class VesselMap:
 
     def plot_base_stations(self, geojson_data, tagblock_station=None, layer_name="Base Stations"):
         """
-        Plots AIS base station messages on a Leafmap map.
+        Plot AIS base station messages on a map, optionally filtering by station ID.
 
         Parameters:
-        - geojson_data (str): Path to the GeoJSON file.
-        - tagblock_station (str, optional): Station ID to filter by. If None, shows all stations.
-        - map_tile (str): Basemap style (e.g., 'ROADMAP', 'HYBRID').
+            geojson_data (str|dict): Base station data.
+            tagblock_station (str, optional): Specific station ID to filter.
+            layer_name (str): Name for the layer.
 
         Returns:
-        - leafmap.foliumap.Map: The generated map with base station markers.
+            VesselMap: Self.
         """
         gdf = verify_geojson(geojson_data)
         if "tagblock_station" not in gdf.columns:
@@ -440,34 +338,17 @@ class VesselMap:
 
     def ship_by_mmsi(self, geojson_data, mmsi, layer_name=None):
         """
-        Generate a map displaying the location and details of a ship identified by its MMSI.
+        Display the location and information of a ship identified by its MMSI number.
 
-        This function processes a GeoJSON dataset containing ship information, verifies its validity, and extracts
-        the specific ship record corresponding to the provided Maritime Mobile Service Identity (MMSI) number.
-        It then creates a map centered on the average latitude and longitude of the ship's data points, adds a title,
-        applies a specified basemap tile, and plots additional information related to the ship.
+        If the MMSI is not found, a warning is printed and the current map remains unchanged.
 
-        Args:
-            geojson_data (dict or str): A valid GeoJSON dataset containing ship tracking information. This data must include
-                fields such as "mmsi", "latitude", and "longitude" which are used to filter and position the ship on the map.
-            mmsi (int, optional): The Maritime Mobile Service Identity number that uniquely identifies the ship to be plotted.
-                If omitted (None), the function returns an error message. Defaults to None.
-            map_tile (str, optional): The basemap style to be used for the map. Common options include "HYBRID", "SATELLITE", etc.
-                Defaults to "HYBRID".
+        Parameters:
+            geojson_data (str|dict): Ship tracking data.
+            mmsi (int): Target ship's MMSI.
+            layer_name (str, optional): Custom name for the map layer.
 
         Returns:
-            folium.Map or str: Returns a folium map object with the ship's data plotted and visualized if the MMSI is found in
-            the provided GeoJSON data. If any required input is missing or the ship is not found, one of the following error
-            messages is returned:
-
-                - 'No mmsi provided' : When the mmsi argument is None.
-                - 'No geojson provided' : When the geojson_data argument is None.
-                - 'No ship found with that mssi' : When the MMSI is not present in the GeoJSON dataset.
-
-        Example:
-             geojson_data = { ... }  # A valid GeoJSON dict containing ship data
-             map_object = instance.ship_by_mmsi(geojson_data, mmsi=123456789, map_tile="SATELLITE")
-             # The returned map_object can then be visualized or saved to an HTML file.
+            VesselMap: Self.
         """
         gdf = verify_geojson(geojson_data)
         if mmsi not in gdf.mmsi.values:
