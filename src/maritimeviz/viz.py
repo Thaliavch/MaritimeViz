@@ -2,20 +2,13 @@
 Package's Visualization Module
 """
 
-import json
-import folium
 import leafmap.foliumap
-import geopandas as gpd
-import leafmap
-from folium import Marker, Icon, Popup, FeatureGroup, LayerControl
 from branca.element import Element
-from shapely.wkt import loads
+from folium import Icon, Popup, FeatureGroup, LayerControl
 from folium.plugins import HeatMap
-from IPython.display import display
-from functools import partial
-from ipyleaflet import basemaps, basemap_to_tiles
 
 from .utils.viz_utils import *
+
 
 class Map:
     """
@@ -65,7 +58,9 @@ class Map:
             lon, lat = row.geometry.x, row.geometry.y
 
             icon_name = check_printable_icon(row)
-            info = "<br>".join(f"{k}: {v}" for k, v in row.items() if v is not None and k not in ("geometry","latitude","longitude"))
+            info = "<br>".join(f"{k}: {v}" for k, v in row.items() if
+                               v is not None and k not in (
+                               "geometry", "latitude", "longitude"))
 
             folium.Marker(
                 location=[lat, lon],
@@ -77,7 +72,8 @@ class Map:
         fg.add_to(self.m)
         return self
 
-    def ship_map_by_polygon(self, wkt_polygon, geojson_data, layer_name="Ships in Polygon"):
+    def ship_map_by_polygon(self, wkt_polygon, geojson_data,
+                            layer_name="Ships in Polygon"):
         """
         Visualize ships located inside a user-defined WKT polygon.
 
@@ -98,12 +94,14 @@ class Map:
         except Exception:
             raise ValueError("Invalid WKT polygon format")
 
-        gdf["geometry"] = gpd.points_from_xy(gdf.longitude, gdf.latitude, crs="EPSG:4326")
+        gdf["geometry"] = gpd.points_from_xy(gdf.longitude, gdf.latitude,
+                                             crs="EPSG:4326")
         filtered = gdf[gdf.geometry.within(poly)]
 
         fg = FeatureGroup(name=layer_name, show=True)
         coords = [(lat, lon) for lon, lat in poly.exterior.coords]
-        folium.Polygon(locations=coords, color="yellow", weight=3, fill=True, fill_opacity=0.2).add_to(fg)
+        folium.Polygon(locations=coords, color="yellow", weight=3, fill=True,
+                       fill_opacity=0.2).add_to(fg)
 
         for _, row in filtered.iterrows():
             if row.geometry is None:
@@ -174,7 +172,8 @@ class Map:
             ).add_to(fg)
 
             coords = ship[["latitude", "longitude"]].values.tolist()
-            folium.PolyLine(locations=coords, color="yellow", weight=3, dash_array="5,10", opacity=1).add_to(fg)
+            folium.PolyLine(locations=coords, color="yellow", weight=3,
+                            dash_array="5,10", opacity=1).add_to(fg)
 
         fg.add_to(self.m)
         return self
@@ -202,7 +201,8 @@ class Map:
         fg.add_to(self.m)
         return self
 
-    def plot_base_stations(self, geojson_data, tagblock_station=None, layer_name="Base Stations"):
+    def plot_base_stations(self, geojson_data, tagblock_station=None,
+                           layer_name="Base Stations"):
         """
         Plot AIS base station messages on a map, optionally filtering by station ID.
 
@@ -224,25 +224,24 @@ class Map:
 
         fg = FeatureGroup(name=layer_name, show=True)
         for _, row in gdf.iterrows():
-          if row.geometry is None:
-              continue
-          icon_name = check_printable_icon(row)
+            if row.geometry is None:
+                continue
+            icon_name = check_printable_icon(row)
 
-          lat = row.latitude if 'latitude' in row else row.geometry.y
-          lon = row.longitude if 'longitude' in row else row.geometry.x
+            lat = row.latitude if 'latitude' in row else row.geometry.y
+            lon = row.longitude if 'longitude' in row else row.geometry.x
 
-          popup = (
-              f"<b>Station:</b> {row.get('tagblock_station', 'N/A')}<br>"
-              f"<b>MMSI:</b> {row.get('mmsi', 'N/A')}<br>"
-              f"<b>Date/Time:</b> {row.get('datetime', 'N/A')}<br>"
-              f"<b>Received:</b> {row.get('received_stations', 'N/A')}"
-          )
-          folium.Marker(
-              location=[lat, lon],
-              icon=folium.Icon(color="red", icon=icon_name, prefix="fa"),
-              popup=folium.Popup(popup, max_width=300)
-          ).add_to(fg)
-
+            popup = (
+                f"<b>Station:</b> {row.get('tagblock_station', 'N/A')}<br>"
+                f"<b>MMSI:</b> {row.get('mmsi', 'N/A')}<br>"
+                f"<b>Date/Time:</b> {row.get('datetime', 'N/A')}<br>"
+                f"<b>Received:</b> {row.get('received_stations', 'N/A')}"
+            )
+            folium.Marker(
+                location=[lat, lon],
+                icon=folium.Icon(color="red", icon=icon_name, prefix="fa"),
+                popup=folium.Popup(popup, max_width=300)
+            ).add_to(fg)
 
         fg.add_to(self.m)
         return self

@@ -1,17 +1,13 @@
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from functools import cache
-from typing import Optional, Union, List
-
-import duckdb
-import pandas as pd
-import geopandas as gpd
 import json
+from abc import abstractmethod
+from typing import Optional
 
-from shapely.geometry import Point
+import geopandas as gpd
+
+from . import logger
 from .constants import *
 from .utils.ais_db_utils import *
-from . import logger
-from abc import ABC, abstractmethod
+
 
 class AISDatabase:
     """
@@ -20,8 +16,10 @@ class AISDatabase:
     """
     # module counter for database instances on same runtime
     _default_db_counter = 0
-    def __init__(self, db_path: Optional[str] = None, enable_cache: bool = True):
-        self._db_path = db_path if db_path else self._get_default_db_path() # create new file_name if one is not given or if given an emtpy string
+
+    def __init__(self, db_path: Optional[str] = None,
+                 enable_cache: bool = True):
+        self._db_path = db_path if db_path else self._get_default_db_path()  # create new file_name if one is not given or if given an emtpy string
         self._conn = self._init_db(self._db_path)
         self._init_tables()
         self._filter: Optional[dict] = None
@@ -127,8 +125,9 @@ class AISDatabase:
             # only override if the user didn’t pass in an explicit value:
             mmsi = mmsi or self._filter.get("mmsi")
             start_date = start_date or self._filter.get("start_date")
-            end_date = end_date  or self._filter.get("end_date")
-            polygon_bounds = polygon_bounds or self._filter.get("polygon_bounds")
+            end_date = end_date or self._filter.get("end_date")
+            polygon_bounds = polygon_bounds or self._filter.get(
+                "polygon_bounds")
 
         view_name = self._get_view_name(data=report_type)
         query = f"SELECT * FROM {view_name} WHERE 1=1"
@@ -180,7 +179,8 @@ class AISDatabase:
                start_date: Optional[str] = None,
                end_date: Optional[str] = None,
                polygon_bounds: Optional[str] = None):
-        return self._get_global_df(report_type, mmsi, start_date, end_date, polygon_bounds)
+        return self._get_global_df(report_type, mmsi, start_date, end_date,
+                                   polygon_bounds)
 
     # TODO(THALIA) Update to drop all rows for which x, y are null
     def get_geojson(self, report_type: str = "position",
@@ -229,7 +229,8 @@ class AISDatabase:
         """
         Exports global AIS data to a Shapefile.
         """
-        gdf = self._get_global_df(report_type, mmsi, start_date, end_date, polygon_bounds,
+        gdf = self._get_global_df(report_type, mmsi, start_date, end_date,
+                                  polygon_bounds,
                                   as_geodf=True)
         if gdf.empty:
             return "No data available to export."
@@ -245,7 +246,8 @@ class AISDatabase:
         """
         Exports global AIS data to a KML file.
         """
-        gdf = self._get_global_df(report_type, mmsi, start_date, end_date, polygon_bounds,
+        gdf = self._get_global_df(report_type, mmsi, start_date, end_date,
+                                  polygon_bounds,
                                   as_geodf=True)
         if gdf.empty:
             return "No data available to export."
@@ -261,7 +263,8 @@ class AISDatabase:
         """
         Exports global AIS data to an Excel file.
         """
-        df = self._get_global_df(report_type, mmsi, start_date, end_date, polygon_bounds,
+        df = self._get_global_df(report_type, mmsi, start_date, end_date,
+                                 polygon_bounds,
                                  as_geodf=False)
         if df.empty:
             return "No data available to export."
@@ -276,7 +279,8 @@ class AISDatabase:
         """
         Returns global AIS data in Well-Known Text (WKT) format.
         """
-        gdf = self._get_global_df(report_type, mmsi, start_date, end_date, polygon_bounds,
+        gdf = self._get_global_df(report_type, mmsi, start_date, end_date,
+                                  polygon_bounds,
                                   as_geodf=True)
         if gdf.empty:
             return "No data available to export."
@@ -366,14 +370,15 @@ class BaseMessageProcessor:
     Subclasses should implement _filter_message() and _prepare_insert to filter and insert
     messages of a specific type into their designated tables.
     """
+
     def __init__(self, conn: duckdb.DuckDBPyConnection):
         self._conn = conn
         self._filter: Optional[dict] = None
 
-
     '''
     Private methods
     '''
+
     def _process_chunk(self, chunk: list):
         import ais.stream
         batches: dict[str, list[tuple]] = {}
@@ -393,6 +398,7 @@ class BaseMessageProcessor:
     '''
     Abstract methods
     '''
+
     @abstractmethod
     def _filter_message(self, msg: dict) -> bool:
         """Return True if the message matches this processor's criteria."""
@@ -408,7 +414,7 @@ class BaseMessageProcessor:
         try:
             for query in DATABASE_ALL_VIEWS_CREATION_QUERIES:
                 self._conn.execute(query)
-                print("Data Inserted and Views Successfully Updated") #debug
+                print("Data Inserted and Views Successfully Updated")  # debug
         except Exception as e:
             logger.error(f"Error updating views: {e}")
 
@@ -420,6 +426,7 @@ class BaseMessageProcessor:
     '''
     Public methods start here
     '''
+
     # TODO(Thalia) Update so the process function checks for file extension and call function to process raw or csv file types.
     def process(self, file_path: str, chunk_size: int = 5000):
         """
@@ -439,12 +446,14 @@ class BaseMessageProcessor:
         finally:
             try:
                 self._update_global_views()
-                AISDatabase.clear_cache() # clear_cache to get latest inserted data in view
+                AISDatabase.clear_cache()  # clear_cache to get latest inserted data in view
             except Exception as ve:
                 logger.error(f"Failed to rebuild global views: {ve}")
+
     '''
     Export Methods
     '''
+
     # Note that because search() is abstract, the methods below will query from each
     # subclass' respective table.
     def get_geojson(self, mmsi: None, start_date=None, end_date=None,
@@ -468,7 +477,6 @@ class BaseMessageProcessor:
             # Setting datetime to json serializable format
             gdf["datetime"] = gdf["datetime"].astype(str)
 
-
             # Convert to GeoJSON
             # gdf.to_json() returns a JSON string; we can convert it to a dictionary with json.loads
             geojson_str = gdf.to_json()
@@ -480,7 +488,8 @@ class BaseMessageProcessor:
             logger.error(f"Error generating GeoJSON for MMSI {mmsi}: {e}")
             return {}
 
-    def get_csv(self, file_path="ais_data.csv", mmsi=None, start_date=None, end_date=None, polygon_bounds=None):
+    def get_csv(self, file_path="ais_data.csv", mmsi=None, start_date=None,
+                end_date=None, polygon_bounds=None):
         """
         Exports AIS data to a CSV file.
         """
@@ -491,7 +500,8 @@ class BaseMessageProcessor:
         gdf.to_csv(file_path, index=False)
         return f"CSV saved at {file_path}"
 
-    def get_shapefile(self, file_path="ais_shapefile", mmsi=None, start_date=None, end_date=None, polygon_bounds=None):
+    def get_shapefile(self, file_path="ais_shapefile", mmsi=None,
+                      start_date=None, end_date=None, polygon_bounds=None):
         """
         Exports AIS data to a Shapefile.
         """
@@ -502,7 +512,8 @@ class BaseMessageProcessor:
         gdf.to_file(file_path, driver="ESRI Shapefile")
         return f"Shapefile saved at {file_path}"
 
-    def get_kml(self,file_path="ais_data.kml", mmsi=None, start_date=None, end_date=None, polygon_bounds=None):
+    def get_kml(self, file_path="ais_data.kml", mmsi=None, start_date=None,
+                end_date=None, polygon_bounds=None):
         """
         Exports AIS data to a KML file.
         """
@@ -513,7 +524,8 @@ class BaseMessageProcessor:
         gdf.to_file(file_path, driver="KML")
         return f"KML file saved at {file_path}"
 
-    def get_excel(self, file_path="ais_data.xlsx",  mmsi=None, start_date=None, end_date=None, polygon_bounds=None):
+    def get_excel(self, file_path="ais_data.xlsx", mmsi=None, start_date=None,
+                  end_date=None, polygon_bounds=None):
         """
         Exports AIS data to an Excel file.
         """
@@ -524,7 +536,8 @@ class BaseMessageProcessor:
         gdf.to_excel(file_path, index=False)
         return f"Excel file saved at {file_path}"
 
-    def get_wkt(self, mmsi=None, start_date=None, end_date=None, polygon_bounds=None):
+    def get_wkt(self, mmsi=None, start_date=None, end_date=None,
+                polygon_bounds=None):
         """
         Returns AIS data in Well-Known Text (WKT) format.
         """
@@ -533,6 +546,7 @@ class BaseMessageProcessor:
             return "No data available to export."
 
         return gdf["geometry"].apply(lambda geom: geom.wkt).tolist()
+
 
 class BaseMessageProcessorPositionReport(BaseMessageProcessor):
 
@@ -548,6 +562,7 @@ class BaseMessageProcessorPositionReport(BaseMessageProcessor):
     def static_info(self, **kwargs) -> pd.DataFrame:
         """Query vessel static data applying given arguments"""
         raise NotImplementedError("Subclasses must implement static_info.")
+
 
 class ABMessagesProcessor(BaseMessageProcessor):
     """
@@ -570,7 +585,7 @@ class ABMessagesProcessor(BaseMessageProcessor):
         self._proc_b = ClassBMessages(conn)
 
     def _filter_message(self, msg):
-        return msg.get("id") in {1,2,3,5,18,19,24}
+        return msg.get("id") in {1, 2, 3, 5, 18, 19, 24}
 
     def _prepare_insert(self, msg):
         if msg["id"] in {1, 2, 3, 5}:
@@ -578,12 +593,15 @@ class ABMessagesProcessor(BaseMessageProcessor):
         else:
             return self._proc_b._prepare_insert(msg)
 
-    def set_filter(self, f): pass
+    def set_filter(self, f):
+        pass
+
 
 class ClassAMessages(BaseMessageProcessorPositionReport):
     """
     Processes Class A messages (Types 1, 2, 3 and static Type 5).
     """
+
     def __init__(self, conn: duckdb.DuckDBPyConnection):
         super().__init__(conn)
 
@@ -663,8 +681,10 @@ class ClassAMessages(BaseMessageProcessorPositionReport):
         if filter_obj is not None:
             if not isinstance(filter_obj, dict):
                 raise TypeError("Filter object must be a dictionary.")
-            if not set(filter_obj.keys()).issubset(ALLOWED_FILTER_KEYS_CLASS_A):
-                raise TypeError("Filter object contains invalid keys.") # TODO(Thalia): add link to documentation in error message
+            if not set(filter_obj.keys()).issubset(
+                ALLOWED_FILTER_KEYS_CLASS_A):
+                raise TypeError(
+                    "Filter object contains invalid keys.")  # TODO(Thalia): add link to documentation in error message
         self._filter = filter_obj
 
     def search(self,
@@ -818,7 +838,6 @@ class ClassAMessages(BaseMessageProcessorPositionReport):
 
         return gpd.GeoDataFrame()  # Return empty GeoDataFrame on failure
 
-
     def static_info(self, mmsi: int | list[int] = None, conn=None):
         """
         Retrieves vessel static information from `ais_msg_5`.
@@ -878,6 +897,7 @@ class ClassBMessages(BaseMessageProcessorPositionReport):
     """
     Processes Class B messages (Types 18, 19 and static Type 24).
     """
+
     def __init__(self, conn: duckdb.DuckDBPyConnection):
         super().__init__(conn)
 
@@ -958,11 +978,13 @@ class ClassBMessages(BaseMessageProcessorPositionReport):
         if filter_obj is not None:
             if not isinstance(filter_obj, dict):
                 raise TypeError("Filter object must be a dictionary.")
-            if not set(filter_obj.keys()).issubset(ALLOWED_FILTER_KEYS_CLASS_B):
-                raise TypeError("Filter object contains invalid keys.") # TODO(Thalia): add link to documentation in error message
+            if not set(filter_obj.keys()).issubset(
+                ALLOWED_FILTER_KEYS_CLASS_B):
+                raise TypeError(
+                    "Filter object contains invalid keys.")  # TODO(Thalia): add link to documentation in error message
         self._filter = filter_obj
 
-    #TODO(Update this search function and global search function)
+    # TODO(Update this search function and global search function)
     def search(self,
                mmsi: Optional[Union[int, List[int]]] = None,
                conn: Optional[duckdb.DuckDBPyConnection] = None,
@@ -1110,12 +1132,14 @@ class ClassBMessages(BaseMessageProcessorPositionReport):
             if isinstance(mmsi, int):
                 query += " AND mmsi = ?"
                 params.append(mmsi)
-            elif isinstance(mmsi, list) and all(isinstance(i, int) for i in mmsi):
+            elif isinstance(mmsi, list) and all(
+                isinstance(i, int) for i in mmsi):
                 placeholders = ", ".join(["?"] * len(mmsi))
                 query += f" AND mmsi IN ({placeholders})"
                 params.extend(mmsi)
             else:
-                raise ValueError("MMSI must be an integer or a list of integers.")
+                raise ValueError(
+                    "MMSI must be an integer or a list of integers.")
 
         try:
             return cached_query(self._conn, query, params, True)
@@ -1128,6 +1152,7 @@ class OtherMessages(BaseMessageProcessor):
     """
     Processes all remaining AIS messages
     """
+
     def __init__(self, conn: duckdb.DuckDBPyConnection):
         super().__init__(conn)
 
@@ -1314,9 +1339,9 @@ class LongRangeMessages(BaseMessageProcessorPositionReport):
         return pd.DataFrame()  # Not applicable to Message 27
 
 
-
 class AddressedBinaryHandler(BaseMessageProcessor):
     """Handles Message 6: Addressed Binary Message"""
+
     def __init__(self, conn):
         super().__init__(conn)
 
@@ -1446,9 +1471,9 @@ class AddressedBinaryHandler(BaseMessageProcessor):
         return gpd.GeoDataFrame()
 
 
-
 class BroadcastTextHandler(BaseMessageProcessor):
     """Handles Message 8: Broadcast Binary Message (may carry human-readable payloads)"""
+
     def __init__(self, conn):
         super().__init__(conn)
 
@@ -1574,6 +1599,7 @@ class BroadcastTextHandler(BaseMessageProcessor):
 
 class ShortBinaryHandler(BaseMessageProcessor):
     """Handles Message 25 and 26: Slot Binary Messages"""
+
     def __init__(self, conn):
         super().__init__(conn)
 
@@ -1674,6 +1700,7 @@ class ShortBinaryHandler(BaseMessageProcessor):
 
         return gpd.GeoDataFrame()
 
+
 # todo(Thalia): maybe implement wrapper asm
 
 class AidToNavigationMessages(BaseMessageProcessor):
@@ -1682,6 +1709,7 @@ class AidToNavigationMessages(BaseMessageProcessor):
     These represent fixed or virtual navigation aids such as buoys, beacons, etc.
     Identified by MMSIs starting with 993.
     """
+
     def __init__(self, conn):
         super().__init__(conn)
 
@@ -1839,6 +1867,7 @@ class BaseStationMessages(BaseMessageProcessor):
     These are shore-based stations providing time synchronization and position.
     MMSIs typically begin with 00MIDxxxxx.
     """
+
     def __init__(self, conn):
         super().__init__(conn)
 
@@ -1991,6 +2020,7 @@ class AcknowledgementMessages(BaseMessageProcessor):
     Processes Acknowledgement Messages (Types 7 and 13).
     Inserts messages into the ais_msg_7_13 table.
     """
+
     def __init__(self, conn):
         super().__init__(conn)
 
@@ -2047,6 +2077,7 @@ class SafetyMessages(BaseMessageProcessor):
     Processes Safety Messages (Types 12 and 14).
     Inserts messages into the ais_msg_12_14 table.
     """
+
     def __init__(self, conn):
         super().__init__(conn)
 
@@ -2104,6 +2135,7 @@ class SarAircraftMessages(BaseMessageProcessor):
     """
     Message 9 only (SAR Aircraft Position Reports).
     """
+
     def __init__(self, conn):
         super().__init__(conn)
 

@@ -1,11 +1,12 @@
 """Main module."""
 import os
+
+import folium
+import pandas as pd
 import requests
 from cachetools import TTLCache
-import pandas as pd
-import matplotlib as plt
-import folium
 from folium.plugins import HeatMap
+
 from .auth import load_or_get_token, GFW
 
 
@@ -17,13 +18,11 @@ class GFW_api:
     INSIGHTS_API_ENDPOINT = "insights/vessels"
     GENERATE_PNG_API_ENDPOINT = "4wings/generate-png"
 
-
-
     def __init__(self, token=None):
         """
         Initialize the GFW API client.
         """
-        #cache up to 100 results for 300 seconds
+        # cache up to 100 results for 300 seconds
         self._cache = TTLCache(maxsize=100, ttl=300)
 
         if token:
@@ -48,7 +47,7 @@ class GFW_api:
         else:
             raise ValueError("Token cannot be empty!")
 
-    #Caching POST requests is not useful
+    # Caching POST requests is not useful
     def _post_request(self, endpoint, payload):
         """
         Private method to send a POST request to the GFW API.
@@ -88,7 +87,8 @@ class GFW_api:
 
         # Check if the request is already cached
         if cache_key in self._cache:
-            print(f"\nData fetched from cache. Cache key: {cache_key}\n")  # For debugging purposes
+            print(
+                f"\nData fetched from cache. Cache key: {cache_key}\n")  # For debugging purposes
             return self._cache[cache_key]
 
         url = f"{self.BASE_URL}/{endpoint}"
@@ -245,7 +245,7 @@ class GFW_api:
             print("No data available for the specified date range.")
             return None
 
-    #GET INSIGHTS FOR A VESSEL RELATED TO FISHING EVENTS
+    # GET INSIGHTS FOR A VESSEL RELATED TO FISHING EVENTS
     def get_vessel_insights(self, start_date, end_date, vessels):
         """
         Fetches vessel insights for the given vessels within a specific time range.
@@ -271,8 +271,9 @@ class GFW_api:
             print("No data available for the specified date range.")
             return None
 
-    #EXAMPLE 1: AIS APPARENT FISHING EFFORT - GENERATE PNG TILES WITH TEMPORAL FILTER
-    def generate_fishing_effort_png_tiles(self, interval, dataset, color, start_date, end_date):
+    # EXAMPLE 1: AIS APPARENT FISHING EFFORT - GENERATE PNG TILES WITH TEMPORAL FILTER
+    def generate_fishing_effort_png_tiles(self, interval, dataset, color,
+                                          start_date, end_date):
         """
         Generates PNG tiles of fishing effort.
 

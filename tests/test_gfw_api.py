@@ -1,7 +1,9 @@
-import unittest
 import os
+import unittest
+
 import pandas as pd
 from dotenv import load_dotenv
+
 from src.maritimeviz.gfw_api import GFW_api
 
 # Load environment variables from .env
