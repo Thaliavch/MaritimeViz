@@ -1,0 +1,5 @@
+# docs/requirements.txt
+Sphinx>=7.0
+sphinx-rtd-theme
+sphinx.ext.autodoc
+sphinx.ext.napoleon
