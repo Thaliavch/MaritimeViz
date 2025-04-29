@@ -167,12 +167,13 @@ def merge_dfs(
 
     Parameters:
         dfs (List[pd.DataFrame]): List of DataFrames to merge.
-        as_geodf (bool, optional): If True, converts the merged DataFrame into a GeoDataFrame
-            by creating a geometry column from 'x' and 'y'. If False, returns a plain DataFrame.
-            Defaults to True.
+        as_geodf (bool, optional): If True, converts the merged DataFrame into
+        a GeoDataFrame by creating a geometry column from 'x' and 'y'. If False,
+         returns a plain DataFrame. Defaults to True.
 
     Returns:
-        Union[pd.DataFrame, gpd.GeoDataFrame]: The merged DataFrame (GeoDataFrame if as_geodf is True).
+        Union[pd.DataFrame, gpd.GeoDataFrame]: The merged DataFrame
+        (GeoDataFrame if as_geodf is True).
     """
     valid_dfs = [df for df in dfs if not df.empty]
     if not valid_dfs:

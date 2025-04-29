@@ -93,7 +93,8 @@ def test_initialize_existing_database_works(setup_existing_db):
     conn = db.connection()
     # TODO(Thalia): wrap in method and move to utilities
     # tables = conn.execute(
-    #     "SELECT table_name FROM information_schema.tables WHERE table_schema = 'main';").fetchall()
+    #     "SELECT table_name FROM information_schema.tables WHERE table_schema = 'main';")\
+    #     .fetchall()
     # print(tables)
     result = conn.execute("SELECT * FROM ais_msg_123 LIMIT 10").fetchdf()
     # print(result)
@@ -346,7 +347,8 @@ class TestClassAMessages:
         # polygon_bounds = "POLYGON((-93 29, -93 33, -89 33, -89 29, -93 29))"
         # result_polygon = processor.search(polygon_bounds=polygon_bounds)
         # print("Type A (Polygon Bounds):", result_polygon)
-        # assert isinstance(result_polygon, gpd.GeoDataFrame), "Expected a GeoDataFrame for polygon bounds search."
+        # assert isinstance(result_polygon, gpd.GeoDataFrame), "Expected a GeoDataFrame
+        # for polygon bounds search."
         # assert not result_polygon.empty, "Expected non-empty result for the given polygon bounds."
         # Example check: verify a known point is within at least one feature (adjust as needed)
         # known_point = Point(-90.0, 30.0)
@@ -553,15 +555,18 @@ class TestAddressedBinaryHandler:
     #     assert isinstance(result_mmsi, pd.DataFrame), "Expected a DataFrame for valid MMSI."
     #
     #     # 3. Searching for a non-existent MMSI should return an empty DataFrame.
-    #     result_invalid = processor.search(mmsi=9999999, start_date="2016-07-27", end_date="2016-07-29")
+    #     result_invalid = processor.search(mmsi=9999999, start_date="2016-07-27",
+    #     end_date="2016-07-29")
     #     print("Addressed Binary (Invalid MMSI):", result_invalid)
-    #     assert isinstance(result_invalid, pd.DataFrame), "Expected a DataFrame for an invalid MMSI."
+    #     assert isinstance(result_invalid, pd.DataFrame), "Expected a DataFrame
+    #     for an invalid MMSI."
     #     assert result_invalid.empty, "Expected an empty DataFrame for an invalid MMSI."
     #
     #     # 4. Search by date range.
     #     result_date_range = processor.search(start_date="2023-10-01", end_date="2023-12-31")
     #     print("Addressed Binary (Date Range):", result_date_range)
-    #     assert isinstance(result_date_range, pd.DataFrame), "Expected a DataFrame for the date range."
+    #     assert isinstance(result_date_range, pd.DataFrame), "Expected a DataFrame
+    #     for the date range."
 
 
 # Test for Broadcast Text Messages (Type 8)
@@ -957,7 +962,8 @@ class TestSarAircraftMessages:
     #     # 3. Search by invalid MMSI -> expect empty
     #     result_invalid_mmsi = processor.search(mmsi=123123123)
     #     print("SAR (Invalid MMSI):", result_invalid_mmsi)
-    #     assert isinstance(result_invalid_mmsi, pd.DataFrame), "Expected a DataFrame even for invalid MMSI."
+    #     assert isinstance(result_invalid_mmsi, pd.DataFrame), "Expected a DataFrame \
+    #     even for invalid MMSI."
     #     assert result_invalid_mmsi.empty, "Expected empty DataFrame for an invalid MMSI."
     #
     #     #todo(thalia) cleaning: have a start date and end date constant for all test cases
@@ -966,7 +972,8 @@ class TestSarAircraftMessages:
     #     end_date="2016-07-29"
     #     result_date_range = processor.search(start_date=start_date, end_date=end_date)
     #     print("SAR (Date Range):", result_date_range)
-    #     assert isinstance(result_date_range, pd.DataFrame), "Expected a DataFrame for date range filters."
+    #     assert isinstance(result_date_range, pd.DataFrame), "Expected a \
+    #     DataFrame for date range filters."
     #
 
 
@@ -1001,8 +1008,10 @@ class TestUtcDateMessages:
     #     # 1. Search with no filters - expect all message 10 & 11 records
     #     all_df = processor.search()
     #     print("UTC/Date (No filters):", all_df)
-    #     assert isinstance(all_df, pd.DataFrame), "Expected a DataFrame when no filters are given."
-    #     assert not all_df.empty, "Expected non-empty DataFrame with no filters (assuming fixture has data)."
+    #     assert isinstance(all_df, pd.DataFrame), "Expected a DataFrame when
+    #     no filters are given."
+    #     assert not all_df.empty, "Expected non-empty DataFrame with no filters
+    #     (assuming fixture has data)."
     #
     #     # 2. Search specifically for message 10
     #     msg10_df = processor.search(msg_id=10)
@@ -1019,7 +1028,8 @@ class TestUtcDateMessages:
     #     # 4. Search by invalid dest_mmsi to ensure we get no results
     #     invalid_dest_df = processor.search(dest_mmsi=999999999)
     #     print("UTC/Date (Invalid dest_mmsi):", invalid_dest_df)
-    #     assert isinstance(invalid_dest_df, pd.DataFrame), "Expected a DataFrame for invalid dest_mmsi."
+    #     assert isinstance(invalid_dest_df, pd.DataFrame), "Expected a DataFrame \
+    #     for invalid dest_mmsi."
     #     assert invalid_dest_df.empty, "Expected empty result for invalid dest_mmsi."
 
 

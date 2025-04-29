@@ -25,8 +25,9 @@ from .utils.ais_db_utils import (
 
 class AISDatabase:
     """
-    Parent class that manages the initialization, connection, and common queries for the AIS database.
-    It also provides factory methods to get message-type processors.
+    Parent class that manages the initialization, connection, and common
+    queries for the AIS database. It also provides factory methods to get
+    message-type processors.
     """
 
     # module counter for database instances on same runtime
@@ -467,7 +468,8 @@ class BaseMessageProcessor:
     Public methods start here
     """
 
-    # TODO(Thalia) Update so the process function checks for file extension and call function to process raw or csv file types.
+    # TODO(Thalia) Update so the process function checks for file extension
+    # and call function to process raw or csv file types.
     def process(self, file_path: str, chunk_size: int = 5000):
         """
         Read the file in large chunks, batch‑insert,
@@ -629,17 +631,20 @@ class BaseMessageProcessorPositionReport(BaseMessageProcessor):
 
 class ABMessagesProcessor(BaseMessageProcessor):
     """
-    Processor that handles both Class A (1, 2, 3, 5) and Class B (18, 19, 24) AIS messages in one pass.
+    Processor that handles both Class A (1, 2, 3, 5) and Class B (18, 19, 24)
+    AIS messages in one pass.
 
-    This processor reads a raw AIS file (NMEA stream, CSV, etc.), decodes every chunk,
-    and for each message:
+    This processor reads a raw AIS file (NMEA stream, CSV, etc.), decodes
+    every chunk, and for each message:
 
-      1. If `msg.id` is in {1,2,3,5}, delegates to `ClassAMessages._prepare_insert`.
-      2. If `msg.id` is in {18,19,24}, delegates to `ClassBMessages._prepare_insert`.
+      1. If `msg.id` is in {1,2,3,5}, delegates to
+       `ClassAMessages._prepare_insert`.
+      2. If `msg.id` is in {18,19,24}, delegates to
+       `ClassBMessages._prepare_insert`.
       3. Ignores all other message types.
 
-    After all chunks have been processed, it calls `_update_global_views()` once
-    so that any “global” views reflect the newly inserted rows.
+    After all chunks have been processed, it calls `_update_global_views()`
+    once so that any “global” views reflect the newly inserted rows.
     """
 
     def __init__(self, conn):
@@ -768,20 +773,23 @@ class ClassAMessages(BaseMessageProcessorPositionReport):
 
         Parameters:
         - mmsi (int | list[int], optional): MMSI number(s) to filter.
-        - conn (duckdb.DuckDBPyConnection, optional): DuckDB connection (defaults to self._conn).
+        - conn (duckdb.DuckDBPyConnection, optional): DuckDB connection
+         (defaults to self._conn).
         - start_date (str, optional): Start date in 'YYYY-MM-DD' format.
         - end_date (str, optional): End date in 'YYYY-MM-DD' format.
         - polygon_bounds (str, optional): WKT polygon for spatial filtering.
         - min_velocity (float, optional): Minimum speed over ground (sog).
         - max_velocity (float, optional): Maximum speed over ground (sog).
-        - direction (str, optional): Cardinal direction ("N", "E", "S", or "W") to filter by course over ground (cog).
+        - direction (str, optional): Cardinal direction ("N", "E", "S", or "W")
+         to filter by course over ground (cog).
         - min_turn_rate (float, optional): Minimum rate of turn (rot).
         - max_turn_rate (float, optional): Maximum rate of turn (rot).
 
         Returns:
         - gpd.GeoDataFrame: Filtered AIS data.
         """
-        # TODO(Thalia) I wonder if this is really necessary. May refactor later .... Get rid of it but ask Kurt first
+        # TODO(Thalia) I wonder if this is really necessary. May refactor later
+        #  .... Get rid of it but ask Kurt first
         if not conn:
             conn = self._conn
 
@@ -790,7 +798,8 @@ class ClassAMessages(BaseMessageProcessorPositionReport):
             query = "SELECT * FROM ais_msg_123 WHERE 1=1"
             params = []
 
-            # Apply stored filter if set (stored filter values are used unless explicitly overridden)
+            # Apply stored filter if set (stored filter values are used
+            # unless explicitly overridden)
             if self._filter:
                 mmsi = mmsi or self._filter.get("mmsi")
                 start_date = start_date or self._filter.get("start_date")
@@ -1061,18 +1070,19 @@ class ClassBMessages(BaseMessageProcessorPositionReport):
 
         Parameters:
         - mmsi (int | list[int], optional): MMSI number(s) to filter.
-        - conn (duckdb.DuckDBPyConnection, optional): DuckDB connection (defaults to self._conn).
+        - conn (duckdb.DuckDBPyConnection, optional): DuckDB connection
+        (defaults to self._conn).
         - start_date (str, optional): Start date in 'YYYY-MM-DD' format.
         - end_date (str, optional): End date in 'YYYY-MM-DD' format.
         - polygon_bounds (str, optional): WKT polygon for spatial filtering.
         - min_velocity (float, optional): Minimum speed over ground (sog).
         - max_velocity (float, optional): Maximum speed over ground (sog).
-        - direction (str, optional): Cardinal direction ("N", "E", "S", or "W") to filter by course over ground (cog).
+        - direction (str, optional): Cardinal direction ("N", "E", "S", or "W")
+         to filter by course over ground (cog).
 
         Returns:
         - gpd.GeoDataFrame: Filtered AIS data.
         """
-        # TODO(Thalia) I wonder if this is really necessary. May refactor later .... Get rid of it but ask Kurt first
         if not conn:
             conn = self._conn
 
@@ -1081,7 +1091,8 @@ class ClassBMessages(BaseMessageProcessorPositionReport):
             query = "SELECT * FROM ais_msg_18_19 WHERE 1=1"
             params = []
 
-            # Apply stored filter if set (stored filter values are used unless explicitly overridden)
+            # Apply stored filter if set (stored filter values are used unless
+            # explicitly overridden)
             if self._filter:
                 mmsi = mmsi or self._filter.get("mmsi")
                 start_date = start_date or self._filter.get("start_date")
@@ -1274,18 +1285,19 @@ class LongRangeMessages(BaseMessageProcessorPositionReport):
 
         Parameters:
         - mmsi (int | list[int], optional): MMSI number(s) to filter.
-        - conn (duckdb.DuckDBPyConnection, optional): DuckDB connection (defaults to self._conn).
+        - conn (duckdb.DuckDBPyConnection, optional): DuckDB connection
+        (defaults to self._conn).
         - start_date (str, optional): Start date in 'YYYY-MM-DD' format.
         - end_date (str, optional): End date in 'YYYY-MM-DD' format.
         - polygon_bounds (str, optional): WKT polygon for spatial filtering.
         - min_velocity (float, optional): Minimum speed over ground (sog).
         - max_velocity (float, optional): Maximum speed over ground (sog).
-        - direction (str, optional): Cardinal direction ("N", "E", "S", or "W") to filter by course over ground (cog).
+        - direction (str, optional): Cardinal direction ("N", "E", "S", or "W")
+         to filter by course over ground (cog).
 
         Returns:
         - gpd.GeoDataFrame: Filtered AIS data.
         """
-        # TODO(Thalia) I wonder if this is really necessary. May refactor later .... Get rid of it but ask Kurt first
         if not conn:
             conn = self._conn
 
@@ -1772,7 +1784,8 @@ class AidToNavigationMessages(BaseMessageProcessor):
     def _prepare_insert(self, msg: dict):
         """
         Insert a parsed AIS Message 21 (AtoN) into the ais_msg_21 table.
-        Known columns are stored in top-level fields, everything else goes into application_data.
+        Known columns are stored in top-level fields, everything else goes into
+        application_data.
         """
 
         core_cols = {
@@ -2261,7 +2274,8 @@ class SarAircraftMessages(BaseMessageProcessor):
 
         Parameters:
             mmsi (int | list[int], optional): Filter by one or multiple MMSIs.
-            conn (duckdb.DuckDBPyConnection, optional): DB connection (defaults to self._conn).
+            conn (duckdb.DuckDBPyConnection, optional): DB connection (defaults
+             to self._conn).
             start_date (str, optional): Start date in 'YYYY-MM-DD' format.
             end_date (str, optional): End date in 'YYYY-MM-DD' format.
             polygon_bounds (str, optional): WKT polygon to filter by location.
@@ -2593,7 +2607,9 @@ class SystemManagementMessages(BaseMessageProcessor):
                 tagblock_station,
                 tagblock_timestamp
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+             ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+             ?, ?, ?, ?, ?)
         """
 
         # Extract and default any fields not present

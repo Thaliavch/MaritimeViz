@@ -19,7 +19,8 @@ def filter_ships_by_polygon(wkt_polygon, gdf):
             A string in WKT format representing the polygon to filter by.
 
         gdf (GeoDataFrame):
-            A GeoPandas GeoDataFrame containing ship data with at least 'latitude' and 'longitude' columns.
+            A GeoPandas GeoDataFrame containing ship data with at least
+            'latitude' and 'longitude' columns.
 
     Returns:
         GeoDataFrame:
@@ -30,7 +31,8 @@ def filter_ships_by_polygon(wkt_polygon, gdf):
             If the provided WKT polygon string is invalid and cannot be parsed.
 
     Notes:
-        - The function creates a new 'geometry' column in the GeoDataFrame using latitude and longitude.
+        - The function creates a new 'geometry' column in the GeoDataFrame using
+         latitude and longitude.
         - Ships on the border of the polygon are excluded (strict `within` filter).
 
     Example:
@@ -185,7 +187,8 @@ def verify_geojson(geojson_data):
     If the GeoJSON is not valid, raises a ValueError.
 
     Parameters:
-    - geojson_data (str, dict, or GeoDataFrame): path to GeoJSON file, GeoJSON object, or a GeoDataFrame
+    - geojson_data (str, dict, or GeoDataFrame): path to GeoJSON file, GeoJSON
+    object, or a GeoDataFrame
 
     Returns:
     - GeoDataFrame: a GeoDataFrame containing the provided GeoJSON data
