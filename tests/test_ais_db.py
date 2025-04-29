@@ -96,7 +96,7 @@ def test_initialize_existing_database_works(setup_existing_db):
     #     "SELECT table_name FROM information_schema.tables WHERE table_schema = 'main';").fetchall()
     # print(tables)
     result = conn.execute("SELECT * FROM ais_msg_123 LIMIT 10").fetchdf()
-    print(result)
+    # print(result)
 
     assert conn is not None
     assert len(result) > 0
@@ -107,9 +107,9 @@ def test_db_default_name():
     AISDatabase._default_db_counter = 0
 
     name1 = AISDatabase._get_default_db_path()
-    print(name1)
+    # print(name1)
     name2 = AISDatabase._get_default_db_path()
-    print(name2)
+    # print(name2)
 
     # Check that the names follow the expected pattern.
     pattern = r"^ais_data_\d+\.duckdb$"
@@ -289,7 +289,7 @@ def test_dynamic_table_has_data(setup_existing_db):
     db = setup_existing_db
     conn = db.connection()
     df = conn.execute("SELECT mmsi, id FROM ais_msg_123 LIMIT 3").fetchdf()
-    print("ais_msg_123 sample:", df)
+    # print("ais_msg_123 sample:", df)
     assert not df.empty, "Expected ais_msg_123 to have data."
 
 
@@ -301,13 +301,13 @@ class TestClassAMessages:
 
         # 1. Test search with no filters.
         result_all = processor.search()
-        print("Type A (No filters):", result_all)
+        # print("Type A (No filters):", result_all)
         assert isinstance(result_all, gpd.GeoDataFrame), "Expected a GeoDataFrame ."
         assert not result_all.empty, "Expected non-empty GeoDataFrame."
 
         # 2. Search by a valid MMSI (e.g., 9111254).
         result_mmsi = processor.search(mmsi=9111254)
-        print("Type A (MMSI 9111254):", result_mmsi)
+        # print("Type A (MMSI 9111254):", result_mmsi)
         assert isinstance(result_mmsi, gpd.GeoDataFrame), (
             "Expected a GeoDataFrame for a valid MMSI search."
         )
@@ -319,7 +319,7 @@ class TestClassAMessages:
 
         # 3. Search by non-existing MMSI should return an empty GeoDataFrame.
         result_invalid_mmsi = processor.search(mmsi=9999999)
-        print("Type A (Invalid MMSI):", result_invalid_mmsi)
+        # print("Type A (Invalid MMSI):", result_invalid_mmsi)
         assert isinstance(result_invalid_mmsi, gpd.GeoDataFrame), (
             "Expected a GeoDataFrame even for an invalid MMSI."
         )
@@ -331,7 +331,7 @@ class TestClassAMessages:
         result_date_range = processor.search(
             start_date="2016-07-27", end_date="2016-07-29"
         )
-        print("Type A (Date Range):", result_date_range)
+        # print("Type A (Date Range):", result_date_range)
         assert isinstance(result_date_range, gpd.GeoDataFrame), (
             "Expected a GeoDataFrame for a date range search."
         )
@@ -365,8 +365,8 @@ class TestClassAMessages:
         # Static table for Class A (ais_msg_5) has no data for the current testing file
         count_5 = conn.execute("SELECT COUNT(*) FROM ais_msg_5").fetchone()[0]
 
-        print("Rows in ais_msg_123:", count_123)
-        print("Rows in ais_msg_5:", count_5)
+        # print("Rows in ais_msg_123:", count_123)
+        # print("Rows in ais_msg_5:", count_5)
 
         assert count_123 > 0, (
             "Expected ais_msg_123 to have data after processing Class A messages."
@@ -383,7 +383,7 @@ class TestClassBMessages:
 
         # 1. Test search with no filters.
         result_all = processor.search()
-        print("Type B (No filters):", result_all)
+        # print("Type B (No filters):", result_all)
         assert isinstance(result_all, pd.DataFrame), (
             "Expected a DataFrame when no filters are provided for Type B."
         )
@@ -393,7 +393,7 @@ class TestClassBMessages:
 
         # 2. Search by valid MMSI
         result_mmsi = processor.search(mmsi=338097623)
-        print("Type B (MMSI 338097623, Date Range):", result_mmsi)
+        # print("Type B (MMSI 338097623, Date Range):", result_mmsi)
         assert isinstance(result_mmsi, pd.DataFrame), (
             "Expected a DataFrame for a valid MMSI search in Type B."
         )
@@ -405,7 +405,7 @@ class TestClassBMessages:
         result_invalid_mmsi = processor.search(
             mmsi=9999999, start_date="2016-07-27", end_date="2016-07-29"
         )
-        print("Type B (Invalid MMSI):", result_invalid_mmsi)
+        # print("Type B (Invalid MMSI):", result_invalid_mmsi)
         assert isinstance(result_invalid_mmsi, pd.DataFrame), (
             "Expected a DataFrame even for an invalid MMSI in Type B."
         )
@@ -417,7 +417,7 @@ class TestClassBMessages:
         result_date_range = processor.search(
             start_date="2016-07-26", end_date="2016-07-30"
         )
-        print("Type B (Date Range):", result_date_range)
+        # print("Type B (Date Range):", result_date_range)
         assert isinstance(result_date_range, pd.DataFrame), (
             "Expected a DataFrame for a date range search in Type B."
         )
@@ -439,8 +439,8 @@ class TestClassBMessages:
         # Check that the static table for Class B (ais_msg_24) has data.
         count_24 = conn.execute("SELECT COUNT(*) FROM ais_msg_24").fetchone()[0]
 
-        print("Rows in ais_msg_18_19:", count_18_19)
-        print("Rows in ais_msg_24:", count_24)
+        # print("Rows in ais_msg_18_19:", count_18_19)
+        # print("Rows in ais_msg_24:", count_24)
 
         assert count_18_19 > 0, (
             "Expected ais_msg_18_19 to have data after processing Class B messages."
@@ -461,7 +461,7 @@ class TestLongRangeMessages:
 
         count_27 = conn.execute("SELECT COUNT(*) FROM ais_msg_27").fetchone()[0]
 
-        print("Rows in ais_msg_27:", count_27)
+        # print("Rows in ais_msg_27:", count_27)
 
         assert count_27 > 0, (
             "Expected ais_msg27 to have data after processing long range messages."
@@ -474,7 +474,7 @@ class TestLongRangeMessages:
 
         # 1. Test search with no filters.
         result_all = processor.search()
-        print("Long Range (No filters):", result_all)
+        # print("Long Range (No filters):", result_all)
         assert isinstance(result_all, pd.DataFrame), (
             "Expected a DataFrame when no filters are provided for Long Range."
         )
@@ -484,7 +484,7 @@ class TestLongRangeMessages:
 
         # 2. Search by valid MMSI
         result_mmsi = processor.search(mmsi=577305000)
-        print("Long Range (MMSI 577305000, Date Range):", result_mmsi)
+        # print("Long Range (MMSI 577305000, Date Range):", result_mmsi)
         assert isinstance(result_mmsi, pd.DataFrame), (
             "Expected a DataFrame for a valid MMSI."
         )
@@ -494,7 +494,7 @@ class TestLongRangeMessages:
         result_invalid_mmsi = processor.search(
             mmsi=9999999, start_date="2016-07-27", end_date="2016-07-29"
         )
-        print("Type B (Invalid MMSI):", result_invalid_mmsi)
+        # print("Type B (Invalid MMSI):", result_invalid_mmsi)
         assert isinstance(result_invalid_mmsi, pd.DataFrame), (
             "Expected a DataFrame even for an invalid MMSI ."
         )
@@ -506,7 +506,7 @@ class TestLongRangeMessages:
         result_date_range = processor.search(
             start_date="2016-07-26", end_date="2016-07-30"
         )
-        print("Type B (Date Range):", result_date_range)
+        # print("Type B (Date Range):", result_date_range)
         assert isinstance(result_date_range, pd.DataFrame), (
             "Expected a DataFrame for a date range."
         )
@@ -580,7 +580,7 @@ class TestBroadcastTextHandler:
         conn = db.connection()
 
         count = conn.execute("SELECT COUNT(*) FROM ais_msg_8").fetchone()[0]
-        print("Rows in ais_msg_8:", count)
+        # print("Rows in ais_msg_8:", count)
         assert count > 0, "Expected ais_msg_8 table to have data after processing."
 
     def test_search_works(self, setup_existing_db):
@@ -593,7 +593,7 @@ class TestBroadcastTextHandler:
 
         # 1. Search with no filters.
         result_all = processor.search()
-        print("Broadcast Text (No filters):", result_all)
+        # print("Broadcast Text (No filters):", result_all)
         assert isinstance(result_all, pd.DataFrame), (
             "Expected a DataFrame with no filters."
         )
@@ -601,7 +601,7 @@ class TestBroadcastTextHandler:
 
         # 2. Search by valid MMSI.
         result_mmsi = processor.search(mmsi=366853070)
-        print("Broadcast Text (MMSI 366853070):", result_mmsi)
+        # print("Broadcast Text (MMSI 366853070):", result_mmsi)
         assert isinstance(result_mmsi, pd.DataFrame), (
             "Expected a DataFrame for valid MMSI."
         )
@@ -611,7 +611,7 @@ class TestBroadcastTextHandler:
         result_invalid = processor.search(
             mmsi=111111111, start_date="2016-07-27", end_date="2016-07-29"
         )
-        print("Broadcast Text (Invalid MMSI):", result_invalid)
+        # print("Broadcast Text (Invalid MMSI):", result_invalid)
         assert isinstance(result_invalid, pd.DataFrame), (
             "Expected a DataFrame for an invalid MMSI."
         )
@@ -621,7 +621,7 @@ class TestBroadcastTextHandler:
         result_date_range = processor.search(
             start_date="2016-07-27", end_date="2016-07-29"
         )
-        print("Broadcast Text (Date Range):", result_date_range)
+        # print("Broadcast Text (Date Range):", result_date_range)
         assert isinstance(result_date_range, pd.DataFrame), (
             "Expected a DataFrame for the date range."
         )
@@ -643,7 +643,7 @@ class TestShortBinaryHandler:
         conn = db.connection()
 
         count = conn.execute("SELECT COUNT(*) FROM ais_msg_25_26").fetchone()[0]
-        print("Rows in ais_msg_25_26:", count)
+        # print("Rows in ais_msg_25_26:", count)
         assert count > 0, "Expected ais_msg_25_26 table to have data after processing."
 
     def test_search_works(self, setup_existing_db):
@@ -658,7 +658,7 @@ class TestShortBinaryHandler:
 
         # 1. Search with no filters.
         result_all = processor.search()
-        print("Short Binary (No filters):", result_all)
+        # print("Short Binary (No filters):", result_all)
         assert isinstance(result_all, pd.DataFrame), (
             "Expected a DataFrame with no filters."
         )
@@ -666,7 +666,7 @@ class TestShortBinaryHandler:
 
         # 2. Search by valid MMSI.
         result_mmsi = processor.search(mmsi=367080550)
-        print("Short Binary (MMSI 367080550):", result_mmsi)
+        # print("Short Binary (MMSI 367080550):", result_mmsi)
         assert isinstance(result_mmsi, pd.DataFrame), (
             "Expected a DataFrame for valid MMSI."
         )
@@ -676,7 +676,7 @@ class TestShortBinaryHandler:
         result_invalid = processor.search(
             mmsi=9999999, start_date="2016-07-27", end_date="2016-07-29"
         )
-        print("Short Binary (Invalid MMSI):", result_invalid)
+        # print("Short Binary (Invalid MMSI):", result_invalid)
         assert isinstance(result_invalid, pd.DataFrame), (
             "Expected a DataFrame for an invalid MMSI."
         )
@@ -686,7 +686,7 @@ class TestShortBinaryHandler:
         result_date_range = processor.search(
             start_date="2016-07-27", end_date="2016-07-29"
         )
-        print("Short Binary (Date Range):", result_date_range)
+        # print("Short Binary (Date Range):", result_date_range)
         assert isinstance(result_date_range, pd.DataFrame), (
             "Expected a DataFrame for the date range."
         )
@@ -704,7 +704,7 @@ class TestAidToNavigationMessages:
         conn = db.connection()
 
         count = conn.execute("SELECT count(*) FROM ais_msg_21").fetchone()[0]
-        print("Rows in ais_msg_21:", count)
+        # print("Rows in ais_msg_21:", count)
         assert count > 0, "Expected ais_msg_21 table to have data after processing."
 
     # todo(thalia): add to search based of aton identifier
@@ -718,7 +718,7 @@ class TestAidToNavigationMessages:
 
         # 1. Search with no filters.
         result_all = processor.search()
-        print("AtoN (No filters):", result_all)
+        # print("AtoN (No filters):", result_all)
         assert isinstance(result_all, pd.DataFrame), (
             "Expected a DataFrame with no filters."
         )
@@ -728,7 +728,7 @@ class TestAidToNavigationMessages:
 
         # 2. Search by valid MMSI.
         result_mmsi = processor.search(mmsi=993672272)
-        print("AtoN (MMSI 993672272):", result_mmsi)
+        # print("AtoN (MMSI 993672272):", result_mmsi)
         assert isinstance(result_mmsi, pd.DataFrame), (
             "Expected a DataFrame for valid MMSI."
         )
@@ -738,7 +738,7 @@ class TestAidToNavigationMessages:
         result_invalid = processor.search(
             mmsi=9999999, start_date="2016-07-27", end_date="2016-07-29"
         )
-        print("AtoN (Invalid MMSI):", result_invalid)
+        # print("AtoN (Invalid MMSI):", result_invalid)
         assert isinstance(result_invalid, pd.DataFrame), (
             "Expected a DataFrame for an invalid MMSI."
         )
@@ -748,7 +748,7 @@ class TestAidToNavigationMessages:
         result_date_range = processor.search(
             start_date="2016-07-27", end_date="2016-07-29"
         )
-        print("AtoN (Date Range):", result_date_range)
+        # print("AtoN (Date Range):", result_date_range)
         assert isinstance(result_date_range, pd.DataFrame), (
             "Expected a DataFrame for the date range."
         )
@@ -766,7 +766,7 @@ class TestBaseStationMessages:
         conn = db.connection()
 
         count = conn.execute("SELECT COUNT(*) FROM ais_msg_4").fetchone()[0]
-        print("Rows in ais_msg_4:", count)
+        # print("Rows in ais_msg_4:", count)
         assert count > 0, "Expected ais_msg_4 table to have data after processing."
 
     def test_search_works(self, setup_existing_db):
@@ -779,7 +779,7 @@ class TestBaseStationMessages:
 
         # 1. Search with no filters.
         result_all = processor.search()
-        print("Base Station (No filters):", result_all)
+        # print("Base Station (No filters):", result_all)
         assert isinstance(result_all, pd.DataFrame), (
             "Expected a DataFrame with no filters."
         )
@@ -789,7 +789,7 @@ class TestBaseStationMessages:
 
         # 2. Search by valid MMSI.
         result_mmsi = processor.search(mmsi=3660619)
-        print("Base Station (MMSI 3660619):", result_mmsi)
+        # print("Base Station (MMSI 3660619):", result_mmsi)
         assert isinstance(result_mmsi, pd.DataFrame), (
             "Expected a DataFrame for valid MMSI."
         )
@@ -799,7 +799,7 @@ class TestBaseStationMessages:
         result_invalid = processor.search(
             mmsi=9999999, start_date="2016-07-27", end_date="2016-07-29"
         )
-        print("Base Station (Invalid MMSI):", result_invalid)
+        # print("Base Station (Invalid MMSI):", result_invalid)
         assert isinstance(result_invalid, pd.DataFrame), (
             "Expected a DataFrame for an invalid MMSI."
         )
@@ -809,7 +809,7 @@ class TestBaseStationMessages:
         result_date_range = processor.search(
             start_date="2016-07-27", end_date="2016-07-29"
         )
-        print("Base Station (Date Range):", result_date_range)
+        # print("Base Station (Date Range):", result_date_range)
         assert isinstance(result_date_range, pd.DataFrame), (
             "Expected a DataFrame for the date range."
         )
@@ -1039,7 +1039,7 @@ class TestSystemManagementMessages:
             .execute("SELECT COUNT(*) FROM ais_msg_15_16_17_20_22_23")
             .fetchone()[0]
         )
-        print("Rows in ais_msg_15_16_17_20_22_23 after process:", count)
+        # print("Rows in ais_msg_15_16_17_20_22_23 after process:", count)
         assert count > 0, "Expected some data after processing system mgmt file."
 
     def test_search_works(self, setup_existing_db):
@@ -1054,7 +1054,7 @@ class TestSystemManagementMessages:
 
         # 1. No filters => expect all rows in that table
         result_all = processor.search()
-        print("System mgmt (no filters):", result_all)
+        # print("System mgmt (no filters):", result_all)
         assert isinstance(result_all, pd.DataFrame), (
             "Expected DataFrame from search() with no filters"
         )
@@ -1064,7 +1064,7 @@ class TestSystemManagementMessages:
 
         # 2. Filter by a single message type (e.g. 20)
         result_20 = processor.search(msg_id=20)
-        print("System mgmt (message 20):", result_20)
+        # print("System mgmt (message 20):", result_20)
         assert isinstance(result_20, pd.DataFrame), (
             "Expected DataFrame for message ID=17"
         )
@@ -1073,7 +1073,7 @@ class TestSystemManagementMessages:
         # 3. Filter by MMSI
         test_mmsi = 3669980
         result_mmsi = processor.search(mmsi=test_mmsi)
-        print(f"System mgmt (MMSI={test_mmsi}):", result_mmsi)
+        # print(f"System mgmt (MMSI={test_mmsi}):", result_mmsi)
         assert isinstance(result_mmsi, pd.DataFrame), (
             "Expected DataFrame for a valid MMSI"
         )
@@ -1082,7 +1082,7 @@ class TestSystemManagementMessages:
         start_date = "2016-07-26"
         end_date = "2016-07-28"
         result_date = processor.search(start_date=start_date, end_date=end_date)
-        print(f"System mgmt (Date range {start_date} to {end_date}):", result_date)
+        # print(f"System mgmt (Date range {start_date} to {end_date}):", result_date)
         assert isinstance(result_date, pd.DataFrame), (
             "Expected DataFrame for date range filter"
         )

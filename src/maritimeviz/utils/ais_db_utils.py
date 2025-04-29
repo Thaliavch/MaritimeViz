@@ -1,5 +1,4 @@
 import os
-from . import logger
 import datetime
 from functools import cache
 import duckdb
