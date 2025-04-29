@@ -86,27 +86,6 @@ def lines_per_file(file_path, avg_bytes_per_line=90, use_line_count=False):
         return estimate_lines_by_size(file_path, avg_bytes_per_line)
 
 
-def optimal_threading_stats(ais_file, cpu_cores=None, min_chunk_size=500):
-    try:
-        total_lines = lines_per_file(ais_file)
-        cpu_cores = os.cpu_count() or 4  # Default to 4 cores if unavailable
-
-        # Ensure minimum lines per chunk to avoid too many threads
-        max_chunks = min(
-            total_lines // min_chunk_size, cpu_cores * 4
-        )  # Allow threads to oversubscribe slightly
-        optimal_threads = min(cpu_cores, max_chunks)  # Use no more threads than chunks
-
-        # Calculate chunk size based on the number of threads
-        chunk_size = max(min_chunk_size, total_lines // optimal_threads)
-
-        return optimal_threads, chunk_size
-
-    except:
-        logger.error("Using default: {threads: 4, chunk_size: 500}")
-        return 4, 500
-
-
 def split_file_generator(file_path, chunk_size=500):
     """
     Splits the file into fixed-size chunks and yields each chunk.

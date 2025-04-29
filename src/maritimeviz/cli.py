@@ -1,6 +1,5 @@
 """Console script for maritimeviz."""
 
-
 import typer
 from rich.console import Console
 

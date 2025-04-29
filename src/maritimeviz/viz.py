@@ -2,12 +2,20 @@
 Package's Visualization Module
 """
 
+import folium
+import geopandas as gpd
 import leafmap.foliumap
 from branca.element import Element
 from folium import Icon, Popup, FeatureGroup, LayerControl
 from folium.plugins import HeatMap
+from shapely.wkt import loads
 
-from .utils.viz_utils import *
+from .utils.viz_utils import (
+    verify_geojson,
+    check_printable_icon,
+    get_info,
+    create_speed_legend,
+)
 
 
 class Map:

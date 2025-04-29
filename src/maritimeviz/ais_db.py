@@ -7,12 +7,20 @@ import geopandas as gpd
 import pandas as pd
 
 from . import logger
-from .constants import DATABASE_ALL_TABLE_CREATION_QUERIES, \
-    DATABASE_ALL_VIEWS_CREATION_QUERIES, ALLOWED_FILTER_KEYS, \
-    ALLOWED_FILTER_KEYS_CLASS_A, ALLOWED_FILTER_KEYS_CLASS_B
-from .utils.ais_db_utils import call_in_cached_query, \
-    date_to_tagblock_timestamp, cached_query, split_file_generator, \
-    guess_vessel_type
+from .constants import (
+    DATABASE_ALL_TABLE_CREATION_QUERIES,
+    DATABASE_ALL_VIEWS_CREATION_QUERIES,
+    ALLOWED_FILTER_KEYS,
+    ALLOWED_FILTER_KEYS_CLASS_A,
+    ALLOWED_FILTER_KEYS_CLASS_B,
+)
+from .utils.ais_db_utils import (
+    call_in_cached_query,
+    date_to_tagblock_timestamp,
+    cached_query,
+    split_file_generator,
+    guess_vessel_type,
+)
 
 
 class AISDatabase:
@@ -24,8 +32,7 @@ class AISDatabase:
     # module counter for database instances on same runtime
     _default_db_counter = 0
 
-    def __init__(self, db_path: Optional[str] = None,
-                 enable_cache: bool = True):
+    def __init__(self, db_path: Optional[str] = None, enable_cache: bool = True):
         self._db_path = (
             db_path if db_path else self._get_default_db_path()
         )  # create new file_name if one is not given or if given an emtpy string
@@ -104,11 +111,9 @@ class AISDatabase:
         Returns:
             str: The name of the view to query.
         """
-        mapping = {"position": "global_ais_dynamic",
-                   "static": "global_ais_static"}
+        mapping = {"position": "global_ais_dynamic", "static": "global_ais_static"}
         if data not in mapping:
-            raise ValueError(
-                "Invalid data parameter. Must be 'position' or 'static'.")
+            raise ValueError("Invalid data parameter. Must be 'position' or 'static'.")
         return mapping[data]
 
     def _get_global_df(
@@ -139,8 +144,7 @@ class AISDatabase:
             mmsi = mmsi or self._filter.get("mmsi")
             start_date = start_date or self._filter.get("start_date")
             end_date = end_date or self._filter.get("end_date")
-            polygon_bounds = polygon_bounds or self._filter.get(
-                "polygon_bounds")
+            polygon_bounds = polygon_bounds or self._filter.get("polygon_bounds")
 
         view_name = self._get_view_name(data=report_type)
         query = f"SELECT * FROM {view_name} WHERE 1=1"
@@ -154,8 +158,7 @@ class AISDatabase:
         # Date range filter:
         if start_date:
             try:
-                start_ts = date_to_tagblock_timestamp(
-                    *map(int, start_date.split("-")))
+                start_ts = date_to_tagblock_timestamp(*map(int, start_date.split("-")))
                 query += " AND tagblock_timestamp >= ?"
                 params.append(start_ts)
             except Exception as e:
@@ -164,13 +167,11 @@ class AISDatabase:
                 ) from e
         if end_date:
             try:
-                end_ts = date_to_tagblock_timestamp(
-                    *map(int, end_date.split("-")))
+                end_ts = date_to_tagblock_timestamp(*map(int, end_date.split("-")))
                 query += " AND tagblock_timestamp <= ?"
                 params.append(end_ts)
             except Exception as e:
-                raise ValueError(
-                    "Invalid end date format. Expected YYYY-MM-DD.") from e
+                raise ValueError("Invalid end date format. Expected YYYY-MM-DD.") from e
 
         # Polygon bounds filter (if applicable)
         if polygon_bounds:
@@ -220,8 +221,7 @@ class AISDatabase:
             dict: The GeoJSON representation.
         """
         gdf = self._get_global_df(
-            report_type, mmsi, start_date, end_date, polygon_bounds,
-            as_geodf=True
+            report_type, mmsi, start_date, end_date, polygon_bounds, as_geodf=True
         )
         if gdf.empty:
             logger.info(f"No AIS data available for MMSI {mmsi}")
@@ -240,8 +240,7 @@ class AISDatabase:
         polygon_bounds: Optional[str] = None,
     ) -> str:
         df = self._get_global_df(
-            report_type, mmsi, start_date, end_date, polygon_bounds,
-            as_geodf=False
+            report_type, mmsi, start_date, end_date, polygon_bounds, as_geodf=False
         )
         if df.empty:
             return "No data available to export."
@@ -261,8 +260,7 @@ class AISDatabase:
         Exports global AIS data to a Shapefile.
         """
         gdf = self._get_global_df(
-            report_type, mmsi, start_date, end_date, polygon_bounds,
-            as_geodf=True
+            report_type, mmsi, start_date, end_date, polygon_bounds, as_geodf=True
         )
         if gdf.empty:
             return "No data available to export."
@@ -282,8 +280,7 @@ class AISDatabase:
         Exports global AIS data to a KML file.
         """
         gdf = self._get_global_df(
-            report_type, mmsi, start_date, end_date, polygon_bounds,
-            as_geodf=True
+            report_type, mmsi, start_date, end_date, polygon_bounds, as_geodf=True
         )
         if gdf.empty:
             return "No data available to export."
@@ -303,8 +300,7 @@ class AISDatabase:
         Exports global AIS data to an Excel file.
         """
         df = self._get_global_df(
-            report_type, mmsi, start_date, end_date, polygon_bounds,
-            as_geodf=False
+            report_type, mmsi, start_date, end_date, polygon_bounds, as_geodf=False
         )
         if df.empty:
             return "No data available to export."
@@ -323,8 +319,7 @@ class AISDatabase:
         Returns global AIS data in Well-Known Text (WKT) format.
         """
         gdf = self._get_global_df(
-            report_type, mmsi, start_date, end_date, polygon_bounds,
-            as_geodf=True
+            report_type, mmsi, start_date, end_date, polygon_bounds, as_geodf=True
         )
         if gdf.empty:
             return "No data available to export."
@@ -606,8 +601,7 @@ class BaseMessageProcessor:
         gdf.to_excel(file_path, index=False)
         return f"Excel file saved at {file_path}"
 
-    def get_wkt(self, mmsi=None, start_date=None, end_date=None,
-                polygon_bounds=None):
+    def get_wkt(self, mmsi=None, start_date=None, end_date=None, polygon_bounds=None):
         """
         Returns AIS data in Well-Known Text (WKT) format.
         """
@@ -750,8 +744,7 @@ class ClassAMessages(BaseMessageProcessorPositionReport):
         if filter_obj is not None:
             if not isinstance(filter_obj, dict):
                 raise TypeError("Filter object must be a dictionary.")
-            if not set(filter_obj.keys()).issubset(
-                ALLOWED_FILTER_KEYS_CLASS_A):
+            if not set(filter_obj.keys()).issubset(ALLOWED_FILTER_KEYS_CLASS_A):
                 raise TypeError(
                     "Filter object contains invalid keys."
                 )  # TODO(Thalia): add link to documentation in error message
@@ -802,29 +795,24 @@ class ClassAMessages(BaseMessageProcessorPositionReport):
                 mmsi = mmsi or self._filter.get("mmsi")
                 start_date = start_date or self._filter.get("start_date")
                 end_date = end_date or self._filter.get("end_date")
-                polygon_bounds = polygon_bounds or self._filter.get(
-                    "polygon_bounds")
+                polygon_bounds = polygon_bounds or self._filter.get("polygon_bounds")
                 min_velocity = min_velocity or self._filter.get("min_velocity")
                 max_velocity = max_velocity or self._filter.get("max_velocity")
                 direction = direction or self._filter.get("direction")
-                min_turn_rate = min_turn_rate or self._filter.get(
-                    "min_turn_rate")
-                max_turn_rate = max_turn_rate or self._filter.get(
-                    "max_turn_rate")
+                min_turn_rate = min_turn_rate or self._filter.get("min_turn_rate")
+                max_turn_rate = max_turn_rate or self._filter.get("max_turn_rate")
 
             # MMSI filtering
             if mmsi:
                 if isinstance(mmsi, int):
                     query += " AND mmsi = ?"
                     params.append(mmsi)
-                elif isinstance(mmsi, list) and all(
-                    isinstance(i, int) for i in mmsi):
+                elif isinstance(mmsi, list) and all(isinstance(i, int) for i in mmsi):
                     placeholders = ", ".join(["?"] * len(mmsi))
                     query += f" AND mmsi IN ({placeholders})"
                     params.extend(mmsi)
                 else:
-                    raise ValueError(
-                        "MMSI must be an integer or a list of integers.")
+                    raise ValueError("MMSI must be an integer or a list of integers.")
 
             # Date range filter:
             if start_date:
@@ -840,8 +828,7 @@ class ClassAMessages(BaseMessageProcessorPositionReport):
                     ) from e
             if end_date:
                 try:
-                    end_ts = date_to_tagblock_timestamp(
-                        *map(int, end_date.split("-")))
+                    end_ts = date_to_tagblock_timestamp(*map(int, end_date.split("-")))
                     query += " AND tagblock_timestamp <= ?"
                     params.append(end_ts)
                 except Exception as e:
@@ -887,8 +874,7 @@ class ClassAMessages(BaseMessageProcessorPositionReport):
                     query += " AND (cog >= ? AND cog < ?)"
                     params.extend([225, 315])
                 else:
-                    raise ValueError(
-                        "Direction must be one of 'N', 'E', 'S', 'W'.")
+                    raise ValueError("Direction must be one of 'N', 'E', 'S', 'W'.")
 
             # Log query for debugging
             logger.info(f"Executing query: {query} with params: {params}")
@@ -949,13 +935,11 @@ class ClassAMessages(BaseMessageProcessorPositionReport):
                 if isinstance(mmsi, int):
                     query += " WHERE mmsi = ?"
                     params.append(mmsi)
-                elif isinstance(mmsi, list) and all(
-                    isinstance(i, int) for i in mmsi):
+                elif isinstance(mmsi, list) and all(isinstance(i, int) for i in mmsi):
                     query += f" WHERE mmsi IN ({', '.join('?' * len(mmsi))})"
                     params.extend(mmsi)
                 else:
-                    raise ValueError(
-                        "MMSI must be an integer or a list of integers.")
+                    raise ValueError("MMSI must be an integer or a list of integers.")
 
             # Execute query
             df = cached_query(conn, query, params, True)
@@ -1054,8 +1038,7 @@ class ClassBMessages(BaseMessageProcessorPositionReport):
         if filter_obj is not None:
             if not isinstance(filter_obj, dict):
                 raise TypeError("Filter object must be a dictionary.")
-            if not set(filter_obj.keys()).issubset(
-                ALLOWED_FILTER_KEYS_CLASS_B):
+            if not set(filter_obj.keys()).issubset(ALLOWED_FILTER_KEYS_CLASS_B):
                 raise TypeError(
                     "Filter object contains invalid keys."
                 )  # TODO(Thalia): add link to documentation in error message
@@ -1103,8 +1086,7 @@ class ClassBMessages(BaseMessageProcessorPositionReport):
                 mmsi = mmsi or self._filter.get("mmsi")
                 start_date = start_date or self._filter.get("start_date")
                 end_date = end_date or self._filter.get("end_date")
-                polygon_bounds = polygon_bounds or self._filter.get(
-                    "polygon_bounds")
+                polygon_bounds = polygon_bounds or self._filter.get("polygon_bounds")
                 min_velocity = min_velocity or self._filter.get("min_velocity")
                 max_velocity = max_velocity or self._filter.get("max_velocity")
                 direction = direction or self._filter.get("direction")
@@ -1114,14 +1096,12 @@ class ClassBMessages(BaseMessageProcessorPositionReport):
                 if isinstance(mmsi, int):
                     query += " AND mmsi = ?"
                     params.append(mmsi)
-                elif isinstance(mmsi, list) and all(
-                    isinstance(i, int) for i in mmsi):
+                elif isinstance(mmsi, list) and all(isinstance(i, int) for i in mmsi):
                     placeholders = ", ".join(["?"] * len(mmsi))
                     query += f" AND mmsi IN ({placeholders})"
                     params.extend(mmsi)
                 else:
-                    raise ValueError(
-                        "MMSI must be an integer or a list of integers.")
+                    raise ValueError("MMSI must be an integer or a list of integers.")
 
             # Date range filter:
             if start_date:
@@ -1137,8 +1117,7 @@ class ClassBMessages(BaseMessageProcessorPositionReport):
                     ) from e
             if end_date:
                 try:
-                    end_ts = date_to_tagblock_timestamp(
-                        *map(int, end_date.split("-")))
+                    end_ts = date_to_tagblock_timestamp(*map(int, end_date.split("-")))
                     query += " AND tagblock_timestamp <= ?"
                     params.append(end_ts)
                 except Exception as e:
@@ -1176,8 +1155,7 @@ class ClassBMessages(BaseMessageProcessorPositionReport):
                     query += " AND (cog >= ? AND cog < ?)"
                     params.extend([225, 315])
                 else:
-                    raise ValueError(
-                        "Direction must be one of 'N', 'E', 'S', 'W'.")
+                    raise ValueError("Direction must be one of 'N', 'E', 'S', 'W'.")
 
             # Log query for debugging
             logger.info(f"Executing query: {query} with params: {params}")
@@ -1215,14 +1193,12 @@ class ClassBMessages(BaseMessageProcessorPositionReport):
             if isinstance(mmsi, int):
                 query += " AND mmsi = ?"
                 params.append(mmsi)
-            elif isinstance(mmsi, list) and all(
-                isinstance(i, int) for i in mmsi):
+            elif isinstance(mmsi, list) and all(isinstance(i, int) for i in mmsi):
                 placeholders = ", ".join(["?"] * len(mmsi))
                 query += f" AND mmsi IN ({placeholders})"
                 params.extend(mmsi)
             else:
-                raise ValueError(
-                    "MMSI must be an integer or a list of integers.")
+                raise ValueError("MMSI must be an integer or a list of integers.")
 
         try:
             return cached_query(self._conn, query, params, True)
@@ -1323,8 +1299,7 @@ class LongRangeMessages(BaseMessageProcessorPositionReport):
                 mmsi = mmsi or self._filter.get("mmsi")
                 start_date = start_date or self._filter.get("start_date")
                 end_date = end_date or self._filter.get("end_date")
-                polygon_bounds = polygon_bounds or self._filter.get(
-                    "polygon_bounds")
+                polygon_bounds = polygon_bounds or self._filter.get("polygon_bounds")
                 min_velocity = min_velocity or self._filter.get("min_velocity")
                 max_velocity = max_velocity or self._filter.get("max_velocity")
                 direction = direction or self._filter.get("direction")
@@ -1334,14 +1309,12 @@ class LongRangeMessages(BaseMessageProcessorPositionReport):
                 if isinstance(mmsi, int):
                     query += " AND mmsi = ?"
                     params.append(mmsi)
-                elif isinstance(mmsi, list) and all(
-                    isinstance(i, int) for i in mmsi):
+                elif isinstance(mmsi, list) and all(isinstance(i, int) for i in mmsi):
                     placeholders = ", ".join(["?"] * len(mmsi))
                     query += f" AND mmsi IN ({placeholders})"
                     params.extend(mmsi)
                 else:
-                    raise ValueError(
-                        "MMSI must be an integer or a list of integers.")
+                    raise ValueError("MMSI must be an integer or a list of integers.")
 
             # Date range filter:
             if start_date:
@@ -1357,8 +1330,7 @@ class LongRangeMessages(BaseMessageProcessorPositionReport):
                     ) from e
             if end_date:
                 try:
-                    end_ts = date_to_tagblock_timestamp(
-                        *map(int, end_date.split("-")))
+                    end_ts = date_to_tagblock_timestamp(*map(int, end_date.split("-")))
                     query += " AND tagblock_timestamp <= ?"
                     params.append(end_ts)
                 except Exception as e:
@@ -1396,8 +1368,7 @@ class LongRangeMessages(BaseMessageProcessorPositionReport):
                     query += " AND (cog >= ? AND cog < ?)"
                     params.extend([225, 315])
                 else:
-                    raise ValueError(
-                        "Direction must be one of 'N', 'E', 'S', 'W'.")
+                    raise ValueError("Direction must be one of 'N', 'E', 'S', 'W'.")
 
             # Log query for debugging
             logger.info(f"Executing query: {query} with params: {params}")
@@ -1508,24 +1479,20 @@ class AddressedBinaryHandler(BaseMessageProcessor):
                 if isinstance(mmsi, int):
                     query += " AND mmsi = ?"
                     params.append(mmsi)
-                elif isinstance(mmsi, list) and all(
-                    isinstance(i, int) for i in mmsi):
+                elif isinstance(mmsi, list) and all(isinstance(i, int) for i in mmsi):
                     placeholders = ", ".join(["?"] * len(mmsi))
                     query += f" AND mmsi IN ({placeholders})"
                     params.extend(mmsi)
                 else:
-                    raise ValueError(
-                        "MMSI must be an integer or a list of integers.")
+                    raise ValueError("MMSI must be an integer or a list of integers.")
 
             # Date range filter
             if start_date:
-                start_ts = date_to_tagblock_timestamp(
-                    *map(int, start_date.split("-")))
+                start_ts = date_to_tagblock_timestamp(*map(int, start_date.split("-")))
                 query += " AND tagblock_timestamp >= ?"
                 params.append(start_ts)
             if end_date:
-                end_ts = date_to_tagblock_timestamp(
-                    *map(int, end_date.split("-")))
+                end_ts = date_to_tagblock_timestamp(*map(int, end_date.split("-")))
                 query += " AND tagblock_timestamp <= ?"
                 params.append(end_ts)
 
@@ -1635,24 +1602,20 @@ class BroadcastTextHandler(BaseMessageProcessor):
                 if isinstance(mmsi, int):
                     query += " AND mmsi = ?"
                     params.append(mmsi)
-                elif isinstance(mmsi, list) and all(
-                    isinstance(i, int) for i in mmsi):
+                elif isinstance(mmsi, list) and all(isinstance(i, int) for i in mmsi):
                     placeholders = ", ".join(["?"] * len(mmsi))
                     query += f" AND mmsi IN ({placeholders})"
                     params.extend(mmsi)
                 else:
-                    raise ValueError(
-                        "MMSI must be an integer or a list of integers.")
+                    raise ValueError("MMSI must be an integer or a list of integers.")
 
             # Date range filter
             if start_date:
-                start_ts = date_to_tagblock_timestamp(
-                    *map(int, start_date.split("-")))
+                start_ts = date_to_tagblock_timestamp(*map(int, start_date.split("-")))
                 query += " AND tagblock_timestamp >= ?"
                 params.append(start_ts)
             if end_date:
-                end_ts = date_to_tagblock_timestamp(
-                    *map(int, end_date.split("-")))
+                end_ts = date_to_tagblock_timestamp(*map(int, end_date.split("-")))
                 query += " AND tagblock_timestamp <= ?"
                 params.append(end_ts)
 
@@ -1750,24 +1713,20 @@ class ShortBinaryHandler(BaseMessageProcessor):
                 if isinstance(mmsi, int):
                     query += " AND mmsi = ?"
                     params.append(mmsi)
-                elif isinstance(mmsi, list) and all(
-                    isinstance(i, int) for i in mmsi):
+                elif isinstance(mmsi, list) and all(isinstance(i, int) for i in mmsi):
                     placeholders = ", ".join(["?"] * len(mmsi))
                     query += f" AND mmsi IN ({placeholders})"
                     params.extend(mmsi)
                 else:
-                    raise ValueError(
-                        "MMSI must be an integer or a list of integers.")
+                    raise ValueError("MMSI must be an integer or a list of integers.")
 
             # Date range filter
             if start_date:
-                start_ts = date_to_tagblock_timestamp(
-                    *map(int, start_date.split("-")))
+                start_ts = date_to_tagblock_timestamp(*map(int, start_date.split("-")))
                 query += " AND tagblock_timestamp >= ?"
                 params.append(start_ts)
             if end_date:
-                end_ts = date_to_tagblock_timestamp(
-                    *map(int, end_date.split("-")))
+                end_ts = date_to_tagblock_timestamp(*map(int, end_date.split("-")))
                 query += " AND tagblock_timestamp <= ?"
                 params.append(end_ts)
 
@@ -1915,24 +1874,20 @@ class AidToNavigationMessages(BaseMessageProcessor):
                 if isinstance(mmsi, int):
                     query += " AND mmsi = ?"
                     params.append(mmsi)
-                elif isinstance(mmsi, list) and all(
-                    isinstance(i, int) for i in mmsi):
+                elif isinstance(mmsi, list) and all(isinstance(i, int) for i in mmsi):
                     placeholders = ", ".join(["?"] * len(mmsi))
                     query += f" AND mmsi IN ({placeholders})"
                     params.extend(mmsi)
                 else:
-                    raise ValueError(
-                        "MMSI must be an integer or a list of integers.")
+                    raise ValueError("MMSI must be an integer or a list of integers.")
 
             # Date range filter
             if start_date:
-                start_ts = date_to_tagblock_timestamp(
-                    *map(int, start_date.split("-")))
+                start_ts = date_to_tagblock_timestamp(*map(int, start_date.split("-")))
                 query += " AND tagblock_timestamp >= ?"
                 params.append(start_ts)
             if end_date:
-                end_ts = date_to_tagblock_timestamp(
-                    *map(int, end_date.split("-")))
+                end_ts = date_to_tagblock_timestamp(*map(int, end_date.split("-")))
                 query += " AND tagblock_timestamp <= ?"
                 params.append(end_ts)
 
@@ -2070,24 +2025,20 @@ class BaseStationMessages(BaseMessageProcessor):
                 if isinstance(mmsi, int):
                     query += " AND mmsi = ?"
                     params.append(mmsi)
-                elif isinstance(mmsi, list) and all(
-                    isinstance(i, int) for i in mmsi):
+                elif isinstance(mmsi, list) and all(isinstance(i, int) for i in mmsi):
                     placeholders = ", ".join(["?"] * len(mmsi))
                     query += f" AND mmsi IN ({placeholders})"
                     params.extend(mmsi)
                 else:
-                    raise ValueError(
-                        "MMSI must be an integer or a list of integers.")
+                    raise ValueError("MMSI must be an integer or a list of integers.")
 
             # Date range filter
             if start_date:
-                start_ts = date_to_tagblock_timestamp(
-                    *map(int, start_date.split("-")))
+                start_ts = date_to_tagblock_timestamp(*map(int, start_date.split("-")))
                 query += " AND tagblock_timestamp >= ?"
                 params.append(start_ts)
             if end_date:
-                end_ts = date_to_tagblock_timestamp(
-                    *map(int, end_date.split("-")))
+                end_ts = date_to_tagblock_timestamp(*map(int, end_date.split("-")))
                 query += " AND tagblock_timestamp <= ?"
                 params.append(end_ts)
 
@@ -2096,8 +2047,7 @@ class BaseStationMessages(BaseMessageProcessor):
                 query += " AND ST_Within(ST_Point(x, y), ST_GeomFromText(?))"
                 params.append(polygon_bounds)
 
-            logger.info(
-                f"Executing Base Station query: {query} with params: {params}")
+            logger.info(f"Executing Base Station query: {query} with params: {params}")
             df = cached_query(conn, query, params, True)
             if df.empty:
                 return gpd.GeoDataFrame(columns=["geometry"])
@@ -2335,8 +2285,7 @@ class SarAircraftMessages(BaseMessageProcessor):
                 if isinstance(mmsi, int):
                     query += " AND mmsi = ?"
                     params.append(mmsi)
-                elif isinstance(mmsi, list) and all(
-                    isinstance(x, int) for x in mmsi):
+                elif isinstance(mmsi, list) and all(isinstance(x, int) for x in mmsi):
                     placeholders = ", ".join(["?"] * len(mmsi))
                     query += f" AND mmsi IN ({placeholders})"
                     params.extend(mmsi)
@@ -2345,14 +2294,12 @@ class SarAircraftMessages(BaseMessageProcessor):
 
             # Date range filter
             if start_date:
-                start_ts = date_to_tagblock_timestamp(
-                    *map(int, start_date.split("-")))
+                start_ts = date_to_tagblock_timestamp(*map(int, start_date.split("-")))
                 query += " AND tagblock_timestamp >= ?"
                 params.append(start_ts)
 
             if end_date:
-                end_ts = date_to_tagblock_timestamp(
-                    *map(int, end_date.split("-")))
+                end_ts = date_to_tagblock_timestamp(*map(int, end_date.split("-")))
                 query += " AND tagblock_timestamp <= ?"
                 params.append(end_ts)
 
@@ -2514,8 +2461,7 @@ class UtcDateMessages(BaseMessageProcessor):
                 if isinstance(mmsi, int):
                     query += " AND mmsi = ?"
                     params.append(mmsi)
-                elif isinstance(mmsi, list) and all(
-                    isinstance(x, int) for x in mmsi):
+                elif isinstance(mmsi, list) and all(isinstance(x, int) for x in mmsi):
                     placeholders = ", ".join(["?"] * len(mmsi))
                     query += f" AND mmsi IN ({placeholders})"
                     params.extend(mmsi)
@@ -2534,19 +2480,16 @@ class UtcDateMessages(BaseMessageProcessor):
                     query += f" AND dest_mmsi IN ({placeholders})"
                     params.extend(dest_mmsi)
                 else:
-                    raise ValueError(
-                        "dest_mmsi must be an int or list of ints.")
+                    raise ValueError("dest_mmsi must be an int or list of ints.")
 
             # Date range filters
             if start_date:
-                start_ts = date_to_tagblock_timestamp(
-                    *map(int, start_date.split("-")))
+                start_ts = date_to_tagblock_timestamp(*map(int, start_date.split("-")))
                 query += " AND tagblock_timestamp >= ?"
                 params.append(start_ts)
 
             if end_date:
-                end_ts = date_to_tagblock_timestamp(
-                    *map(int, end_date.split("-")))
+                end_ts = date_to_tagblock_timestamp(*map(int, end_date.split("-")))
                 query += " AND tagblock_timestamp <= ?"
                 params.append(end_ts)
 
@@ -2678,8 +2621,7 @@ class SystemManagementMessages(BaseMessageProcessor):
             msg.get("x"),
             msg.get("y"),
             # Message 20 fields (array of reservations)
-            json.dumps(msg.get("reservations")) if msg.get(
-                "reservations") else None,
+            json.dumps(msg.get("reservations")) if msg.get("reservations") else None,
             # Message 22 fields
             msg.get("chan_a"),
             msg.get("chan_b"),
@@ -2759,8 +2701,7 @@ class SystemManagementMessages(BaseMessageProcessor):
                 if isinstance(mmsi, int):
                     query += " AND mmsi = ?"
                     params.append(mmsi)
-                elif isinstance(mmsi, list) and all(
-                    isinstance(i, int) for i in mmsi):
+                elif isinstance(mmsi, list) and all(isinstance(i, int) for i in mmsi):
                     placeholders = ", ".join(["?"] * len(mmsi))
                     query += f" AND mmsi IN ({placeholders})"
                     params.extend(mmsi)
@@ -2768,19 +2709,16 @@ class SystemManagementMessages(BaseMessageProcessor):
                     raise ValueError("MMSI must be an int or list of ints.")
 
             if start_date:
-                start_ts = date_to_tagblock_timestamp(
-                    *map(int, start_date.split("-")))
+                start_ts = date_to_tagblock_timestamp(*map(int, start_date.split("-")))
                 query += " AND tagblock_timestamp >= ?"
                 params.append(start_ts)
 
             if end_date:
-                end_ts = date_to_tagblock_timestamp(
-                    *map(int, end_date.split("-")))
+                end_ts = date_to_tagblock_timestamp(*map(int, end_date.split("-")))
                 query += " AND tagblock_timestamp <= ?"
                 params.append(end_ts)
 
-            logger.info(
-                f"System Management query: {query} with params={params}")
+            logger.info(f"System Management query: {query} with params={params}")
             df = cached_query(conn, query, params, True)
             if df.empty:
                 # Return an empty GeoDataFrame with a geometry column

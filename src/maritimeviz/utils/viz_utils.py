@@ -49,6 +49,7 @@ def filter_ships_by_polygon(wkt_polygon, gdf):
 
     return gdf[gdf.geometry.within(polygon)]  # Filter points within the polygon
 
+
 def create_speed_legend():
     """
     Generates an HTML string for a fixed-position speed legend to be displayed on a web map.
@@ -299,6 +300,7 @@ def geojson_to_wkt(geojson_polygon):
     coord_block = ",\n".join(coord_strings)
     wkt = f"POLYGON((\n{coord_block}\n))"
     return wkt
+
 
 def create_click_handler(radius_km, map_object, clicked_coords, gdf):
     current_ship_group = []
