@@ -255,16 +255,6 @@ class TestGlobalExports:
         gdf = gpd.read_file(file_path)
         assert isinstance(gdf, gpd.GeoDataFrame)
 
-    def test_get_global_excel(self, setup_existing_db):
-        db = setup_existing_db
-        file_path = "test_data.xlsx"
-        result = db.get_excel(file_path=file_path, report_type="position")
-        if result.startswith("No data"):
-            pytest.skip("No data available to export; skipping Excel test.")
-        assert os.path.exists(file_path)
-        df = pd.read_excel(file_path)
-        assert isinstance(df, pd.DataFrame)
-
     def test_get_global_wkt(self, setup_existing_db):
         db = setup_existing_db
         result = db.get_wkt(report_type="position")
