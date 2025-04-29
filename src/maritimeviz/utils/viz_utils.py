@@ -43,12 +43,11 @@ def filter_ships_by_polygon(wkt_polygon, gdf):
     except Exception:
         raise ValueError("Invalid WKT polygon format")
 
-    gdf["geometry"] = gpd.points_from_xy(gdf.longitude,
-                                         gdf.latitude)  # Convert lat/lon to points
+    gdf["geometry"] = gpd.points_from_xy(
+        gdf.longitude, gdf.latitude
+    )  # Convert lat/lon to points
 
-    return gdf[
-        gdf.geometry.within(polygon)]  # Filter points within the polygon
-
+    return gdf[gdf.geometry.within(polygon)]  # Filter points within the polygon
 
 def create_speed_legend():
     """
@@ -67,7 +66,7 @@ def create_speed_legend():
         str: A string containing HTML and inline CSS for rendering the speed legend on a map.
     """
 
-    legend_html = '''
+    legend_html = """
     <div style="
         position: fixed;
         bottom: 30px; left: 30px;
@@ -86,30 +85,31 @@ def create_speed_legend():
         <i style="background:red;width:20px;height:10px;display:inline-block;"></i> 25-30 <br>
         <i style="background:purple;width:20px;height:10px;display:inline-block;"></i> 30+ <br>
     </div>
-    '''
+    """
 
     return legend_html
 
 
 def get_info(row):
     """
-        Extracts and formats information from a dictionary representing a data row.
+    Extracts and formats information from a dictionary representing a data row.
 
-        Parameters:
-            row (dict): A dictionary containing key-value pairs. Expected to possibly contain
-                        keys such as "mmsi", "name", "id", and "geometry", among others.
+    Parameters:
+        row (dict): A dictionary containing key-value pairs. Expected to possibly contain
+                    keys such as "mmsi", "name", "id", and "geometry", among others.
 
-        Returns:
-            tuple:
-                - name (str): The value of the "mmsi" key if present, otherwise "name",
-                                then "id", and defaults to "Unknown" if none are found.
-                - info_text (str): An HTML-formatted string where each key-value pair
-                                    (excluding the "geometry" key and any empty values) is
-                                    presented on a separate line using <br> tags.
-        """
+    Returns:
+        tuple:
+            - name (str): The value of the "mmsi" key if present, otherwise "name",
+                            then "id", and defaults to "Unknown" if none are found.
+            - info_text (str): An HTML-formatted string where each key-value pair
+                                (excluding the "geometry" key and any empty values) is
+                                presented on a separate line using <br> tags.
+    """
 
-    info_text = "<br>".join([f"{key}: {value}" for key, value in row.items() if
-                             value and key != "geometry"])
+    info_text = "<br>".join(
+        [f"{key}: {value}" for key, value in row.items() if value and key != "geometry"]
+    )
     name = row.get("mmsi", row.get("name", row.get("id", "Unknown")))
 
     return name, info_text
@@ -133,16 +133,16 @@ def plot_with_info(gdf, m, speed_flag=False, color="blue"):
             else:
                 color = "purple"
 
-        if row.geometry and hasattr(row.geometry, "x") and hasattr(
-            row.geometry, "y"):
+        if row.geometry and hasattr(row.geometry, "x") and hasattr(row.geometry, "y"):
             folium.Marker(
-                icon=folium.Icon(color=color, icon=check_printable_icon(row),
-                                 prefix="fa"),
+                icon=folium.Icon(
+                    color=color, icon=check_printable_icon(row), prefix="fa"
+                ),
                 location=[row.geometry.y, row.geometry.x],
                 # Latitude, Longitude
                 popup=folium.Popup(info_text, max_width=300),
                 # Display all available info
-                tooltip='Press for more info'  # Use available identifier
+                tooltip="Press for more info",  # Use available identifier
             ).add_to(m)
 
         # display(m)
@@ -205,6 +205,7 @@ def verify_geojson(geojson_data):
 
 # ========================================================================================================================
 
+
 def handle_draw(state, map_obj, geojson_data, target, action, geo_json):
     """
     Callback function triggered on drawing events.
@@ -225,7 +226,7 @@ def handle_draw(state, map_obj, geojson_data, target, action, geo_json):
         # Use the geojson file passed into the ships_by_drawn_shape function.
         state["features"],
         state["ship_marker_layer"],
-        state["ship_polygon_layer"]
+        state["ship_polygon_layer"],
     )
 
     # Update the state with the new layer groups.
@@ -233,8 +234,9 @@ def handle_draw(state, map_obj, geojson_data, target, action, geo_json):
     state["ship_polygon_layer"] = new_polygon_layer
 
 
-def update_map_with_all_ships_for_drawing(map_obj, geojson_data, features,
-                                          old_marker_layer, old_polygon_layer):
+def update_map_with_all_ships_for_drawing(
+    map_obj, geojson_data, features, old_marker_layer, old_polygon_layer
+):
     """
     For every drawn polygon stored in 'features', create a polygon overlay and
     ship markers for ships within that polygon. Any previous layers are removed from the map.
@@ -267,7 +269,7 @@ def update_map_with_all_ships_for_drawing(map_obj, geojson_data, features,
             color="yellow",
             fill_color="yellow",
             fill_opacity=0.2,
-            weight=3
+            weight=3,
         )
         new_polygon_layer.add(poly_overlay)
 
@@ -275,17 +277,13 @@ def update_map_with_all_ships_for_drawing(map_obj, geojson_data, features,
         filtered_gdf = filter_ships_by_polygon(wkt_shape, gdf)
         for _, row in filtered_gdf.iterrows():
             # Use the FontAwesome ship icon ("fa-ship") with a constant marker color "blue".
-            icon = AwesomeIcon(name="fa-ship", marker_color="blue",
-                               icon_color="white")
+            icon = AwesomeIcon(name="fa-ship", marker_color="blue", icon_color="white")
             marker = folium.Marker(
-                location=(row.latitude, row.longitude),
-                draggable=False,
-                icon=icon
+                location=(row.latitude, row.longitude), draggable=False, icon=icon
             )
             # Attach a popup with ship details (black text).
             _, info_text = get_info(row)
-            marker.popup = HTML(
-                value=f"<div style='color:black;'>{info_text}</div>")
+            marker.popup = HTML(value=f"<div style='color:black;'>{info_text}</div>")
             new_marker_layer.add(marker)
 
     # Add the new layers to the map.
@@ -302,29 +300,13 @@ def geojson_to_wkt(geojson_polygon):
     wkt = f"POLYGON((\n{coord_block}\n))"
     return wkt
 
-
-def filter_ships_by_polygon(wkt_polygon, gdf):
-    """
-    Filter ship data in a GeoDataFrame so that only rows with lat/lon points
-    inside the given WKT polygon are returned.
-    """
-    try:
-        polygon = loads(wkt_polygon)
-    except Exception:
-        raise ValueError("Invalid WKT polygon format")
-
-    # Convert latitude and longitude columns to geometry points.
-    gdf["geometry"] = gpd.points_from_xy(gdf.longitude, gdf.latitude)
-    return gdf[gdf.geometry.within(polygon)]
-
-
 def create_click_handler(radius_km, map_object, clicked_coords, gdf):
     current_ship_group = []
     current_circle = []
 
     def handle_click(**kwargs):
-        if kwargs.get('type') == 'click':
-            latlng = kwargs.get('coordinates')
+        if kwargs.get("type") == "click":
+            latlng = kwargs.get("coordinates")
             clicked_coords.append(latlng)
             print(f"Clicked at: {latlng}")
 
@@ -349,7 +331,7 @@ def create_click_handler(radius_km, map_object, clicked_coords, gdf):
                 radius=radius_km * 1000,
                 color="blue",
                 fill_color="blue",
-                fill_opacity=0.5
+                fill_opacity=0.5,
             )
             map_object.add_layer(circle)
             current_circle.append(circle)
@@ -359,8 +341,7 @@ def create_click_handler(radius_km, map_object, clicked_coords, gdf):
             for _, row in gdf.iterrows():
                 coordinates = row.geometry.coords[0]
                 ship_location = (coordinates[1], coordinates[0])  # (lat, lon)
-                if -90 <= coordinates[1] <= 90 and -180 <= coordinates[
-                    0] <= 180:
+                if -90 <= coordinates[1] <= 90 and -180 <= coordinates[0] <= 180:
                     if geodesic(latlng, ship_location).km <= radius_km:
                         ships_in_circle.append(row)
 
@@ -376,7 +357,8 @@ def create_click_handler(radius_km, map_object, clicked_coords, gdf):
 
                 # Style text to be black
                 popup_content = HTML(
-                    value=f"<div style='color:black;'>{info_text}</div>")
+                    value=f"<div style='color:black;'>{info_text}</div>"
+                )
                 marker.popup = popup_content
 
                 markers.append(marker)

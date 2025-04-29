@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 """Tests for the Map class in the visualization module."""
+
 import geopandas as gpd
 import pytest
 from shapely.geometry import Point
@@ -15,7 +16,7 @@ def sample_gdf():
         "longitude": [20.0, 20.5, 21.0],
         "speed": [1, 5, 12],
         "mmsi": [123456789, 123456789, 123456789],
-        "timestamp": ["2022-01-01", "2022-01-01", "2022-01-01"]
+        "timestamp": ["2022-01-01", "2022-01-01", "2022-01-01"],
     }
     gdf = gpd.GeoDataFrame(data)
     gdf["geometry"] = [Point(xy) for xy in zip(gdf.longitude, gdf.latitude)]

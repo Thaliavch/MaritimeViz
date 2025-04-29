@@ -1,12 +1,18 @@
 import json
 from abc import abstractmethod
-from typing import Optional
+from typing import Optional, Union, List
 
+import duckdb
 import geopandas as gpd
+import pandas as pd
 
 from . import logger
-from .constants import *
-from .utils.ais_db_utils import *
+from .constants import DATABASE_ALL_TABLE_CREATION_QUERIES, \
+    DATABASE_ALL_VIEWS_CREATION_QUERIES, ALLOWED_FILTER_KEYS, \
+    ALLOWED_FILTER_KEYS_CLASS_A, ALLOWED_FILTER_KEYS_CLASS_B
+from .utils.ais_db_utils import call_in_cached_query, \
+    date_to_tagblock_timestamp, cached_query, split_file_generator, \
+    guess_vessel_type
 
 
 class AISDatabase:
@@ -14,12 +20,15 @@ class AISDatabase:
     Parent class that manages the initialization, connection, and common queries for the AIS database.
     It also provides factory methods to get message-type processors.
     """
+
     # module counter for database instances on same runtime
     _default_db_counter = 0
 
     def __init__(self, db_path: Optional[str] = None,
                  enable_cache: bool = True):
-        self._db_path = db_path if db_path else self._get_default_db_path()  # create new file_name if one is not given or if given an emtpy string
+        self._db_path = (
+            db_path if db_path else self._get_default_db_path()
+        )  # create new file_name if one is not given or if given an emtpy string
         self._conn = self._init_db(self._db_path)
         self._init_tables()
         self._filter: Optional[dict] = None
@@ -35,7 +44,10 @@ class AISDatabase:
     def _init_tables(self):
         try:
             # Call query to init all tables when database is created
-            for query in DATABASE_ALL_TABLE_CREATION_QUERIES + DATABASE_ALL_VIEWS_CREATION_QUERIES:
+            for query in (
+                DATABASE_ALL_TABLE_CREATION_QUERIES
+                + DATABASE_ALL_VIEWS_CREATION_QUERIES
+            ):
                 self._conn.execute(query)
         except Exception as e:
             print(f"Error connecting to database a {self._db_path}: {e}")
@@ -51,7 +63,8 @@ class AISDatabase:
                 raise TypeError("Filter object must be a dictionary.")
             if not set(filter_obj.keys()).issubset(ALLOWED_FILTER_KEYS):
                 raise TypeError(
-                    "Filter object contains invalid keys.")  # TODO(Thalia): add link to documentation in error message
+                    "Filter object contains invalid keys."
+                )  # TODO(Thalia): add link to documentation in error message
         self._filter = filter_obj
 
     def clear_filter(self) -> None:
@@ -76,9 +89,9 @@ class AISDatabase:
 
     @staticmethod
     def clear_cache() -> None:
-        '''
+        """
         This will clear cache for all modules
-        '''
+        """
         call_in_cached_query.cache_clear()
 
     def _get_view_name(self, data: str) -> str:
@@ -91,22 +104,22 @@ class AISDatabase:
         Returns:
             str: The name of the view to query.
         """
-        mapping = {
-            "position": "global_ais_dynamic",
-            "static": "global_ais_static"
-        }
+        mapping = {"position": "global_ais_dynamic",
+                   "static": "global_ais_static"}
         if data not in mapping:
             raise ValueError(
                 "Invalid data parameter. Must be 'position' or 'static'.")
         return mapping[data]
 
-    def _get_global_df(self, report_type: str = "position",
-                       mmsi: Optional[int] = None,
-                       start_date: Optional[str] = None,
-                       end_date: Optional[str] = None,
-                       polygon_bounds: Optional[str] = None,
-                       as_geodf: bool = True) -> Union[
-        pd.DataFrame, gpd.GeoDataFrame]:
+    def _get_global_df(
+        self,
+        report_type: str = "position",
+        mmsi: Optional[int] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        polygon_bounds: Optional[str] = None,
+        as_geodf: bool = True,
+    ) -> Union[pd.DataFrame, gpd.GeoDataFrame]:
         """
         Query the appropriate global view (all/dynamic/static) with optional filters.
 
@@ -147,7 +160,8 @@ class AISDatabase:
                 params.append(start_ts)
             except Exception as e:
                 raise ValueError(
-                    "Invalid start date format. Expected YYYY-MM-DD.") from e
+                    "Invalid start date format. Expected YYYY-MM-DD."
+                ) from e
         if end_date:
             try:
                 end_ts = date_to_tagblock_timestamp(
@@ -174,20 +188,27 @@ class AISDatabase:
             return gpd.GeoDataFrame(df, geometry="geometry", crs="EPSG:4326")
         return df
 
-    def search(self, report_type: str = "position",
-               mmsi: Optional[int] = None,
-               start_date: Optional[str] = None,
-               end_date: Optional[str] = None,
-               polygon_bounds: Optional[str] = None):
-        return self._get_global_df(report_type, mmsi, start_date, end_date,
-                                   polygon_bounds)
+    def search(
+        self,
+        report_type: str = "position",
+        mmsi: Optional[int] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        polygon_bounds: Optional[str] = None,
+    ):
+        return self._get_global_df(
+            report_type, mmsi, start_date, end_date, polygon_bounds
+        )
 
     # TODO(THALIA) Update to drop all rows for which x, y are null
-    def get_geojson(self, report_type: str = "position",
-                    mmsi: Optional[int] = None,
-                    start_date: Optional[str] = None,
-                    end_date: Optional[str] = None,
-                    polygon_bounds: Optional[str] = None) -> dict:
+    def get_geojson(
+        self,
+        report_type: str = "position",
+        mmsi: Optional[int] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        polygon_bounds: Optional[str] = None,
+    ) -> dict:
         """
         Return a GeoJSON representation of global AIS data.
 
@@ -198,8 +219,10 @@ class AISDatabase:
         Returns:
             dict: The GeoJSON representation.
         """
-        gdf = self._get_global_df(report_type, mmsi, start_date, end_date,
-                                  polygon_bounds, as_geodf=True)
+        gdf = self._get_global_df(
+            report_type, mmsi, start_date, end_date, polygon_bounds,
+            as_geodf=True
+        )
         if gdf.empty:
             logger.info(f"No AIS data available for MMSI {mmsi}")
             return {}
@@ -207,81 +230,102 @@ class AISDatabase:
             gdf["datetime"] = gdf["datetime"].astype(str)
         return json.loads(gdf.to_json())
 
-    def get_csv(self, file_path: str = "ais_data.csv",
-                report_type: str = "position",
-                mmsi: Optional[int] = None,
-                start_date: Optional[str] = None,
-                end_date: Optional[str] = None,
-                polygon_bounds: Optional[str] = None) -> str:
-        df = self._get_global_df(report_type, mmsi, start_date, end_date,
-                                 polygon_bounds, as_geodf=False)
+    def get_csv(
+        self,
+        file_path: str = "ais_data.csv",
+        report_type: str = "position",
+        mmsi: Optional[int] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        polygon_bounds: Optional[str] = None,
+    ) -> str:
+        df = self._get_global_df(
+            report_type, mmsi, start_date, end_date, polygon_bounds,
+            as_geodf=False
+        )
         if df.empty:
             return "No data available to export."
         df.to_csv(file_path, index=False)
         return f"CSV saved at {file_path}"
 
-    def get_shapefile(self, file_path: str = "ais_shapefile",
-                      report_type: str = "position",
-                      mmsi: Optional[int] = None,
-                      start_date: Optional[str] = None,
-                      end_date: Optional[str] = None,
-                      polygon_bounds: Optional[str] = None) -> str:
+    def get_shapefile(
+        self,
+        file_path: str = "ais_shapefile",
+        report_type: str = "position",
+        mmsi: Optional[int] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        polygon_bounds: Optional[str] = None,
+    ) -> str:
         """
         Exports global AIS data to a Shapefile.
         """
-        gdf = self._get_global_df(report_type, mmsi, start_date, end_date,
-                                  polygon_bounds,
-                                  as_geodf=True)
+        gdf = self._get_global_df(
+            report_type, mmsi, start_date, end_date, polygon_bounds,
+            as_geodf=True
+        )
         if gdf.empty:
             return "No data available to export."
         gdf.to_file(file_path, driver="ESRI Shapefile")
         return f"Shapefile saved at {file_path}"
 
-    def get_kml(self, file_path: str = "ais_data.kml",
-                report_type: str = "position",
-                mmsi: Optional[int] = None,
-                start_date: Optional[str] = None,
-                end_date: Optional[str] = None,
-                polygon_bounds: Optional[str] = None) -> str:
+    def get_kml(
+        self,
+        file_path: str = "ais_data.kml",
+        report_type: str = "position",
+        mmsi: Optional[int] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        polygon_bounds: Optional[str] = None,
+    ) -> str:
         """
         Exports global AIS data to a KML file.
         """
-        gdf = self._get_global_df(report_type, mmsi, start_date, end_date,
-                                  polygon_bounds,
-                                  as_geodf=True)
+        gdf = self._get_global_df(
+            report_type, mmsi, start_date, end_date, polygon_bounds,
+            as_geodf=True
+        )
         if gdf.empty:
             return "No data available to export."
         gdf.to_file(file_path, driver="KML")
         return f"KML file saved at {file_path}"
 
-    def get_excel(self, file_path: str = "ais_data.xlsx",
-                  report_type: str = "position",
-                  mmsi: Optional[int] = None,
-                  start_date: Optional[str] = None,
-                  end_date: Optional[str] = None,
-                  polygon_bounds: Optional[str] = None) -> str:
+    def get_excel(
+        self,
+        file_path: str = "ais_data.xlsx",
+        report_type: str = "position",
+        mmsi: Optional[int] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        polygon_bounds: Optional[str] = None,
+    ) -> str:
         """
         Exports global AIS data to an Excel file.
         """
-        df = self._get_global_df(report_type, mmsi, start_date, end_date,
-                                 polygon_bounds,
-                                 as_geodf=False)
+        df = self._get_global_df(
+            report_type, mmsi, start_date, end_date, polygon_bounds,
+            as_geodf=False
+        )
         if df.empty:
             return "No data available to export."
         df.to_excel(file_path, index=False)
         return f"Excel file saved at {file_path}"
 
-    def get_wkt(self, mmsi: Optional[int] = None,
-                report_type: str = "position",
-                start_date: Optional[str] = None,
-                end_date: Optional[str] = None,
-                polygon_bounds: Optional[str] = None):
+    def get_wkt(
+        self,
+        mmsi: Optional[int] = None,
+        report_type: str = "position",
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        polygon_bounds: Optional[str] = None,
+    ):
         """
         Returns global AIS data in Well-Known Text (WKT) format.
         """
-        gdf = self._get_global_df(report_type, mmsi, start_date, end_date,
-                                  polygon_bounds,
-                                  as_geodf=True)
+        gdf = self._get_global_df(
+            report_type, mmsi, start_date, end_date, polygon_bounds,
+            as_geodf=True
+        )
         if gdf.empty:
             return "No data available to export."
         return gdf["geometry"].apply(lambda geom: geom.wkt).tolist()
@@ -300,15 +344,15 @@ class AISDatabase:
         return LongRangeMessages(self._conn)
 
     def addressed_binary(self):
-        """ Addressed Binary Message 6 (binary payload) """
+        """Addressed Binary Message 6 (binary payload)"""
         return AddressedBinaryHandler(self._conn)
 
     def broadcast_text(self):
-        """ Broadcast Binary Message 8 (text payload) """
+        """Broadcast Binary Message 8 (text payload)"""
         return BroadcastTextHandler(self._conn)
 
     def short_binary(self):
-        """ Single Slot Binary Message (25) & Multi Slot Binary Message (26) """
+        """Single Slot Binary Message (25) & Multi Slot Binary Message (26)"""
         return ShortBinaryHandler(self._conn)
 
     def aton(self):
@@ -375,12 +419,13 @@ class BaseMessageProcessor:
         self._conn = conn
         self._filter: Optional[dict] = None
 
-    '''
+    """
     Private methods
-    '''
+    """
 
     def _process_chunk(self, chunk: list):
         import ais.stream
+
         batches: dict[str, list[tuple]] = {}
 
         for msg in ais.stream.decode(chunk):
@@ -395,9 +440,9 @@ class BaseMessageProcessor:
         for q, param_list in batches.items():
             self._conn.executemany(q, param_list)
 
-    '''
+    """
     Abstract methods
-    '''
+    """
 
     @abstractmethod
     def _filter_message(self, msg: dict) -> bool:
@@ -420,12 +465,12 @@ class BaseMessageProcessor:
 
     @abstractmethod
     def set_filter(self, filter_obj: Optional[dict]) -> None:
-        """ Set filter object for querying data from database """
+        """Set filter object for querying data from database"""
         raise NotImplementedError("Subclasses must implement set_filter.")
 
-    '''
+    """
     Public methods start here
-    '''
+    """
 
     # TODO(Thalia) Update so the process function checks for file extension and call function to process raw or csv file types.
     def process(self, file_path: str, chunk_size: int = 5000):
@@ -450,14 +495,15 @@ class BaseMessageProcessor:
             except Exception as ve:
                 logger.error(f"Failed to rebuild global views: {ve}")
 
-    '''
+    """
     Export Methods
-    '''
+    """
 
     # Note that because search() is abstract, the methods below will query from each
     # subclass' respective table.
-    def get_geojson(self, mmsi: None, start_date=None, end_date=None,
-                    polygon_bounds=None):
+    def get_geojson(
+        self, mmsi: None, start_date=None, end_date=None, polygon_bounds=None
+    ):
         """
         Return a GeoJSON representation of the vessel route.
         This GeoJSON can be passed directly to a Leafmap/Geemap layer.
@@ -468,7 +514,7 @@ class BaseMessageProcessor:
                 start_date=start_date,
                 end_date=end_date,
                 polygon_bounds=polygon_bounds,
-                styled=False
+                styled=False,
             )
             if gdf.empty:
                 logger.info(f"No AIS data found for {mmsi}")
@@ -488,8 +534,14 @@ class BaseMessageProcessor:
             logger.error(f"Error generating GeoJSON for MMSI {mmsi}: {e}")
             return {}
 
-    def get_csv(self, file_path="ais_data.csv", mmsi=None, start_date=None,
-                end_date=None, polygon_bounds=None):
+    def get_csv(
+        self,
+        file_path="ais_data.csv",
+        mmsi=None,
+        start_date=None,
+        end_date=None,
+        polygon_bounds=None,
+    ):
         """
         Exports AIS data to a CSV file.
         """
@@ -500,8 +552,14 @@ class BaseMessageProcessor:
         gdf.to_csv(file_path, index=False)
         return f"CSV saved at {file_path}"
 
-    def get_shapefile(self, file_path="ais_shapefile", mmsi=None,
-                      start_date=None, end_date=None, polygon_bounds=None):
+    def get_shapefile(
+        self,
+        file_path="ais_shapefile",
+        mmsi=None,
+        start_date=None,
+        end_date=None,
+        polygon_bounds=None,
+    ):
         """
         Exports AIS data to a Shapefile.
         """
@@ -512,8 +570,14 @@ class BaseMessageProcessor:
         gdf.to_file(file_path, driver="ESRI Shapefile")
         return f"Shapefile saved at {file_path}"
 
-    def get_kml(self, file_path="ais_data.kml", mmsi=None, start_date=None,
-                end_date=None, polygon_bounds=None):
+    def get_kml(
+        self,
+        file_path="ais_data.kml",
+        mmsi=None,
+        start_date=None,
+        end_date=None,
+        polygon_bounds=None,
+    ):
         """
         Exports AIS data to a KML file.
         """
@@ -524,8 +588,14 @@ class BaseMessageProcessor:
         gdf.to_file(file_path, driver="KML")
         return f"KML file saved at {file_path}"
 
-    def get_excel(self, file_path="ais_data.xlsx", mmsi=None, start_date=None,
-                  end_date=None, polygon_bounds=None):
+    def get_excel(
+        self,
+        file_path="ais_data.xlsx",
+        mmsi=None,
+        start_date=None,
+        end_date=None,
+        polygon_bounds=None,
+    ):
         """
         Exports AIS data to an Excel file.
         """
@@ -549,7 +619,6 @@ class BaseMessageProcessor:
 
 
 class BaseMessageProcessorPositionReport(BaseMessageProcessor):
-
     def __init__(self, conn: duckdb.DuckDBPyConnection):
         super().__init__(conn)
 
@@ -607,12 +676,12 @@ class ClassAMessages(BaseMessageProcessorPositionReport):
 
     def _filter_message(self, msg: dict) -> bool:
         # Process only if the message id is one of the Class A types.
-        return msg.get('id') in {1, 2, 3, 5}
+        return msg.get("id") in {1, 2, 3, 5}
 
     def _prepare_insert(self, msg: dict):
         # Use .get() to provide default values for missing attributes
         # Note in _process_chunk we are already filtering per messages of type A
-        if msg.get('id') == 5:
+        if msg.get("id") == 5:
             query = """
                     INSERT INTO ais_msg_5 (
                         id, repeat_indicator, mmsi, ais_version, imo, call_sign, ship_name,
@@ -621,23 +690,23 @@ class ClassAMessages(BaseMessageProcessorPositionReport):
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                     """
             params = (
-                msg.get('id'),
-                msg.get('repeat_indicator'),
-                msg.get('mmsi'),
-                msg.get('ais_version_indicator'),
-                msg.get('imo'),
-                msg.get('call_sign'),
-                msg.get('ship_name'),
-                msg.get('type_of_ship_and_cargo'),
-                msg.get('dimension_to_bow'),
-                msg.get('dimension_to_stern'),
-                msg.get('dimension_to_port'),
-                msg.get('dimension_to_starboard'),
-                msg.get('position_fixing_device'),
-                msg.get('eta'),
-                msg.get('max_present_static_draught'),
-                msg.get('destination'),
-                msg.get('dte')
+                msg.get("id"),
+                msg.get("repeat_indicator"),
+                msg.get("mmsi"),
+                msg.get("ais_version_indicator"),
+                msg.get("imo"),
+                msg.get("call_sign"),
+                msg.get("ship_name"),
+                msg.get("type_of_ship_and_cargo"),
+                msg.get("dimension_to_bow"),
+                msg.get("dimension_to_stern"),
+                msg.get("dimension_to_port"),
+                msg.get("dimension_to_starboard"),
+                msg.get("position_fixing_device"),
+                msg.get("eta"),
+                msg.get("max_present_static_draught"),
+                msg.get("destination"),
+                msg.get("dte"),
             )
         else:
             # For dynamic messages (Type 1, 2, 3)
@@ -650,30 +719,30 @@ class ClassAMessages(BaseMessageProcessorPositionReport):
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                     """
             params = (
-                msg.get('id'),
-                msg.get('repeat_indicator'),
-                msg.get('mmsi'),
-                msg.get('nav_status'),
-                msg.get('rot_over_range'),
-                msg.get('rot'),
-                msg.get('sog'),
-                msg.get('position_accuracy'),
-                msg.get('x'),
-                msg.get('y'),
-                msg.get('cog'),
-                msg.get('true_heading'),
-                msg.get('timestamp'),
-                msg.get('special_manoeuvre'),
-                msg.get('spare'),
-                msg.get('raim'),
-                msg.get('sync_state'),
-                msg.get('slot_timeout'),
-                msg.get('slot_number', None),  # Default to None if not present
-                json.dumps(msg.get('tagblock_group', {})),
+                msg.get("id"),
+                msg.get("repeat_indicator"),
+                msg.get("mmsi"),
+                msg.get("nav_status"),
+                msg.get("rot_over_range"),
+                msg.get("rot"),
+                msg.get("sog"),
+                msg.get("position_accuracy"),
+                msg.get("x"),
+                msg.get("y"),
+                msg.get("cog"),
+                msg.get("true_heading"),
+                msg.get("timestamp"),
+                msg.get("special_manoeuvre"),
+                msg.get("spare"),
+                msg.get("raim"),
+                msg.get("sync_state"),
+                msg.get("slot_timeout"),
+                msg.get("slot_number", None),  # Default to None if not present
+                json.dumps(msg.get("tagblock_group", {})),
                 # Default to an empty JSON object
-                msg.get('tagblock_line_count'),
-                msg.get('tagblock_station'),
-                msg.get('tagblock_timestamp')
+                msg.get("tagblock_line_count"),
+                msg.get("tagblock_station"),
+                msg.get("tagblock_timestamp"),
             )
         return (query, params)
 
@@ -684,20 +753,23 @@ class ClassAMessages(BaseMessageProcessorPositionReport):
             if not set(filter_obj.keys()).issubset(
                 ALLOWED_FILTER_KEYS_CLASS_A):
                 raise TypeError(
-                    "Filter object contains invalid keys.")  # TODO(Thalia): add link to documentation in error message
+                    "Filter object contains invalid keys."
+                )  # TODO(Thalia): add link to documentation in error message
         self._filter = filter_obj
 
-    def search(self,
-               mmsi: Optional[Union[int, List[int]]] = None,
-               conn: Optional[duckdb.DuckDBPyConnection] = None,
-               start_date: Optional[str] = None,
-               end_date: Optional[str] = None,
-               polygon_bounds: Optional[str] = None,
-               min_velocity: Optional[float] = None,
-               max_velocity: Optional[float] = None,
-               direction: Optional[str] = None,
-               min_turn_rate: Optional[float] = None,
-               max_turn_rate: Optional[float] = None) -> gpd.GeoDataFrame:
+    def search(
+        self,
+        mmsi: Optional[Union[int, List[int]]] = None,
+        conn: Optional[duckdb.DuckDBPyConnection] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        polygon_bounds: Optional[str] = None,
+        min_velocity: Optional[float] = None,
+        max_velocity: Optional[float] = None,
+        direction: Optional[str] = None,
+        min_turn_rate: Optional[float] = None,
+        max_turn_rate: Optional[float] = None,
+    ) -> gpd.GeoDataFrame:
         """
         Search AIS data with optional filters.
 
@@ -747,7 +819,7 @@ class ClassAMessages(BaseMessageProcessorPositionReport):
                     params.append(mmsi)
                 elif isinstance(mmsi, list) and all(
                     isinstance(i, int) for i in mmsi):
-                    placeholders = ', '.join(['?'] * len(mmsi))
+                    placeholders = ", ".join(["?"] * len(mmsi))
                     query += f" AND mmsi IN ({placeholders})"
                     params.extend(mmsi)
                 else:
@@ -758,12 +830,14 @@ class ClassAMessages(BaseMessageProcessorPositionReport):
             if start_date:
                 try:
                     start_ts = date_to_tagblock_timestamp(
-                        *map(int, start_date.split("-")))
+                        *map(int, start_date.split("-"))
+                    )
                     query += " AND tagblock_timestamp >= ?"
                     params.append(start_ts)
                 except Exception as e:
                     raise ValueError(
-                        "Invalid start date format. Expected YYYY-MM-DD.") from e
+                        "Invalid start date format. Expected YYYY-MM-DD."
+                    ) from e
             if end_date:
                 try:
                     end_ts = date_to_tagblock_timestamp(
@@ -772,7 +846,8 @@ class ClassAMessages(BaseMessageProcessorPositionReport):
                     params.append(end_ts)
                 except Exception as e:
                     raise ValueError(
-                        "Invalid end date format. Expected YYYY-MM-DD.") from e
+                        "Invalid end date format. Expected YYYY-MM-DD."
+                    ) from e
 
             # Polygon bounds filter (using parameterized query)
             if polygon_bounds:
@@ -822,7 +897,8 @@ class ClassAMessages(BaseMessageProcessorPositionReport):
             df = cached_query(conn, query, params, True)
             if df.empty:
                 return gpd.GeoDataFrame(
-                    columns=["geometry"])  # Return empty GeoDataFrame
+                    columns=["geometry"]
+                )  # Return empty GeoDataFrame
 
             # Build GeoDataFrame
             df["geometry"] = gpd.points_from_xy(df["x"], df["y"])
@@ -903,10 +979,10 @@ class ClassBMessages(BaseMessageProcessorPositionReport):
 
     def _filter_message(self, msg: dict) -> bool:
         # Process only if the message id is one of the Class B types.
-        return msg.get('id') in {18, 19, 24}
+        return msg.get("id") in {18, 19, 24}
 
     def _prepare_insert(self, msg: dict):
-        if msg.get('id') == 24:
+        if msg.get("id") == 24:
             query = """
                 INSERT INTO ais_msg_24 (
                     id, repeat_indicator, mmsi, part_num, name, type_and_cargo,
@@ -915,23 +991,23 @@ class ClassBMessages(BaseMessageProcessorPositionReport):
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
             """
             params = (
-                msg.get('id'),
-                msg.get('repeat_indicator'),
-                msg.get('mmsi'),
-                msg.get('part_num'),
-                msg.get('name'),
-                msg.get('type_and_cargo'),
-                msg.get('vendor_id'),
-                msg.get('call_sign'),
-                msg.get('dimension_to_bow'),
-                msg.get('dimension_to_stern'),
-                msg.get('dimension_to_port'),
-                msg.get('dimension_to_starboard'),
-                msg.get('spare'),
-                json.dumps(msg.get('tagblock_group', {})),
-                msg.get('tagblock_line_count'),
-                msg.get('tagblock_station'),
-                msg.get('tagblock_timestamp')
+                msg.get("id"),
+                msg.get("repeat_indicator"),
+                msg.get("mmsi"),
+                msg.get("part_num"),
+                msg.get("name"),
+                msg.get("type_and_cargo"),
+                msg.get("vendor_id"),
+                msg.get("call_sign"),
+                msg.get("dimension_to_bow"),
+                msg.get("dimension_to_stern"),
+                msg.get("dimension_to_port"),
+                msg.get("dimension_to_starboard"),
+                msg.get("spare"),
+                json.dumps(msg.get("tagblock_group", {})),
+                msg.get("tagblock_line_count"),
+                msg.get("tagblock_station"),
+                msg.get("tagblock_timestamp"),
             )
         else:
             # For dynamic messages (Types 18 and 19)
@@ -945,31 +1021,31 @@ class ClassBMessages(BaseMessageProcessorPositionReport):
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
             """
             params = (
-                msg.get('id'),
-                msg.get('repeat_indicator'),
-                msg.get('mmsi'),
-                msg.get('spare'),
-                msg.get('sog'),
-                msg.get('position_accuracy'),
-                msg.get('x'),
-                msg.get('y'),
-                msg.get('cog'),
-                msg.get('true_heading'),
-                msg.get('timestamp'),
-                msg.get('spare2'),
-                msg.get('unit_flag'),
-                msg.get('display_flag'),
-                msg.get('dsc_flag'),
-                msg.get('band_flag'),
-                msg.get('m22_flag'),
-                msg.get('mode_flag'),
-                msg.get('raim'),
-                msg.get('commstate_flag'),
-                msg.get('commstate_cs_fill'),
-                json.dumps(msg.get('tagblock_group', {})),
-                msg.get('tagblock_line_count'),
-                msg.get('tagblock_station'),
-                msg.get('tagblock_timestamp')
+                msg.get("id"),
+                msg.get("repeat_indicator"),
+                msg.get("mmsi"),
+                msg.get("spare"),
+                msg.get("sog"),
+                msg.get("position_accuracy"),
+                msg.get("x"),
+                msg.get("y"),
+                msg.get("cog"),
+                msg.get("true_heading"),
+                msg.get("timestamp"),
+                msg.get("spare2"),
+                msg.get("unit_flag"),
+                msg.get("display_flag"),
+                msg.get("dsc_flag"),
+                msg.get("band_flag"),
+                msg.get("m22_flag"),
+                msg.get("mode_flag"),
+                msg.get("raim"),
+                msg.get("commstate_flag"),
+                msg.get("commstate_cs_fill"),
+                json.dumps(msg.get("tagblock_group", {})),
+                msg.get("tagblock_line_count"),
+                msg.get("tagblock_station"),
+                msg.get("tagblock_timestamp"),
             )
         return (query, params)
 
@@ -981,19 +1057,22 @@ class ClassBMessages(BaseMessageProcessorPositionReport):
             if not set(filter_obj.keys()).issubset(
                 ALLOWED_FILTER_KEYS_CLASS_B):
                 raise TypeError(
-                    "Filter object contains invalid keys.")  # TODO(Thalia): add link to documentation in error message
+                    "Filter object contains invalid keys."
+                )  # TODO(Thalia): add link to documentation in error message
         self._filter = filter_obj
 
     # TODO(Update this search function and global search function)
-    def search(self,
-               mmsi: Optional[Union[int, List[int]]] = None,
-               conn: Optional[duckdb.DuckDBPyConnection] = None,
-               start_date: Optional[str] = None,
-               end_date: Optional[str] = None,
-               polygon_bounds: Optional[str] = None,
-               min_velocity: Optional[float] = None,
-               max_velocity: Optional[float] = None,
-               direction: Optional[str] = None) -> gpd.GeoDataFrame:
+    def search(
+        self,
+        mmsi: Optional[Union[int, List[int]]] = None,
+        conn: Optional[duckdb.DuckDBPyConnection] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        polygon_bounds: Optional[str] = None,
+        min_velocity: Optional[float] = None,
+        max_velocity: Optional[float] = None,
+        direction: Optional[str] = None,
+    ) -> gpd.GeoDataFrame:
         """
         Search AIS data with optional filters.
 
@@ -1037,7 +1116,7 @@ class ClassBMessages(BaseMessageProcessorPositionReport):
                     params.append(mmsi)
                 elif isinstance(mmsi, list) and all(
                     isinstance(i, int) for i in mmsi):
-                    placeholders = ', '.join(['?'] * len(mmsi))
+                    placeholders = ", ".join(["?"] * len(mmsi))
                     query += f" AND mmsi IN ({placeholders})"
                     params.extend(mmsi)
                 else:
@@ -1048,12 +1127,14 @@ class ClassBMessages(BaseMessageProcessorPositionReport):
             if start_date:
                 try:
                     start_ts = date_to_tagblock_timestamp(
-                        *map(int, start_date.split("-")))
+                        *map(int, start_date.split("-"))
+                    )
                     query += " AND tagblock_timestamp >= ?"
                     params.append(start_ts)
                 except Exception as e:
                     raise ValueError(
-                        "Invalid start date format. Expected YYYY-MM-DD.") from e
+                        "Invalid start date format. Expected YYYY-MM-DD."
+                    ) from e
             if end_date:
                 try:
                     end_ts = date_to_tagblock_timestamp(
@@ -1062,7 +1143,8 @@ class ClassBMessages(BaseMessageProcessorPositionReport):
                     params.append(end_ts)
                 except Exception as e:
                     raise ValueError(
-                        "Invalid end date format. Expected YYYY-MM-DD.") from e
+                        "Invalid end date format. Expected YYYY-MM-DD."
+                    ) from e
 
             # Polygon bounds filter (using parameterized query)
             if polygon_bounds:
@@ -1104,7 +1186,8 @@ class ClassBMessages(BaseMessageProcessorPositionReport):
             df = cached_query(conn, query, params, True)
             if df.empty:
                 return gpd.GeoDataFrame(
-                    columns=["geometry"])  # Return empty GeoDataFrame
+                    columns=["geometry"]
+                )  # Return empty GeoDataFrame
 
             # Build GeoDataFrame
             df["geometry"] = gpd.points_from_xy(df["x"], df["y"])
@@ -1120,9 +1203,9 @@ class ClassBMessages(BaseMessageProcessorPositionReport):
 
         return gpd.GeoDataFrame()  # Return empty GeoDataFrame on failure
 
-    def static_info(self,
-                    mmsi: Optional[Union[int, List[int]]] = None,
-                    **kwargs) -> pd.DataFrame:
+    def static_info(
+        self, mmsi: Optional[Union[int, List[int]]] = None, **kwargs
+    ) -> pd.DataFrame:
         """
         Retrieves static/voyage-related Class B information from the ais_msg_24 table.
         """
@@ -1195,19 +1278,21 @@ class LongRangeMessages(BaseMessageProcessorPositionReport):
             json.dumps(msg.get("tagblock_group", {})),
             msg.get("tagblock_line_count"),
             msg.get("tagblock_station"),
-            msg.get("tagblock_timestamp")
+            msg.get("tagblock_timestamp"),
         )
         return (query, params)
 
-    def search(self,
-               mmsi: Optional[Union[int, List[int]]] = None,
-               conn: Optional[duckdb.DuckDBPyConnection] = None,
-               start_date: Optional[str] = None,
-               end_date: Optional[str] = None,
-               polygon_bounds: Optional[str] = None,
-               min_velocity: Optional[float] = None,
-               max_velocity: Optional[float] = None,
-               direction: Optional[str] = None) -> gpd.GeoDataFrame:
+    def search(
+        self,
+        mmsi: Optional[Union[int, List[int]]] = None,
+        conn: Optional[duckdb.DuckDBPyConnection] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        polygon_bounds: Optional[str] = None,
+        min_velocity: Optional[float] = None,
+        max_velocity: Optional[float] = None,
+        direction: Optional[str] = None,
+    ) -> gpd.GeoDataFrame:
         """
         Search AIS data with optional filters.
 
@@ -1251,7 +1336,7 @@ class LongRangeMessages(BaseMessageProcessorPositionReport):
                     params.append(mmsi)
                 elif isinstance(mmsi, list) and all(
                     isinstance(i, int) for i in mmsi):
-                    placeholders = ', '.join(['?'] * len(mmsi))
+                    placeholders = ", ".join(["?"] * len(mmsi))
                     query += f" AND mmsi IN ({placeholders})"
                     params.extend(mmsi)
                 else:
@@ -1262,12 +1347,14 @@ class LongRangeMessages(BaseMessageProcessorPositionReport):
             if start_date:
                 try:
                     start_ts = date_to_tagblock_timestamp(
-                        *map(int, start_date.split("-")))
+                        *map(int, start_date.split("-"))
+                    )
                     query += " AND tagblock_timestamp >= ?"
                     params.append(start_ts)
                 except Exception as e:
                     raise ValueError(
-                        "Invalid start date format. Expected YYYY-MM-DD.") from e
+                        "Invalid start date format. Expected YYYY-MM-DD."
+                    ) from e
             if end_date:
                 try:
                     end_ts = date_to_tagblock_timestamp(
@@ -1276,7 +1363,8 @@ class LongRangeMessages(BaseMessageProcessorPositionReport):
                     params.append(end_ts)
                 except Exception as e:
                     raise ValueError(
-                        "Invalid end date format. Expected YYYY-MM-DD.") from e
+                        "Invalid end date format. Expected YYYY-MM-DD."
+                    ) from e
 
             # Polygon bounds filter (using parameterized query)
             if polygon_bounds:
@@ -1318,7 +1406,8 @@ class LongRangeMessages(BaseMessageProcessorPositionReport):
             df = cached_query(conn, query, params, True)
             if df.empty:
                 return gpd.GeoDataFrame(
-                    columns=["geometry"])  # Return empty GeoDataFrame
+                    columns=["geometry"]
+                )  # Return empty GeoDataFrame
 
             # Build GeoDataFrame
             df["geometry"] = gpd.points_from_xy(df["x"], df["y"])
@@ -1335,7 +1424,7 @@ class LongRangeMessages(BaseMessageProcessorPositionReport):
         return gpd.GeoDataFrame()  # Return empty GeoDataFrame on failure
 
     def static_info(self, **kwargs) -> pd.DataFrame:
-        logger.info(f"No static info provided by long range")
+        logger.info("No static info provided by long range")
         return pd.DataFrame()  # Not applicable to Message 27
 
 
@@ -1394,15 +1483,16 @@ class AddressedBinaryHandler(BaseMessageProcessor):
         )
         return (query, params)
 
-    def search(self,
-               mmsi: Optional[Union[int, List[int]]] = None,
-               conn: Optional[duckdb.DuckDBPyConnection] = None,
-               start_date: Optional[str] = None,
-               end_date: Optional[str] = None,
-               polygon_bounds: Optional[str] = None,
-               dac: Optional[int] = None,
-               fid: Optional[int] = None
-               ) -> gpd.GeoDataFrame:
+    def search(
+        self,
+        mmsi: Optional[Union[int, List[int]]] = None,
+        conn: Optional[duckdb.DuckDBPyConnection] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        polygon_bounds: Optional[str] = None,
+        dac: Optional[int] = None,
+        fid: Optional[int] = None,
+    ) -> gpd.GeoDataFrame:
         """
         Search AIS AtoN data (Message 21) with optional filters.
         """
@@ -1520,15 +1610,16 @@ class BroadcastTextHandler(BaseMessageProcessor):
         )
         return (query, params)
 
-    def search(self,
-               mmsi: Optional[Union[int, List[int]]] = None,
-               conn: Optional[duckdb.DuckDBPyConnection] = None,
-               start_date: Optional[str] = None,
-               end_date: Optional[str] = None,
-               polygon_bounds: Optional[str] = None,
-               dac: Optional[int] = None,
-               fid: Optional[int] = None
-               ) -> gpd.GeoDataFrame:
+    def search(
+        self,
+        mmsi: Optional[Union[int, List[int]]] = None,
+        conn: Optional[duckdb.DuckDBPyConnection] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        polygon_bounds: Optional[str] = None,
+        dac: Optional[int] = None,
+        fid: Optional[int] = None,
+    ) -> gpd.GeoDataFrame:
         """
         Search AIS AtoN data (Message 21) with optional filters.
         """
@@ -1636,12 +1727,14 @@ class ShortBinaryHandler(BaseMessageProcessor):
         )
         return (query, params)
 
-    def search(self,
-               mmsi: Optional[Union[int, List[int]]] = None,
-               conn: Optional[duckdb.DuckDBPyConnection] = None,
-               start_date: Optional[str] = None,
-               end_date: Optional[str] = None,
-               polygon_bounds: Optional[str] = None) -> gpd.GeoDataFrame:
+    def search(
+        self,
+        mmsi: Optional[Union[int, List[int]]] = None,
+        conn: Optional[duckdb.DuckDBPyConnection] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        polygon_bounds: Optional[str] = None,
+    ) -> gpd.GeoDataFrame:
         """
         Search AIS AtoN data (Message 21) with optional filters.
         """
@@ -1703,6 +1796,7 @@ class ShortBinaryHandler(BaseMessageProcessor):
 
 # todo(Thalia): maybe implement wrapper asm
 
+
 class AidToNavigationMessages(BaseMessageProcessor):
     """
     Handles AIS Aid to Navigation reports (Message Type 21).
@@ -1742,14 +1836,16 @@ class AidToNavigationMessages(BaseMessageProcessor):
             "aton_status": msg.get("aton_status"),
             "raim": msg.get("raim"),
             "virtual_aton": msg.get("virtual_aton"),
-            "assigned_mode": msg.get("assigned_mode")
+            "assigned_mode": msg.get("assigned_mode"),
         }
 
         # Build leftover dict
-        used_keys = set(core_cols.keys()) | {"tagblock_group",
-                                             "tagblock_line_count",
-                                             "tagblock_station",
-                                             "tagblock_timestamp"}
+        used_keys = set(core_cols.keys()) | {
+            "tagblock_group",
+            "tagblock_line_count",
+            "tagblock_station",
+            "tagblock_timestamp",
+        }
         leftover = {k: v for k, v in msg.items() if k not in used_keys}
 
         query = """
@@ -1791,17 +1887,19 @@ class AidToNavigationMessages(BaseMessageProcessor):
             json.dumps(msg.get("tagblock_group", {})),
             msg.get("tagblock_line_count"),
             msg.get("tagblock_station"),
-            msg.get("tagblock_timestamp")
+            msg.get("tagblock_timestamp"),
         )
         return (query, params)
 
     # TODO(Thalia): Update
-    def search(self,
-               mmsi: Optional[Union[int, List[int]]] = None,
-               conn: Optional[duckdb.DuckDBPyConnection] = None,
-               start_date: Optional[str] = None,
-               end_date: Optional[str] = None,
-               polygon_bounds: Optional[str] = None) -> gpd.GeoDataFrame:
+    def search(
+        self,
+        mmsi: Optional[Union[int, List[int]]] = None,
+        conn: Optional[duckdb.DuckDBPyConnection] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        polygon_bounds: Optional[str] = None,
+    ) -> gpd.GeoDataFrame:
         """
         Search AIS AtoN data (Message 21) with optional filters.
         """
@@ -1949,12 +2047,14 @@ class BaseStationMessages(BaseMessageProcessor):
         return (query, params)
 
     # TODO(Thalia) Update
-    def search(self,
-               mmsi: Optional[Union[int, List[int]]] = None,
-               conn: Optional[duckdb.DuckDBPyConnection] = None,
-               start_date: Optional[str] = None,
-               end_date: Optional[str] = None,
-               polygon_bounds: Optional[str] = None) -> gpd.GeoDataFrame:
+    def search(
+        self,
+        mmsi: Optional[Union[int, List[int]]] = None,
+        conn: Optional[duckdb.DuckDBPyConnection] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        polygon_bounds: Optional[str] = None,
+    ) -> gpd.GeoDataFrame:
         """
         Search AIS Base Station data (Message 4) with optional filters.
         """
@@ -2032,7 +2132,7 @@ class AcknowledgementMessages(BaseMessageProcessor):
             "id": msg.get("id"),
             "repeat_indicator": msg.get("repeat_indicator"),
             "mmsi": msg.get("mmsi"),
-            "ack_count": msg.get("ack_count")
+            "ack_count": msg.get("ack_count"),
         }
         # Build leftover dictionary from any keys not in core_cols.
         used_keys = set(core_cols.keys())
@@ -2055,7 +2155,7 @@ class AcknowledgementMessages(BaseMessageProcessor):
             json.dumps(msg.get("tagblock_group", {})),
             msg.get("tagblock_line_count"),
             msg.get("tagblock_station"),
-            msg.get("tagblock_timestamp")
+            msg.get("tagblock_timestamp"),
         )
         return (query, params)
 
@@ -2091,7 +2191,7 @@ class SafetyMessages(BaseMessageProcessor):
             "mmsi": msg.get("mmsi"),
             "message_text": msg.get("message_text"),
             # For message 12, "addressed" is True; for 14 it is False.
-            "addressed": (msg.get("id") == 12)
+            "addressed": (msg.get("id") == 12),
         }
         used_keys = set(core_cols.keys())
         leftover = {k: v for k, v in msg.items() if k not in used_keys}
@@ -2114,7 +2214,7 @@ class SafetyMessages(BaseMessageProcessor):
             json.dumps(msg.get("tagblock_group", {})),
             msg.get("tagblock_line_count"),
             msg.get("tagblock_station"),
-            msg.get("tagblock_timestamp")
+            msg.get("tagblock_timestamp"),
         )
         return (query, params)
 
@@ -2194,16 +2294,18 @@ class SarAircraftMessages(BaseMessageProcessor):
 
         return (query, params)
 
-    def search(self,
-               mmsi: Optional[Union[int, List[int]]] = None,
-               conn: Optional[duckdb.DuckDBPyConnection] = None,
-               start_date: Optional[str] = None,
-               end_date: Optional[str] = None,
-               polygon_bounds: Optional[str] = None,
-               min_altitude: Optional[int] = None,
-               max_altitude: Optional[int] = None,
-               min_sog: Optional[float] = None,
-               max_sog: Optional[float] = None) -> gpd.GeoDataFrame:
+    def search(
+        self,
+        mmsi: Optional[Union[int, List[int]]] = None,
+        conn: Optional[duckdb.DuckDBPyConnection] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        polygon_bounds: Optional[str] = None,
+        min_altitude: Optional[int] = None,
+        max_altitude: Optional[int] = None,
+        min_sog: Optional[float] = None,
+        max_sog: Optional[float] = None,
+    ) -> gpd.GeoDataFrame:
         """
         Search SAR Aircraft data (Message 9) with optional filters.
 
@@ -2277,7 +2379,8 @@ class SarAircraftMessages(BaseMessageProcessor):
                 params.append(max_sog)
 
             logger.info(
-                f"Executing SAR Aircraft (Message 9) query: {query} with params {params}")
+                f"Executing SAR Aircraft (Message 9) query: {query} with params {params}"
+            )
             df = cached_query(conn, query, params, return_df=True)
             if df.empty:
                 return gpd.GeoDataFrame(columns=["geometry"])
@@ -2370,15 +2473,16 @@ class UtcDateMessages(BaseMessageProcessor):
 
         return (query, params)
 
-    def search(self,
-               msg_id: Optional[int] = None,  # 10 or 11
-               mmsi: Optional[Union[int, List[int]]] = None,
-               dest_mmsi: Optional[Union[int, List[int]]] = None,  # for msg 10
-               start_date: Optional[str] = None,
-               end_date: Optional[str] = None,
-               polygon_bounds: Optional[str] = None,
-               conn: Optional[duckdb.DuckDBPyConnection] = None
-               ) -> gpd.GeoDataFrame:
+    def search(
+        self,
+        msg_id: Optional[int] = None,  # 10 or 11
+        mmsi: Optional[Union[int, List[int]]] = None,
+        dest_mmsi: Optional[Union[int, List[int]]] = None,  # for msg 10
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        polygon_bounds: Optional[str] = None,
+        conn: Optional[duckdb.DuckDBPyConnection] = None,
+    ) -> gpd.GeoDataFrame:
         """
         Search UTC/Date messages (Message 10 or 11).
 
@@ -2410,8 +2514,8 @@ class UtcDateMessages(BaseMessageProcessor):
                 if isinstance(mmsi, int):
                     query += " AND mmsi = ?"
                     params.append(mmsi)
-                elif (isinstance(mmsi, list) and all(
-                    isinstance(x, int) for x in mmsi)):
+                elif isinstance(mmsi, list) and all(
+                    isinstance(x, int) for x in mmsi):
                     placeholders = ", ".join(["?"] * len(mmsi))
                     query += f" AND mmsi IN ({placeholders})"
                     params.extend(mmsi)
@@ -2423,8 +2527,9 @@ class UtcDateMessages(BaseMessageProcessor):
                 if isinstance(dest_mmsi, int):
                     query += " AND dest_mmsi = ?"
                     params.append(dest_mmsi)
-                elif (isinstance(dest_mmsi, list) and all(
-                    isinstance(x, int) for x in dest_mmsi)):
+                elif isinstance(dest_mmsi, list) and all(
+                    isinstance(x, int) for x in dest_mmsi
+                ):
                     placeholders = ", ".join(["?"] * len(dest_mmsi))
                     query += f" AND dest_mmsi IN ({placeholders})"
                     params.extend(dest_mmsi)
@@ -2451,7 +2556,8 @@ class UtcDateMessages(BaseMessageProcessor):
                 params.append(polygon_bounds)
 
             logger.info(
-                f"Executing UTC/Date (10/11) query: {query} with params: {params}")
+                f"Executing UTC/Date (10/11) query: {query} with params: {params}"
+            )
             df = cached_query(conn, query, params, True)
             if df.empty:
                 return gpd.GeoDataFrame(columns=["geometry"])
@@ -2552,7 +2658,6 @@ class SystemManagementMessages(BaseMessageProcessor):
             msg.get("id"),
             msg.get("repeat_indicator"),
             msg.get("mmsi"),
-
             # Message 15 fields
             msg.get("mmsi_1"),
             msg.get("msg_1_1"),
@@ -2562,7 +2667,6 @@ class SystemManagementMessages(BaseMessageProcessor):
             msg.get("mmsi_2"),
             msg.get("msg_2"),
             msg.get("slot_offset_2"),
-
             # Message 16 fields
             msg.get("dest_mmsi_a"),
             msg.get("offset_a"),
@@ -2570,15 +2674,12 @@ class SystemManagementMessages(BaseMessageProcessor):
             msg.get("dest_mmsi_b"),
             msg.get("offset_b"),
             msg.get("inc_b"),
-
             # Message 17 fields
             msg.get("x"),
             msg.get("y"),
-
             # Message 20 fields (array of reservations)
             json.dumps(msg.get("reservations")) if msg.get(
                 "reservations") else None,
-
             # Message 22 fields
             msg.get("chan_a"),
             msg.get("chan_b"),
@@ -2591,7 +2692,6 @@ class SystemManagementMessages(BaseMessageProcessor):
             msg.get("chan_a_bandwidth"),
             msg.get("chan_b_bandwidth"),
             msg.get("zone_size"),
-
             # Message 23 fields
             msg.get("x1_23"),
             msg.get("y1_23"),
@@ -2601,13 +2701,11 @@ class SystemManagementMessages(BaseMessageProcessor):
             msg.get("type_and_cargo"),
             msg.get("interval_raw"),
             msg.get("quiet"),
-
             # spares
             msg.get("spare"),
             msg.get("spare2"),
             msg.get("spare3"),
             msg.get("spare4"),
-
             # Tagblock
             json.dumps(msg.get("tagblock_group")),
             msg.get("tagblock_line_count"),
@@ -2623,7 +2721,7 @@ class SystemManagementMessages(BaseMessageProcessor):
         mmsi: Optional[Union[int, List[int]]] = None,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
-        conn: Optional[duckdb.DuckDBPyConnection] = None
+        conn: Optional[duckdb.DuckDBPyConnection] = None,
     ) -> gpd.GeoDataFrame:
         """
         Return a minimal query on system management messages (15,16,17,20,22,23)
@@ -2661,8 +2759,8 @@ class SystemManagementMessages(BaseMessageProcessor):
                 if isinstance(mmsi, int):
                     query += " AND mmsi = ?"
                     params.append(mmsi)
-                elif (isinstance(mmsi, list)
-                      and all(isinstance(i, int) for i in mmsi)):
+                elif isinstance(mmsi, list) and all(
+                    isinstance(i, int) for i in mmsi):
                     placeholders = ", ".join(["?"] * len(mmsi))
                     query += f" AND mmsi IN ({placeholders})"
                     params.extend(mmsi)
@@ -2671,15 +2769,13 @@ class SystemManagementMessages(BaseMessageProcessor):
 
             if start_date:
                 start_ts = date_to_tagblock_timestamp(
-                    *map(int, start_date.split("-"))
-                )
+                    *map(int, start_date.split("-")))
                 query += " AND tagblock_timestamp >= ?"
                 params.append(start_ts)
 
             if end_date:
                 end_ts = date_to_tagblock_timestamp(
-                    *map(int, end_date.split("-"))
-                )
+                    *map(int, end_date.split("-")))
                 query += " AND tagblock_timestamp <= ?"
                 params.append(end_ts)
 

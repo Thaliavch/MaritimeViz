@@ -1,5 +1,5 @@
 """Console script for maritimeviz."""
-import maritimeviz
+
 
 import typer
 from rich.console import Console
@@ -13,7 +13,6 @@ def main():
     """Console script for maritimeviz."""
     console.print("Hello from maritimeviz!")
     console.print("See Typer documentation at https://typer.tiangolo.com/")
-
 
 
 if __name__ == "__main__":

@@ -7,8 +7,14 @@ import pandas as pd
 from typing import Optional, Union, List
 import geopandas as gpd
 
+
 # TODO(Thalia): thinking about renaming these two
-def cached_query(conn: duckdb.DuckDBPyConnection, query: str, params: Optional[Union[List, tuple]], df: bool = False) -> Union[pd.DataFrame, List]:
+def cached_query(
+    conn: duckdb.DuckDBPyConnection,
+    query: str,
+    params: Optional[Union[List, tuple]],
+    df: bool = False,
+) -> Union[pd.DataFrame, List]:
     """
     Wrapper function for call_in_cached_query to handle conversion before caching
     """
@@ -20,7 +26,9 @@ def cached_query(conn: duckdb.DuckDBPyConnection, query: str, params: Optional[U
 
 
 @cache
-def call_in_cached_query(conn: duckdb.DuckDBPyConnection, query: str, params: tuple, df: bool = False) -> Union[pd.DataFrame, List]:
+def call_in_cached_query(
+    conn: duckdb.DuckDBPyConnection, query: str, params: tuple, df: bool = False
+) -> Union[pd.DataFrame, List]:
     """
     Execute an SQL query on the given DuckDB connection with caching.
 
@@ -44,7 +52,12 @@ def call_in_cached_query(conn: duckdb.DuckDBPyConnection, query: str, params: tu
     """
     if not params:
         return conn.execute(query).fetchdf() if df else conn.execute(query).fetchall()
-    return conn.execute(query, params).fetchdf() if df else conn.execute(query, params).fetchall()
+    return (
+        conn.execute(query, params).fetchdf()
+        if df
+        else conn.execute(query, params).fetchall()
+    )
+
 
 def estimate_lines_by_size(file_path, avg_bytes_per_line=90):
     """
@@ -79,10 +92,10 @@ def optimal_threading_stats(ais_file, cpu_cores=None, min_chunk_size=500):
         cpu_cores = os.cpu_count() or 4  # Default to 4 cores if unavailable
 
         # Ensure minimum lines per chunk to avoid too many threads
-        max_chunks = min(total_lines // min_chunk_size,
-                         cpu_cores * 4)  # Allow threads to oversubscribe slightly
-        optimal_threads = min(cpu_cores,
-                              max_chunks)  # Use no more threads than chunks
+        max_chunks = min(
+            total_lines // min_chunk_size, cpu_cores * 4
+        )  # Allow threads to oversubscribe slightly
+        optimal_threads = min(cpu_cores, max_chunks)  # Use no more threads than chunks
 
         # Calculate chunk size based on the number of threads
         chunk_size = max(min_chunk_size, total_lines // optimal_threads)
@@ -92,6 +105,7 @@ def optimal_threading_stats(ais_file, cpu_cores=None, min_chunk_size=500):
     except:
         logger.error("Using default: {threads: 4, chunk_size: 500}")
         return 4, 500
+
 
 def split_file_generator(file_path, chunk_size=500):
     """
@@ -106,6 +120,8 @@ def split_file_generator(file_path, chunk_size=500):
                 chunk = []
         if chunk:  # Yield any remaining lines
             yield chunk
+
+
 # TODO(Thalia): get rid of it once tests pass for refactored code
 # def process_chunk_to_db(conn, chunk):
 #     """
@@ -119,6 +135,7 @@ def split_file_generator(file_path, chunk_size=500):
 #                 insert_msg_to_db(conn, msg)  # Insert message into database
 #         except Exception as e:
 #             logger.error(f"Error processing message: {msg} - {e}")
+
 
 def date_to_tagblock_timestamp(year, month, day, hour=0, minute=0, second=0):
     """
@@ -143,6 +160,7 @@ def date_to_tagblock_timestamp(year, month, day, hour=0, minute=0, second=0):
 
     return timestamp
 
+
 # May need this for testing, so probably will be moved to a testing utils file
 def tagblock_timestamp_to_date(tagblock_timestamp):
     """
@@ -162,7 +180,10 @@ def tagblock_timestamp_to_date(tagblock_timestamp):
 
     return readable_time
 
-def merge_dfs(dfs: List[pd.DataFrame], as_geodf: bool = True) -> Union[pd.DataFrame, gpd.GeoDataFrame]:
+
+def merge_dfs(
+    dfs: List[pd.DataFrame], as_geodf: bool = True
+) -> Union[pd.DataFrame, gpd.GeoDataFrame]:
     """
     Merge a list of AIS DataFrames into a single DataFrame or GeoDataFrame.
 
@@ -203,4 +224,3 @@ def guess_vessel_type(mmsi: int) -> str:
         str: "A" if the vessel is likely Class A, "B" if it is likely Class B (SO).
     """
     return "B" if 980000000 <= mmsi <= 983999999 else "A"
-

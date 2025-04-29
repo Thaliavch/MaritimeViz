@@ -6,6 +6,7 @@ If a token for a given key isn’t found, the user is prompted to enter it,
 and it is saved for use along all the modules.
 
 """
+
 import os
 import getpass
 from dotenv import load_dotenv, set_key

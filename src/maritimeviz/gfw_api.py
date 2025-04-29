@@ -1,4 +1,5 @@
 """Main module."""
+
 import os
 
 import folium
@@ -29,14 +30,14 @@ class GFW_api:
             self._token = token
         else:
             self._token = load_or_get_token(GFW)
-        print(
-            "Powered by Global Fishing Watch. https://globalfishingwatch.org/")
+        print("Powered by Global Fishing Watch. https://globalfishingwatch.org/")
 
     @property
     def token(self):
         """Prevent direct access to the token."""
         raise AttributeError(
-            "Access to the API token is restricted for security reasons.")
+            "Access to the API token is restricted for security reasons."
+        )
 
     @token.setter
     def token(self, new_token):
@@ -58,11 +59,10 @@ class GFW_api:
         url = f"{self.BASE_URL}/{endpoint}"
         headers = {
             "Authorization": f"Bearer {self._token}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
 
         try:
-
             if endpoint == "4wings/generate-png":
                 response = requests.post(url, params=payload, headers=headers)
             else:
@@ -88,7 +88,8 @@ class GFW_api:
         # Check if the request is already cached
         if cache_key in self._cache:
             print(
-                f"\nData fetched from cache. Cache key: {cache_key}\n")  # For debugging purposes
+                f"\nData fetched from cache. Cache key: {cache_key}\n"
+            )  # For debugging purposes
             return self._cache[cache_key]
 
         url = f"{self.BASE_URL}/{endpoint}"
@@ -110,8 +111,10 @@ class GFW_api:
         :param identifier: MMSI (9-digit number) or IMO (7-digit number).
         :return: JSON response with vessel details.
         """
-        params = {"query": identifier,
-                  "datasets[0]": "public-global-vessel-identity:latest"}
+        params = {
+            "query": identifier,
+            "datasets[0]": "public-global-vessel-identity:latest",
+        }
 
         response = self._get_request(self.VESSEL_API_ENDPOINT, params)
 
@@ -120,8 +123,7 @@ class GFW_api:
             return response["entries"]  # List of vessels matching the query
         return None
 
-    def get_fishing_events(self, vessel_id, start_date, end_date, limit=10,
-                           offset=0):
+    def get_fishing_events(self, vessel_id, start_date, end_date, limit=10, offset=0):
         """
         Get fishing events for a specific vessel and return structured output.
         Includes structured DataFrame, charts, and maps.
@@ -139,7 +141,7 @@ class GFW_api:
             "start-date": start_date,
             "end-date": end_date,
             "limit": limit,
-            "offset": offset
+            "offset": offset,
         }
 
         data = self._get_request(self.EVENTS_API_ENDPOINT, params)
@@ -151,22 +153,28 @@ class GFW_api:
         # Extract relevant fishing event details
         events_data = []
         for event in data["entries"]:
-            events_data.append({
-                "Event ID": event.get("id"),
-                "Type": event.get("type"),
-                "Start Time": event.get("start"),
-                "End Time": event.get("end"),
-                "Latitude": event["position"][
-                    "lat"] if "position" in event else None,
-                "Longitude": event["position"][
-                    "lon"] if "position" in event else None,
-                "EEZ": event["regions"]["eez"] if "regions" in event else [],
-                "RFMO": event["regions"]["rfmo"] if "regions" in event else [],
-                "Total Distance (km)": event["fishing"][
-                    "totalDistanceKm"] if "fishing" in event else None,
-                "Avg Speed (knots)": event["fishing"][
-                    "averageSpeedKnots"] if "fishing" in event else None
-            })
+            events_data.append(
+                {
+                    "Event ID": event.get("id"),
+                    "Type": event.get("type"),
+                    "Start Time": event.get("start"),
+                    "End Time": event.get("end"),
+                    "Latitude": event["position"]["lat"]
+                    if "position" in event
+                    else None,
+                    "Longitude": event["position"]["lon"]
+                    if "position" in event
+                    else None,
+                    "EEZ": event["regions"]["eez"] if "regions" in event else [],
+                    "RFMO": event["regions"]["rfmo"] if "regions" in event else [],
+                    "Total Distance (km)": event["fishing"]["totalDistanceKm"]
+                    if "fishing" in event
+                    else None,
+                    "Avg Speed (knots)": event["fishing"]["averageSpeedKnots"]
+                    if "fishing" in event
+                    else None,
+                }
+            )
 
         df = pd.DataFrame(events_data)
 
@@ -189,8 +197,8 @@ class GFW_api:
         for _, row in df.iterrows():
             folium.Marker(
                 location=[row["Latitude"], row["Longitude"]],
-                popup=f'Event ID: {row["Event ID"]}\nType: {row["Type"]}',
-                icon=folium.Icon(color="blue", icon="info-sign")
+                popup=f"Event ID: {row['Event ID']}\nType: {row['Type']}",
+                icon=folium.Icon(color="blue", icon="info-sign"),
             ).add_to(fishing_map)
 
         return fishing_map
@@ -209,8 +217,7 @@ class GFW_api:
         fishing_map = folium.Map(location=[lat, lon], zoom_start=4)
 
         # Add Heatmap Layer
-        heat_data = [[row["Latitude"], row["Longitude"]] for _, row in
-                     df.iterrows()]
+        heat_data = [[row["Latitude"], row["Longitude"]] for _, row in df.iterrows()]
         HeatMap(heat_data).add_to(fishing_map)
 
         return fishing_map
@@ -229,7 +236,7 @@ class GFW_api:
         params = {
             "datasets[0]": "public-global-fishing-effort:latest",
             "date-range": f"{start_date},{end_date}",
-            "fields": "FLAGS,VESSEL-IDS,ACTIVITY-HOURS"
+            "fields": "FLAGS,VESSEL-IDS,ACTIVITY-HOURS",
         }
 
         if wkt_polygon:
@@ -259,7 +266,7 @@ class GFW_api:
             "includes": ["FISHING"],
             "startDate": start_date,
             "endDate": end_date,
-            "vessels": vessels
+            "vessels": vessels,
         }
 
         data = self._post_request(self.INSIGHTS_API_ENDPOINT, payload)
@@ -272,8 +279,9 @@ class GFW_api:
             return None
 
     # EXAMPLE 1: AIS APPARENT FISHING EFFORT - GENERATE PNG TILES WITH TEMPORAL FILTER
-    def generate_fishing_effort_png_tiles(self, interval, dataset, color,
-                                          start_date, end_date):
+    def generate_fishing_effort_png_tiles(
+        self, interval, dataset, color, start_date, end_date
+    ):
         """
         Generates PNG tiles of fishing effort.
 
@@ -288,7 +296,7 @@ class GFW_api:
             "interval": interval,
             "datasets[0]": dataset,
             "color": color,
-            "date-range": f"{start_date},{end_date}"
+            "date-range": f"{start_date},{end_date}",
         }
 
         data = self._post_request(self.GENERATE_PNG_API_ENDPOINT, params)

@@ -1,6 +1,7 @@
 """
 Universal constants, variables and user defined data types
 """
+
 from typing import TypedDict, List, Union
 from enum import Enum
 
@@ -8,17 +9,48 @@ from enum import Enum
 Table Columns
 """
 AIS_MSG_123_COLUMNS = [
-    "id", "repeat_indicator", "mmsi", "nav_status", "rot_over_range", "rot",
-    "sog", "position_accuracy", "x", "y", "cog", "true_heading", "timestamp",
-    "special_manoeuvre", "spare", "raim", "sync_state", "slot_timeout",
-    "received_stations", "tagblock_group", "tagblock_line_count",
-    "tagblock_station", "tagblock_timestamp"
+    "id",
+    "repeat_indicator",
+    "mmsi",
+    "nav_status",
+    "rot_over_range",
+    "rot",
+    "sog",
+    "position_accuracy",
+    "x",
+    "y",
+    "cog",
+    "true_heading",
+    "timestamp",
+    "special_manoeuvre",
+    "spare",
+    "raim",
+    "sync_state",
+    "slot_timeout",
+    "received_stations",
+    "tagblock_group",
+    "tagblock_line_count",
+    "tagblock_station",
+    "tagblock_timestamp",
 ]
 AIS_MSG_5_COLUMNS = [
-    "id", "repeat_indicator", "mmsi", "ais_version", "imo", "call_sign",
-    "ship_name", "type_of_ship_and_cargo", "to_bow", "to_stern", "to_port",
-    "to_starboard", "position_fixing_device", "eta",
-    "max_present_static_draught", "destination", "dte"
+    "id",
+    "repeat_indicator",
+    "mmsi",
+    "ais_version",
+    "imo",
+    "call_sign",
+    "ship_name",
+    "type_of_ship_and_cargo",
+    "to_bow",
+    "to_stern",
+    "to_port",
+    "to_starboard",
+    "position_fixing_device",
+    "eta",
+    "max_present_static_draught",
+    "destination",
+    "dte",
 ]
 
 # Queries for database table creation
@@ -461,7 +493,7 @@ QUERY_CREATE_TABLE_15_16_17_20_22_23 = """
         );
         """
 
-#********************************************************
+# ********************************************************
 
 QUERY_CREATE_GLOBAL_DYNAMIC_VIEW = """
             CREATE OR REPLACE VIEW global_ais_dynamic AS
@@ -683,58 +715,98 @@ QUERY_CREATE_GLOBAL_VIEW = """
             """
 
 # List of all table creation queries
-DATABASE_TYPE_A_TABLE_CREATION_QUERIES = [QUERY_CREATE_TABLE_1_2_3, QUERY_CREATE_TABLE_5]
-DATABASE_TYPE_B_TABLE_CREATION_QUERIES = [QUERY_CREATE_TABLE_18_19, QUERY_CREATE_TABLE_24]
-DATABASE_ASM_CREATION_QUERIES = [QUERY_CREATE_TABLE_6,QUERY_CREATE_TABLE_8, QUERY_CREATE_TABLE_25_26]
-DATABASE_STANDALONE_MULTIPURPOSE_CREATION_QUERY = [QUERY_CREATE_TABLE_27,\
-                                                  QUERY_CREATE_TABLE_21, \
-                                                   QUERY_CREATE_TABLE_4, \
-                                                   QUERY_CREATE_TABLE_9, \
-                                                   QUERY_CREATE_TABLE_10_11, \
-                                                   QUERY_CREATE_TABLE_15_16_17_20_22_23] # 27 for long range broadcasting, 21 for aid to navigation, 4 for Base Station Report
-DATABASE_SAFETY_ACK_TABLE_CREATION_QUERIES = [QUERY_CREATE_TABLE_7_13, QUERY_CREATE_TABLE_12_14]
+DATABASE_TYPE_A_TABLE_CREATION_QUERIES = [
+    QUERY_CREATE_TABLE_1_2_3,
+    QUERY_CREATE_TABLE_5,
+]
+DATABASE_TYPE_B_TABLE_CREATION_QUERIES = [
+    QUERY_CREATE_TABLE_18_19,
+    QUERY_CREATE_TABLE_24,
+]
+DATABASE_ASM_CREATION_QUERIES = [
+    QUERY_CREATE_TABLE_6,
+    QUERY_CREATE_TABLE_8,
+    QUERY_CREATE_TABLE_25_26,
+]
+DATABASE_STANDALONE_MULTIPURPOSE_CREATION_QUERY = [
+    QUERY_CREATE_TABLE_27,
+    QUERY_CREATE_TABLE_21,
+    QUERY_CREATE_TABLE_4,
+    QUERY_CREATE_TABLE_9,
+    QUERY_CREATE_TABLE_10_11,
+    QUERY_CREATE_TABLE_15_16_17_20_22_23,
+]  # 27 for long range broadcasting, 21 for aid to navigation, 4 for Base Station Report
+DATABASE_SAFETY_ACK_TABLE_CREATION_QUERIES = [
+    QUERY_CREATE_TABLE_7_13,
+    QUERY_CREATE_TABLE_12_14,
+]
 
-DATABASE_ALL_TABLE_CREATION_QUERIES = DATABASE_TYPE_A_TABLE_CREATION_QUERIES \
-                                      + DATABASE_TYPE_B_TABLE_CREATION_QUERIES \
-                                      + DATABASE_ASM_CREATION_QUERIES \
-                                      + DATABASE_STANDALONE_MULTIPURPOSE_CREATION_QUERY \
-                                      + DATABASE_SAFETY_ACK_TABLE_CREATION_QUERIES
+DATABASE_ALL_TABLE_CREATION_QUERIES = (
+    DATABASE_TYPE_A_TABLE_CREATION_QUERIES
+    + DATABASE_TYPE_B_TABLE_CREATION_QUERIES
+    + DATABASE_ASM_CREATION_QUERIES
+    + DATABASE_STANDALONE_MULTIPURPOSE_CREATION_QUERY
+    + DATABASE_SAFETY_ACK_TABLE_CREATION_QUERIES
+)
 
 
-
-DATABASE_ALL_VIEWS_CREATION_QUERIES = [QUERY_CREATE_GLOBAL_DYNAMIC_VIEW, QUERY_CREATE_GLOBAL_STATIC_VIEW, QUERY_CREATE_GLOBAL_VIEW]
+DATABASE_ALL_VIEWS_CREATION_QUERIES = [
+    QUERY_CREATE_GLOBAL_DYNAMIC_VIEW,
+    QUERY_CREATE_GLOBAL_STATIC_VIEW,
+    QUERY_CREATE_GLOBAL_VIEW,
+]
 
 ALLOWED_FILTER_KEYS = {
-     "mmsi", "start_date", "end_date", "polygon_bounds",
-     "min_velocity", "max_velocity", "direction",
-     "min_turn_rate", "max_turn_rate"
- }
+    "mmsi",
+    "start_date",
+    "end_date",
+    "polygon_bounds",
+    "min_velocity",
+    "max_velocity",
+    "direction",
+    "min_turn_rate",
+    "max_turn_rate",
+}
 
 ALLOWED_FILTER_KEYS_CLASS_A = {
-    "mmsi", "start_date", "end_date", "polygon_bounds",
-    "min_velocity", "max_velocity", "direction",
-    "min_turn_rate", "max_turn_rate"
+    "mmsi",
+    "start_date",
+    "end_date",
+    "polygon_bounds",
+    "min_velocity",
+    "max_velocity",
+    "direction",
+    "min_turn_rate",
+    "max_turn_rate",
 }
 
 ALLOWED_FILTER_KEYS_CLASS_B = {
-    "mmsi", "start_date", "end_date", "polygon_bounds",
-    "min_velocity", "max_velocity", "direction"
+    "mmsi",
+    "start_date",
+    "end_date",
+    "polygon_bounds",
+    "min_velocity",
+    "max_velocity",
+    "direction",
 }
 
-class FilterCriteria(TypedDict, total=False): # total set to False to make all fields optional
+
+class FilterCriteria(
+    TypedDict, total=False
+):  # total set to False to make all fields optional
     mmsi: Union[int, List[int]]
     start_date: str
     end_date: str
     polygon_bounds: str
-    min_velocity: float      # Minimum speed (sog)
-    max_velocity: float      # Maximum speed (sog)
-    direction: str           # Cardinal direction filter ("N", "E", "S", "W")
-    min_turn_rate: float     # Minimum rate of turn (rot)
-    max_turn_rate: float     # Maximum rate of turn (rot)
+    min_velocity: float  # Minimum speed (sog)
+    max_velocity: float  # Maximum speed (sog)
+    direction: str  # Cardinal direction filter ("N", "E", "S", "W")
+    min_turn_rate: float  # Minimum rate of turn (rot)
+    max_turn_rate: float  # Maximum rate of turn (rot)
+
 
 # enum for message types TODO(Thalia): get rid of it if not used after refactoring
 class MessageType(Enum):
     A = "A"
     B = "B"
     C = "C"
-
