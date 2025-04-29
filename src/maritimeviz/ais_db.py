@@ -1011,7 +1011,8 @@ class ClassBMessages(BaseMessageProcessorPositionReport):
                     dsc_flag, band_flag, m22_flag, mode_flag, raim, commstate_flag,
                     commstate_cs_fill, tagblock_group, tagblock_line_count, tagblock_station,
                     tagblock_timestamp
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,\
+                 ?, ?, ?, ?, ?, ?, ?);
             """
             params = (
                 msg.get("id"),
@@ -1306,7 +1307,8 @@ class LongRangeMessages(BaseMessageProcessorPositionReport):
             query = "SELECT * FROM ais_msg_27 WHERE 1=1"
             params = []
 
-            # Apply stored filter if set (stored filter values are used unless explicitly overridden)
+            # Apply stored filter if set (stored filter values are used unless
+            # explicitly overridden)
             if self._filter:
                 mmsi = mmsi or self._filter.get("mmsi")
                 start_date = start_date or self._filter.get("start_date")
